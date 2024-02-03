@@ -1,0 +1,54 @@
+authors:
+  semfealumni:
+    name: Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ
+    description: SEMFE Alumni
+    avatar: ../../../../../assets/logos/semfe_alumni_logo.jpg
+  dimitris-k:
+    name: Δημήτρης Κάραλης
+    description: Πρόεδρος
+    avatar: ../../../../../assets/pictures/profiles/karalis.jpeg
+    url: https://www.linkedin.com/in/dimitris-k
+  evangelos-almpanis:
+    name: Βαγγέλης Αλμπάνης
+    description: Αντιπρόεδρος
+    avatar: ../../../../../assets/pictures/profiles/almpanis.jpeg
+    url: https://www.linkedin.com/in/evangelos-almpanis
+  aliki-stergiou:
+    name: Αλίκη Στεργίου
+    description: Γενική Γραμματέας
+    avatar: ../../../../../assets/pictures/profiles/stergiou.jpeg
+    url: https://www.linkedin.com/in/aliki-stergiou-081a5a16/
+  stouras:
+    name: Κωνσταντίνος Στούρας
+    description: Ταμίας
+    avatar: ../../../../../assets/pictures/profiles/stouras.jpeg
+    url: https://www.linkedin.com/in/stouras/
+  evangelidi:
+    name: Σοφία Ευαγγελίδη
+    description: Μέλος Διοικητικού Συμβουλίου
+    avatar: ../../../../../assets/pictures/profiles/evangelidi.jpeg
+  palasso:
+    name: Βασίλης Παλασσόπουλος
+    description: Αναπληρωματικό Μέλος Διοικητικού Συμβουλίου
+    avatar: ../../../../../assets/pictures/profiles/palassopoulos.jpeg
+    url: https://www.linkedin.com/in/palasso/
+  georgiosmanginas:
+    name: Γιώργος Μαγγίνας
+    description: Αναπληρωματικό Μέλος Διοικητικού Συμβουλίου
+    avatar: ../../../../../assets/pictures/profiles/manginas.jpeg
+    url: https://www.linkedin.com/in/georgiosmanginas/
+  eleftherioselmalis:
+    name: Λευτέρης Ελμαλής
+    description: Μέλος Εξελεγκτικής Επιτροπής
+    avatar: ../../../../../assets/pictures/profiles/elmalis.jpeg
+    url: https://www.linkedin.com/in/eleftherioselmalis/
+  vayiapanagiotidis:
+    name: Βάγια Παναγιωτίδη
+    description: Μέλος Εξελεγκτικής Επιτροπής
+    avatar: ../../../../../assets/pictures/profiles/panagiotidi.jpeg
+    url: https://www.linkedin.com/in/vayiapanagiotidis/
+  miltiades-chasapladakis:
+    name: Μιλτιάδης Χασαπλαδάκης
+    description: Μέλος Εξελεγκτικής Επιτροπής
+    avatar: ../../../../../assets/pictures/profiles/chasapladakis.jpeg
+    url: https://www.linkedin.com/in/miltiades-chasapladakis-28723085/

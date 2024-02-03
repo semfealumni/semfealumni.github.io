@@ -1,0 +1,16 @@
+# Caches
+.cache
+
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Poetry
+dist
+
+# Environments
+.env
+.venv
+env/
+venv/
