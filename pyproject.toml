@@ -1,6 +1,6 @@
 [project]
-# Support Python 3.11+.
-requires-python = ">=3.11"
+# Support Python 3.10+.
+requires-python = ">=3.10"
 
 [build-system]
 requires = ["poetry-core"]
@@ -17,7 +17,7 @@ license = ""
 authors = []
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.10"
 mkdocs = "^1.5"
 mkdocs-material = { version = "^9.5", extras = ["imaging"] }
 mkdocs-gen-files = "^0.5"
