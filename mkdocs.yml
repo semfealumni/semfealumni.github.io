@@ -58,7 +58,7 @@ theme:
 extra:
   social:
     - icon: fontawesome/brands/linkedin 
-      link: https://www.linkedin.com/company/76336418
+      link: https://www.linkedin.com/company/semfe-alumni
     - icon: fontawesome/brands/facebook
       link: https://www.facebook.com/semfealumni/
     - icon: fontawesome/brands/youtube
@@ -109,8 +109,12 @@ plugins:
 # Page tree
 nav:
   - Σύλλογος: index.md
-  - Αρχείο: archive.md
+  - Ίδρυση: founding.md
+  - Όργανα του Συλλόγου: organa.md
   - Διοίκηση: governance.md
-  - Συνδρομές: support.md
+  - Αρχείο: archive.md
   - Φωτοθήκη: fotothiki.md
+  - Εγγραφές και δωρεές: support.md
   - Ανακοινώσεις: blog/index.md
+  - Συχνές Ερωτήσεις: FAQ.md
+  - Επικοινωνία: contact.md
