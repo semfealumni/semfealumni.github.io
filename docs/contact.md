@@ -6,5 +6,5 @@ hide:
 
 # Επικοινωνία
 
-- Βρείτε μας στα αντίστοιχα sites κοινωνικής δικτύωσης (LinkedIn page, facebook page και youtube channel).
+- Βρείτε μας στα αντίστοιχα sites κοινωνικής δικτύωσης: [:fontawesome-brands-linkedin:{ .linkedin }](https://www.linkedin.com/company/semfe-alumni) [:fontawesome-brands-facebook:{ .facebook }](https://www.facebook.com/semfealumni/) [:fontawesome-brands-youtube:{ .youtube }](https://www.youtube.com/channel/UCbOuoyzKFixLZTmKaeM7eVQ/)
 - Αν θέλετε να επικοινωνήσετε μαζί μας, συμβουλευτείτε πρώτα τις [Συχνές Ερωτήσεις](FAQ.md)· πολύ πιθανόν η ερώτησή σας να έχει ήδη απαντηθεί εκεί! Διαφορετικά, [συμπληρώστε τη φόρμα με τα στοιχεία σας](https://docs.google.com/forms/viewform?hl=el&id=1rZeseSmD0GuyX7PXSSkZcFyuDejSqNe7hMxCUdFja-8) και θα σας απαντήσουμε το συντομότερο δυνατόν.
