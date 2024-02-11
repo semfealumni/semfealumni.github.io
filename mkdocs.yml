@@ -58,11 +58,11 @@ theme:
 extra:
   social:
     - icon: fontawesome/brands/linkedin 
-      link: https://www.linkedin.com/company/semfe-alumni
+      link: https://www.linkedin.com/company/semfealumni
     - icon: fontawesome/brands/facebook
-      link: https://www.facebook.com/semfealumni/
+      link: https://www.facebook.com/semfealumni
     - icon: fontawesome/brands/youtube
-      link: https://www.youtube.com/channel/UCbOuoyzKFixLZTmKaeM7eVQ/
+      link: https://www.youtube.com/@semfealumni
   generator: false
 
 copyright: Copyright &copy; 2013 - 2024 Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ
