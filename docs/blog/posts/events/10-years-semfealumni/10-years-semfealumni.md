@@ -47,3 +47,5 @@ categories:
 *Το Δ.Σ. του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ*<br/>
 *website: [semfealumni.gr](https://semfealumni.gr)*<br/>
 *email: [gradsemfe@gmail.com](mailto:gradsemfe@gmail.com)*
+
+![IMG](10-years-semfealumni-poster.jpg){ width=600 height=800 }
