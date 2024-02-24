@@ -7,7 +7,7 @@ extra_css:
 
 theme:
   name: "material"
-  custom_dir: overrides
+  # custom_dir: overrides For adding a banner check: https://github.com/squidfunk/mkdocs-material/discussions/3355
   features:
     - navigation.indexes
     # - navigation.footer
