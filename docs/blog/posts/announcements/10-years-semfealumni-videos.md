@@ -1,7 +1,7 @@
 ---
 draft: false
 title: Ομιλίες από την εκδήλωση “10 χρόνια Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ”
-date: 2024-02-11
+date: 2024-02-29
 authors: [semfealumni]
 slug: 10-years-semfealumni-videos
 description: >
