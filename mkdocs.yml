@@ -109,7 +109,7 @@ plugins:
 # Page tree
 nav:
   - Σύλλογος: index.md
-  - Ίδρυση: founding.md
+  - Επαγγελματική Κατοχύρωση: professional_certification.md
   - Όργανα του Συλλόγου: organa.md
   - Διοίκηση: governance.md
   - Αρχείο: archive.md
