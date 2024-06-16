@@ -6,14 +6,12 @@ requires-python = ">=3.11"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-# Add more settings from tools that add support for `pyproject.toml`
-# https://github.com/carlosperate/awesome-pyproject
-
 [tool.poetry]
 name = "semfealumni"
-version = "2024.2.3"
+version = "2024.6.16"
 description = ""
 license = ""
+package-mode = false
 authors = []
 
 [tool.poetry.dependencies]
