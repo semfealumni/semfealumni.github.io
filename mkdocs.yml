@@ -63,6 +63,8 @@ extra:
       link: https://www.facebook.com/semfealumni
     - icon: fontawesome/brands/youtube
       link: https://www.youtube.com/@semfealumni
+    - icon: fontawesome/brands/instagram
+      link: https://www.instagram.com/semfe_alumni_ntua
   generator: false
 
 copyright: Copyright &copy; 2013 - 2024 Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ

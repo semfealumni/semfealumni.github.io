@@ -12,7 +12,7 @@ hide:
 ## Κατάθεση
 
 ### Κατάθεση μέσω PayPal
-[<span style="font-size:150%;">:fontawesome-brands-paypal:{ .paypal }</span>](https://www.paypal.com/ncp/payment/GCXVRVEXJXQJE){ .md-button .md-button--primary }
+[<span style="font-size:150%;">:fontawesome-brands-paypal:{ .paypal }</span>](https://www.paypal.com/donate/?hosted_button_id=C662GULWRBQ4C){ .md-button .md-button--primary }
 
 ### Κατάθεση μέσω IBAN
 Επιλέξτε μεταφορά σε άλλη τράπεζα του εξωτερικού με επιβάρυνση μόνο των εξόδων της δικής σας τράπεζας (SHA).
