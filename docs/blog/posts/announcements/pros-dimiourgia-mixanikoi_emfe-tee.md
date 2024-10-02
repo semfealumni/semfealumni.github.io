@@ -1,6 +1,6 @@
 ---
 draft: false
-title: Ομιλίες από την εκδήλωση “10 χρόνια Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ”
+title: Προς τη δημιουργία της ειδικότητας των Μηχανικών ΕΜΦΕ μέσα στο ΤΕΕ
 date: 2024-10-02
 authors: [semfealumni]
 slug: pros-dimiourgia-mixanikoi_emfe-tee
