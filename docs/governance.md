@@ -14,7 +14,7 @@ hide:
 
 #### Κάραλης Δημήτρης
 
-[:fontawesome-brands-linkedin:{ .linkedin }dimitris-k](https://www.linkedin.com/in/dimitris-k){ .md-button }
+[:fontawesome-brands-linkedin:{ .linkedin }dimitris-k](https://www.linkedin.com/in/dimitris-karalis-80319558){ .md-button }
 
 ---
 ![Αλμπάνης Βαγγέλης](assets/pictures/profiles/almpanis.jpeg){width=150 height=150 align=left}
