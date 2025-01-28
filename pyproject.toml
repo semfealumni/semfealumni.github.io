@@ -1,26 +1,32 @@
 [project]
-# Support Python 3.11+.
-requires-python = ">=3.11"
+name = "semfealumni"
+version = "2025.1.28"
+description = ""
+license = ""
+requires-python = ">=3.11,<4"
+authors = [
+    {name = "Vassilis Palassopoulos", email = "palasso@gmail.com"},
+]
+
+dependencies = [
+    "mkdocs (>=1.6.1,<2.0.0)",
+    "mkdocs-material[imaging] (>=9.5.50,<10.0.0)",
+    "mkdocs-gen-files (>=0.5.0,<0.6.0)",
+    "mkdocs-literate-nav (>=0.6.1,<0.7.0)",
+    "mkdocs-section-index (>=0.3.9,<0.4.0)",
+    "pymdown-extensions (>=10.14.1,<11.0.0)",
+    "mkdocs-pdf (>=0.1.2,<0.2.0)",
+    "mkdocs-rss-plugin (>=1.17.1,<2.0.0)",
+]
+
+[project.urls]
+homepage = "https://semfealumni.gr/"
+repository = "https://github.com/semfealumni/semfealumni.github.io"
+"Bug Tracker" = "https://github.com/semfealumni/semfealumni.github.io/issues"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "semfealumni"
-version = "2024.6.16"
-description = ""
-license = ""
 package-mode = false
-authors = []
-
-[tool.poetry.dependencies]
-python = "^3.11"
-mkdocs = "^1.5"
-mkdocs-material = { version = "^9.5", extras = ["imaging"] }
-mkdocs-gen-files = "^0.5"
-mkdocs-literate-nav = "^0.6"
-mkdocs-section-index = "^0.3"
-pymdown-extensions = "^10.7"
-mkdocs-pdf = "^0.1"
-mkdocs-rss-plugin = "^1.12"
