@@ -1,8 +1,8 @@
 [project]
 name = "semfealumni"
 version = "2025.1.28"
-description = ""
-license = ""
+description = "The official website of the alumni association of the School of Applied Mathematical and Physical Sciences of the National Technical University of Athens."
+license = "Proprietary"
 requires-python = ">=3.11,<4"
 authors = [
     {name = "Vassilis Palassopoulos", email = "palasso@gmail.com"},
