@@ -70,17 +70,17 @@ extra:
 copyright: Copyright &copy; 2013 - 2024 Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ
 
 markdown_extensions:
-  # - pymdownx.critic
-  # - pymdownx.caret
   # - pymdownx.keys
-  # - pymdownx.mark
-  # - pymdownx.tilde
   # - pymdownx.highlight:
       # anchor_linenums: true
       # line_spans: __span
       # pygments_lang_class: true
   # - pymdownx.inlinehilite
   # - pymdownx.snippets
+  - pymdownx.caret
+  - pymdownx.mark
+  - pymdownx.tilde
+  - pymdownx.critic
   - admonition
   - pymdownx.details
   - pymdownx.superfences
@@ -111,6 +111,7 @@ plugins:
 # Page tree
 nav:
   - Σύλλογος: index.md
+  - Ανακοινώσεις: blog/index.md
   - Επαγγελματική Κατοχύρωση: professional_certification.md
   - Όργανα του Συλλόγου: organa.md
   - Διοίκηση: governance.md
@@ -119,4 +120,3 @@ nav:
   - Εγγραφές και Δωρεές: support.md
   - Συχνές Ερωτήσεις: FAQ.md
   - Επικοινωνία: contact.md
-  - Ανακοινώσεις: blog/index.md
