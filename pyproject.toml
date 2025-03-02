@@ -1,8 +1,7 @@
 [project]
 name = "semfealumni"
-version = "2025.1.28"
+version = "2025.3.2"
 description = "The official website of the alumni association of the School of Applied Mathematical and Physical Sciences of the National Technical University of Athens."
-license = "Proprietary"
 requires-python = ">=3.11,<4"
 authors = [
     {name = "Vassilis Palassopoulos", email = "palasso@gmail.com"},
@@ -25,8 +24,5 @@ repository = "https://github.com/semfealumni/semfealumni.github.io"
 "Bug Tracker" = "https://github.com/semfealumni/semfealumni.github.io/issues"
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry]
-package-mode = false
+requires = ["hatchling"]
+build-backend = "hatchling.build"

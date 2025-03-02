@@ -1,9 +1,12 @@
 # Website of semfealumni
 ## Installation instructions
+1. Install uv
+2. `uv run mkdocs serve`
+
+The website should now be available at http://localhost:8000/
 
 ## Development tools
-- python (tested on 3.11)
-- poetry (2.0 or later)
+- uv
 - git
 - terminal application
 - code editor
