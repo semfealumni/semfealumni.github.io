@@ -1,12 +1,11 @@
 ---
 hide:
-  - navigation
   - toc
 ---
 
 # Διοίκηση
 
-## Διοικητικό Συμβούλιο <br/>2022-2024
+## Διοικητικό Συμβούλιο <br/>2025-2027
 ---
 ![Κάραλης Δημήτρης](assets/pictures/profiles/karalis.jpeg){width=150 height=150 align=left}
 
@@ -44,22 +43,22 @@ hide:
 [:fontawesome-brands-linkedin:{ .linkedin }stouras](https://www.linkedin.com/in/stouras/){ .md-button }
 
 ---
-![Ευαγγελίδη Σοφία](assets/pictures/profiles/evangelidi.jpeg){width=150 height=150 align=left}
-
-### Μέλος
-
-#### Ευαγγελίδη Σοφία
-
-<br/>
-
----
 ![Παλασσόπουλος Βασίλης](assets/pictures/profiles/palassopoulos.jpeg){width=150 height=150 align=left}
 
-### Αναπληρωματικό Μέλος
+### Μέλος
 
 #### Παλασσόπουλος Βασίλης
 
 [:fontawesome-brands-linkedin:{ .linkedin }palasso](https://www.linkedin.com/in/palasso/){ .md-button }
+
+---
+![Παπαθανασίου Αθανάσιος-Φοίβος](assets/pictures/profiles/papathanasiou_nasos.jpeg){width=150 height=190 align=left}
+
+### Αναπληρωματικό Μέλος
+
+#### Παπαθανασίου Αθανάσιος-Φοίβος
+
+[:fontawesome-brands-linkedin:{ .linkedin }athanasios-nasos-papathanasiou-aa27b1157](https://www.linkedin.com/in/athanasios-nasos-papathanasiou-aa27b1157/){ .md-button }
 
 ---
 ![Μαγγίνας Γιώργος](assets/pictures/profiles/manginas.jpeg){width=150 height=150 align=left}
@@ -71,16 +70,16 @@ hide:
 [:fontawesome-brands-linkedin:{ .linkedin }georgiosmanginas](https://www.linkedin.com/in/georgiosmanginas/){ .md-button }
 
 ---
-## Εξελεγκτική Επιτροπή <br/>2022-2024
+## Εξελεγκτική Επιτροπή <br/>2025-2027
 
 ---
-![Ελμαλής Λευτέρης](assets/pictures/profiles/elmalis.jpeg){width=150 height=150 align=left}
+![Ευαγγελίδη Σοφία](assets/pictures/profiles/evangelidi.jpeg){width=150 height=150 align=left}
 
 ### Μέλος
 
-#### Ελμαλής Λευτέρης
+#### Ευαγγελίδη Σοφία
 
-[:fontawesome-brands-linkedin:{ .linkedin }eleftherioselmalis](https://www.linkedin.com/in/eleftherioselmalis/){ .md-button }
+<br/>
 
 ---
 ![Παναγιωτίδη Βάγια](assets/pictures/profiles/panagiotidi.jpeg){width=150 height=150 align=left}
@@ -92,17 +91,19 @@ hide:
 [:fontawesome-brands-linkedin:{ .linkedin }vayiapanagiotidis](https://www.linkedin.com/in/vayiapanagiotidis/){ .md-button }
 
 ---
-![Χασαπλαδάκης Μιλτιάδης](assets/pictures/profiles/chasapladakis.jpeg){width=150 height=190 align=left}
+![Γερακίνης Δημήτρης](assets/pictures/profiles/gerakinis.jpeg){width=150 height=190 align=left}
 
 ### Μέλος
 
-#### Χασαπλαδάκης Μιλτιάδης
+#### Γερακίνης Δημήτρης
 
-[:fontawesome-brands-linkedin:{ .linkedin }miltiades-chasapladakis](https://www.linkedin.com/in/miltiades-chasapladakis-28723085/){ .md-button }
+[:fontawesome-brands-linkedin:{ .linkedin }dimitris-gerakinis](https://www.linkedin.com/in/dimitris-gerakinis/){ .md-button }
 
 <br/>
 
 ---
+## Αποτελέσματα Αρχαιρεσιών 2025
+![Αποτελέσματα Αρχαιρεσιών 2025](assets/documents/elections/election_results_2025.pdf){ type=application/pdf style="min-height:25vh;width:100%" }
 
 ## Αποτελέσματα Αρχαιρεσιών 2022
 

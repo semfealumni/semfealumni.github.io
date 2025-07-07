@@ -41,7 +41,7 @@ theme:
 
     # Palette toggle for light mode
     - media: "(prefers-color-scheme: light)"
-      scheme: default 
+      scheme: default
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
@@ -57,7 +57,7 @@ theme:
 
 extra:
   social:
-    - icon: fontawesome/brands/linkedin 
+    - icon: fontawesome/brands/linkedin
       link: https://www.linkedin.com/company/semfealumni
     - icon: fontawesome/brands/facebook
       link: https://www.facebook.com/semfealumni
@@ -67,7 +67,7 @@ extra:
       link: https://www.instagram.com/semfe_alumni_ntua
   generator: false
 
-copyright: Copyright &copy; 2013 - 2024 Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ
+copyright: Copyright &copy; 2013 - 2025 Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ
 
 markdown_extensions:
   # - pymdownx.keys
@@ -110,13 +110,16 @@ plugins:
 
 # Page tree
 nav:
-  - Σύλλογος: index.md
+  - Σύλλογος:
+    - Όραμα και Σκοπός: index.md
+    - Όργανα του Συλλόγου: organa.md
+    - Διοίκηση: governance.md
+    - Εγγραφές και Δωρεές: support.md
+    - Επικοινωνία: contact.md
+  - Ιστορία:
+    - Πως ξεκινήσαμε: how_we_started.md
+    - Φωτοθήκη: fotothiki.md
+    - Αρχείο: archive.md
   - Ανακοινώσεις: blog/index.md
-  - Επαγγελματική Κατοχύρωση: professional_certification.md
-  - Όργανα του Συλλόγου: organa.md
-  - Διοίκηση: governance.md
-  - Αρχείο: archive.md
-  - Φωτοθήκη: fotothiki.md
   - Εγγραφές και Δωρεές: support.md
-  - Συχνές Ερωτήσεις: FAQ.md
   - Επικοινωνία: contact.md
