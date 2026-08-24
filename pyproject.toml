@@ -1,21 +1,21 @@
 [project]
 name = "semfealumni"
-version = "2025.3.2"
+version = "2026.8.24"
 description = "The official website of the alumni association of the School of Applied Mathematical and Physical Sciences of the National Technical University of Athens."
-requires-python = ">=3.11,<4"
+requires-python = ">=3.12"
 authors = [
     {name = "Vassilis Palassopoulos", email = "palasso@gmail.com"},
 ]
 
 dependencies = [
     "mkdocs (>=1.6.1,<2.0.0)",
-    "mkdocs-material[imaging] (>=9.5.50,<10.0.0)",
-    "mkdocs-gen-files (>=0.5.0,<0.6.0)",
-    "mkdocs-literate-nav (>=0.6.1,<0.7.0)",
-    "mkdocs-section-index (>=0.3.9,<0.4.0)",
-    "pymdown-extensions (>=10.14.1,<11.0.0)",
+    "mkdocs-material[imaging] (>=9.7.7,<10.0.0)",
+    "mkdocs-gen-files (>=0.6.1,<0.7.0)",
+    "mkdocs-literate-nav (>=0.6.3,<0.7.0)",
+    "mkdocs-section-index (>=0.3.12,<0.4.0)",
+    "pymdown-extensions (>=11.0.2,<12.0.0)",
     "mkdocs-pdf (>=0.1.2,<0.2.0)",
-    "mkdocs-rss-plugin (>=1.17.1,<2.0.0)",
+    "mkdocs-rss-plugin (>=1.19.0,<2.0.0)",
 ]
 
 [project.urls]
@@ -24,5 +24,8 @@ repository = "https://github.com/semfealumni/semfealumni.github.io"
 "Bug Tracker" = "https://github.com/semfealumni/semfealumni.github.io/issues"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.12.5,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv]
+package = false
