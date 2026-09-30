@@ -593,6 +593,34 @@ try {
       `${w}px ${big ? '125% text' : 'no web font'}: the header fits (${r.row ? 'one row of links' : 'menu button'})`);
     await ctx.close();
   }
+  // the header slims down once the page scrolls, and comes back at the top
+  for (const [w, h] of [[1440, 900], [1101, 800], [390, 844]]) {
+    const phone = isPhone(w, h);
+    const { ctx, page, log } = await open(SUB + 'blog/', { width: w, height: h, phone, touch: phone });
+    const hs = () => page.evaluate(() => {
+      const d = document.documentElement, top = document.querySelector('.brand-text .top'), hd = document.querySelector('.site-header').getBoundingClientRect();
+      return { small: d.classList.contains('hdr-small'), nav: ['nav-compact', 'nav-tight'].filter(c => d.classList.contains(c)).join(),
+        h: hd.height, hTop: hd.top, topH: top.getBoundingClientRect().height, topO: +getComputedStyle(top).opacity,
+        mark: document.querySelector('.brand-mark').getBoundingClientRect().width, over: d.scrollWidth > innerWidth };
+    });
+    const scrollTo = async y => { await page.evaluate(y => window.scrollTo(0, y), y); await page.waitForTimeout(450); };
+    const a = await hs();
+    await scrollTo(700); const b = await hs();
+    await scrollTo(24); const c = await hs();
+    await scrollTo(0); const d = await hs();
+    t(!a.small && a.h >= 64 && a.topH > 5 && a.topO > .5, `${w}px: at the top, the full header (${Math.round(a.h)}px, the ΣΥΛΛΟΓΟΣ line shown)`);
+    t(b.small && b.h <= 58 && Math.abs(b.hTop) < 1 && b.topH < 1 && b.topO < .1 && b.mark <= 35 && !b.over,
+      `${w}px: scrolled, it slims to ${Math.round(b.h)}px, stays on top, logo ${Math.round(b.mark)}px, the ΣΥΛΛΟΓΟΣ line folded away`);
+    t(b.nav === a.nav, `${w}px: the links keep their style while it slims (${a.nav || 'one row'} → ${b.nav || 'one row'})`);
+    t(c.small && !d.small && d.h >= 64, `${w}px: near the top it stays slim (no flicker); at the very top it is full size again`);
+    await scrollTo(700);
+    await page.locator('#acct-slot [data-signin]').first().click();
+    await page.waitForTimeout(450);
+    const e = await page.evaluate(() => ({ small: document.documentElement.classList.contains('hdr-small'), dialog: !!document.querySelector('.modal-backdrop:not([hidden])') }));
+    t(e.dialog && e.small, `${w}px: opening the sign-in dialog (which locks the page) does not make the header jump back`);
+    t(log.errors.length === 0, `${w}px: no script errors while scrolling` + list(log.errors));
+    await ctx.close();
+  }
   for (const [w, h] of [[1100, 800], [1024, 768], [768, 1024], [844, 390], [414, 896], [390, 844], [375, 667], [360, 740], [320, 568]]) {
     const tag = `${w}x${h}`, phone = isPhone(w, h);
     const { ctx, page, log } = await open(SUB, { width: w, height: h, phone, touch: true });

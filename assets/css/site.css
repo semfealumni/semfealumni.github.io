@@ -142,7 +142,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
 .brand { display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; min-width: 0; min-height: 44px; }
 .brand-mark { width: 42px; height: 42px; flex: none; border-radius: 50%; background: #fff; padding: 3px; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
-.brand-text .top { font-size: .68rem; letter-spacing: .2em; font-weight: 700; opacity: .8; white-space: nowrap; }
+.brand-text .top { font-size: .68rem; letter-spacing: .2em; font-weight: 700; opacity: .8; white-space: nowrap; max-height: 2.6em; overflow: hidden; }
 .brand-text .bottom { font-size: 1.02rem; letter-spacing: .04em; font-weight: 800; white-space: nowrap; }
 .header-right { display: flex; align-items: center; gap: 6px; }
 .nav { display: flex; align-items: center; gap: 2px; }
@@ -259,6 +259,28 @@ html.js.nav-tight .nav a + a { border-top: 1px solid rgba(255,255,255,.08); }
 @media (max-width: 350px) {
   .brand-text .top { display: none; }
 }
+
+/* ---- the header slims down once the page is scrolled ----
+   html.hdr-small is set by site.js past the first few pixels of a page and
+   removed again back at the top: a slimmer bar, a smaller logo, the
+   "ΣΥΛΛΟΓΟΣ ΔΙΠΛΩΜΑΤΟΥΧΩΝ" line folded away, a shadow to lift it off the page.
+   Buttons keep their 44px touch height. site.js measures whether the row fits
+   in the FULL-size state (html.hdr-measure switches the transitions off for
+   that one measurement), so the links never change style as the page scrolls. */
+.site-header { transition: background-color .25s ease, box-shadow .25s ease; }
+.site-header .wrap { transition: min-height .25s ease; }
+.brand-mark { transition: width .25s ease, height .25s ease; }
+.brand-text .top { transition: max-height .25s ease, opacity .2s ease, margin .25s ease; }
+.brand-text .bottom { transition: font-size .25s ease; }
+html.hdr-small { --header-h: 56px; }
+html.hdr-small .site-header { background: #0a2240; background: rgba(10, 34, 64, .97); box-shadow: 0 6px 22px rgba(3, 12, 26, .28); }
+html.hdr-small .brand-mark { width: 34px; height: 34px; }
+html.hdr-small .brand-text .top { max-height: 0; opacity: 0; margin: 0; }
+html.hdr-small .brand-text .bottom { font-size: .98rem; }
+@media (min-width: 1101px) {
+  html.hdr-small:not(.nav-tight) .nav a { padding-top: 8px; padding-bottom: 8px; }
+}
+html.hdr-measure .site-header, html.hdr-measure .site-header * { transition: none !important; }
 
 /* ---------- hero ---------- */
 .hero {

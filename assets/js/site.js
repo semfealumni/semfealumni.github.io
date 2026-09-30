@@ -54,12 +54,19 @@
   }
   function fitHeader() {
     if (!headerWrap || !nav || !window.matchMedia) return;
-    var was = tight();
-    docEl.classList.remove('nav-tight', 'nav-compact');
+    var was = tight(), small = docEl.classList.contains('hdr-small');
+    // measured at FULL size, the widest the row gets (with transitions off, or
+    // the measurement would read the start of the animation): a row that fits
+    // there fits slimmed down too, so the links keep one style while scrolling
+    docEl.classList.add('hdr-measure');
+    docEl.classList.remove('nav-tight', 'nav-compact', 'hdr-small');
     if (window.matchMedia('(min-width: 1101px)').matches && headerOver()) {
       docEl.classList.add('nav-compact');             // first: a little less space around each link
       if (headerOver()) docEl.classList.add('nav-tight');   // still too wide: the menu button
     }
+    if (small) docEl.classList.add('hdr-small');
+    headerWrap.getBoundingClientRect();                // settle the sizes before transitions come back
+    docEl.classList.remove('hdr-measure');
     if (was !== tight() && toggle) { nav.classList.remove('open'); toggle.setAttribute('aria-expanded', 'false'); }
   }
   var fitQueued = false;
@@ -72,6 +79,26 @@
   }
   var slot = $('#acct-slot');
   if (slot && window.MutationObserver) new MutationObserver(queueFit).observe(slot, { childList: true, subtree: true });
+
+  /* ---- the header slims down once the page is scrolled (html.hdr-small) ----
+     Two thresholds, not one: the header is sticky, so slimming it moves the
+     page up by 12px (and the browser may move the scroll position with it);
+     a single threshold would flicker right at it. Left alone while a dialog
+     has locked the page, which then reports a scroll position of 0. */
+  var SMALL_AT = 48, FULL_AT = 8, sizeQueued = false;
+  function sizeHeader() {
+    sizeQueued = false;
+    if (document.body && document.body.classList.contains('modal-open')) return;
+    var y = window.pageYOffset || docEl.scrollTop || 0, small = docEl.classList.contains('hdr-small');
+    if (!small && y > SMALL_AT) docEl.classList.add('hdr-small');
+    else if (small && y < FULL_AT) docEl.classList.remove('hdr-small');
+  }
+  window.addEventListener('scroll', function () {
+    if (sizeQueued) return;
+    sizeQueued = true;
+    (window.requestAnimationFrame || setTimeout)(sizeHeader);
+  }, { passive: true });
+  sizeHeader();                                        // a page reloaded half-way down starts slim
 
   /* ---- copy buttons (IBAN, BIC) ---- */
   $$('[data-copy]').forEach(function (btn) {
