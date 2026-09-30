@@ -130,6 +130,9 @@
     var shots = x.shots ? shotsHtml(t, x.shots) : '';
     var sentBits = [];
     if (x.mailError) sentBits.push('<span class="form-error">E-mail: ' + esc(x.mailError) + '</span>');
+    // nothing mailed ten minutes after it arrived: the e-mail function is not deployed (or not running)
+    else if (!x.mailedAt && ms(x.createdAt) && Date.now() - ms(x.createdAt) > 10 * 60 * 1000)
+      sentBits.push('Δεν στάλθηκε e-mail για αυτό το μήνυμα (η υπηρεσία e-mail δεν έχει ενεργοποιηθεί: FEEDBACK-SETUP.md).');
     if (closed && x.resolutionSentAt) sentBits.push('Η απάντηση στάλθηκε με e-mail ' + esc(when(x.resolutionSentAt)) + '.');
     var form = closing === t
       ? '<form class="form sub-form afb-close" data-close-form novalidate>' +

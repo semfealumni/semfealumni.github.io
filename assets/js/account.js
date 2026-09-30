@@ -448,7 +448,7 @@
     on('[data-setpw]', 'click', openPasswordForm);
     on('[data-pw-cancel]', 'click', function () { pwOpen = false; pwBox = null; refocus = '[data-setpw]'; render(); });
     on('[data-pw-form]', 'submit', function (e) { e.preventDefault(); setPassword(e.target); });
-    on('[data-merge-open]', 'click', function () { mergeOpen = true; refocus = '#merge h3'; render(); });
+    on('[data-merge-open]', 'click', function () { mergeOpen = true; A.prepareMerge(); refocus = '#merge h3'; render(); });
     on('[data-merge-cancel]', 'click', function () { mergeOpen = false; refocus = '[data-merge-open]'; render(); });
     on('[data-merge-conflict]', 'click', function () {
       var c = conflict, btn = this, msg = q('[data-methods-msg]');
@@ -629,6 +629,7 @@
       if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request' || err.code === 'auth/user-cancelled')) return;
       if (err && TAKEN.indexOf(err.code) !== -1) {
         var name = A.providerInfo(k).name;
+        A.prepareMerge();                        // the merge button below will open a popup: be ready for it
         conflict = { provider: k, credential: err.credential || null,
           title: 'Αυτό το ' + name + ' ανοίγει ήδη άλλον λογαριασμό εδώ',
           text: 'Μάλλον τον φτιάξατε κι εσείς, σε άλλη επίσκεψη. Μπορείτε να ενώσετε τους δύο λογαριασμούς σε αυτόν: η αίτηση μέλους και οι τρόποι σύνδεσης του άλλου μεταφέρονται εδώ, και ο άλλος διαγράφεται.' };

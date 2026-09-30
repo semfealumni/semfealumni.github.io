@@ -821,6 +821,9 @@
     enabledProviders: function () { return enabled.slice(); }, providerInfo: function (k) { return PROVIDERS[k]; }, methodsText: methodsText,
     callAccounts: callAccounts, mergeWith: mergeWith, mergeSummary: mergeSummary, linkedinStart: linkedinStart,
     noteMenu: noteMenu, menuInfo: menuInfo, freshToken: freshToken,
+    // set the second sign-in window up BEFORE the click: a popup opened after
+    // several awaited steps can be blocked (Safari keeps a click "fresh" briefly)
+    prepareMerge: function () { if (configured) otherAuth().catch(function () {}); },
     icon: function (k) { return ICONS[k] || ''; },
     user: function () { return current; }
   };
