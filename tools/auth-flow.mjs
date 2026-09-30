@@ -418,6 +418,7 @@ await scenario('C', 'same e-mail, second provider: sign in the first way, then t
   t(await visible(notice), 'the «you already have an account» notice appears');
   t(await hasText(notice, 'Έχετε ήδη λογαριασμό με το ' + MARIA.email), '… naming the address');
   t(await hasText(notice, 'Facebook'), '… and the provider it will link afterwards');
+  t(await hasText(notice, '(Google, LinkedIn ή e-mail και κωδικό)'), '… and offers the OTHER ways in, from the buttons (not the one just tried)' + list([await text(notice)]));
   t((await page.inputValue('#auth-email')) === MARIA.email, 'the e-mail field is prefilled with that address');
   t((await status(page)) === '', 'no error text besides the notice');
   await queue(page, 'signInWithPopup', { provider: 'google.com', resolve: { email: MARIA.email } });
@@ -979,6 +980,42 @@ await scenario('I1', 'LinkedIn with the shipped settings (Cloud Function, not fi
   else {
     const others = (C.AUTH_PROVIDERS || []).filter(k => k !== 'linkedin');
     t(!provs.includes('linkedin') && js(provs) === js(others), 'without clientId/functionUrl the LinkedIn button is hidden, the others listed in config.js shown' + list(provs));
+  }
+});
+/* The owner's choice (30 Sep 2026): Google, LinkedIn and e-mail, no Facebook.
+   Everything a visitor reads names exactly the buttons the dialog shows. */
+const SHIPPED_LI_FILLED = (C.LINKEDIN || {}).mode === 'oidc' || !String((C.LINKEDIN || {}).clientId + (C.LINKEDIN || {}).functionUrl).includes('PASTE_');
+const SHIPPED = (C.AUTH_PROVIDERS || []).filter(k => ['google', 'facebook', 'linkedin'].includes(k) && (k !== 'linkedin' || SHIPPED_LI_FILLED));
+const NAME = { google: 'Google', facebook: 'Facebook', linkedin: 'LinkedIn' };
+const orList = n => n.length < 2 ? (n[0] || '') : n.slice(0, -1).join(', ') + ' ή ' + n[n.length - 1];
+await scenario('L1', 'the shipped providers: no Facebook anywhere, every list of ways in matches the buttons', { cfg: 'shipped',
+  seed: { accounts: { 'u-eleni': acct('u-eleni', { email: 'eleni@example.com', name: 'Ελένη Σταύρου', providers: ['password'], password: 'right-password-1' }) } } }, async (page) => {
+  t(!(C.AUTH_PROVIDERS || []).includes('facebook'), 'config.js does not list Facebook' + list(C.AUTH_PROVIDERS || []));
+  const social = orList(SHIPPED.map(k => NAME[k]));
+  await page.goto(URL_(''));
+  await openDialog(page);
+  const provs = await page.$$eval('.modal [data-provider]', bs => bs.map(b => b.getAttribute('data-provider')));
+  t(js(provs) === js(SHIPPED), 'the dialog shows exactly the shipped buttons' + list(provs));
+  t(!/Facebook/.test(await text(page.locator('.modal'))), 'the dialog never says Facebook');
+  await page.fill('#auth-email', 'eleni@example.com');
+  await page.fill('#auth-pass', 'wrong-password');
+  await page.click('.modal [data-submit]');
+  const want = 'Λάθος e-mail ή κωδικός.' + (social ? ' Αν δημιουργήσατε τον λογαριασμό σας με ' + social + ', συνδεθείτε με το αντίστοιχο κουμπί.' : '');
+  t(await waitFor(page, w => ((document.querySelector('.modal [data-status]') || {}).textContent || '').includes(w), want), 'a wrong password names only the shipped buttons' + list([await status(page)]));
+  await page.goto(URL_('account/'));
+  const acctText = await text(page.locator('#account-app'));
+  t(!!acctText && acctText.includes('Συνδεθείτε με ' + (social ? social + ' ή με ' : '') + 'e-mail και κωδικό.'), 'the account page names the same ways in' + list([acctText && acctText.slice(0, 260)]));
+  // the static pages: the build keeps a one-letter word with the next one, hence the no-break space after ή
+  const nb = s => s.replace(/ ή /g, ' ή ');
+  const all = nb(orList(SHIPPED.map(k => NAME[k]).concat('e-mail')));
+  for (const [p, phrase] of [['privacy/', 'συνδεθείτε με ' + all + ' και κωδικό'], ['terms/', 'λογαριασμό με ' + all + ' και κωδικό'],
+    ['support/', 'λογαριασμό με ' + all + ' και'], ['data-deletion/', social ? 'Αν συνδεθήκατε με ' + nb(social) : 'Διαγραφή με e-mail']]) {
+    await page.goto(URL_(p));
+    const main = await page.$eval('main', m => m.textContent.replace(/[ \t\r\n]+/g, ' '));
+    t(!/Facebook/.test(main), p + ': no Facebook in the page');
+    t(main.includes(phrase), p + ': says «' + phrase + '»');
+    const desc = await page.$eval('meta[name="description"]', m => m.content);
+    t(!/Facebook/.test(desc), p + ': no Facebook in the description');
   }
 });
 await scenario('I2', 'LinkedIn through the Cloud Function: authorize, callback, sign in', { cfg: 'function' }, async (page, env) => {

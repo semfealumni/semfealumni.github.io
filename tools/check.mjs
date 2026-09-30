@@ -8,7 +8,8 @@
      - the viewport tag blocks zoom
      - an <img> without alt
      - ADMIN_EMAILS in config.js differs from isAdmin() in firestore.rules
-     - an inline {{...}} placeholder left unfilled in a built page
+     - an inline {{...}} placeholder or <!--if:--> block left unfilled in a built page
+     - a list of sign-in methods typed by hand instead of generated
    and REPORTS (without failing) that Firebase is still unconfigured. */
 import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -44,7 +45,7 @@ const SITE_PATH = new URL(C.siteUrl).pathname;            // "/semfealumni/"
 let links = 0;
 for (const p of pages) {
   const html = read(p);
-  if (/\{\{[a-z:]+\}\}/.test(html)) fail(`${p}: unfilled placeholder ${html.match(/\{\{[a-z:]+\}\}/)[0]}`);
+  if (/\{\{[a-z:-]+\}\}|<!--\/?if:/.test(html)) fail(`${p}: unfilled placeholder ${html.match(/\{\{[a-z:-]+\}\}|<!--\/?if:[a-z]*-->/)[0]}`);
   for (const m of html.matchAll(/\s(?:href|src)="([^"]+)"/g)) {
     let u = m[1].replace(/&amp;/g, '&');
     if (/^(https?:|mailto:|tel:|data:|javascript:|#)/.test(u)) continue;
@@ -121,7 +122,25 @@ function jpegSize(b) {
   ok('firebase.json: guard on every section, runtime matches engines');
 }
 
-/* 5. what is still to do (not failures) */
+/* 5. no page or script types the list of sign-in methods by hand. The pages
+   get it from {{signin}} / {{signin-social}} (tools/build.mjs) and the scripts
+   from SemfeAuth.methodsText(), both built from AUTH_PROVIDERS, so neither can
+   name a way in the sign-in window does not offer (Facebook was named on four
+   pages long after it was left out). Comments are not text a visitor reads. */
+{
+  const HAND_LIST = /(Google|Facebook)(, | ή (με )?)(Facebook|LinkedIn|e-mail)|(Google|Facebook|LinkedIn) ή (με )?(<strong>)?e-mail/;
+  const srcs = readdirSync(path.join(ROOT, '_src/pages')).filter(f => f.endsWith('.html')).map(f => '_src/pages/' + f)
+    .concat(readdirSync(path.join(ROOT, 'assets/js')).filter(f => f.endsWith('.js') && f !== 'config.js').map(f => 'assets/js/' + f));
+  let typed = 0;
+  for (const f of srcs) {
+    const text = read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
+    const m = text.match(HAND_LIST);
+    if (m) { typed++; fail(`${f}: a list of sign-in methods typed by hand ("${m[0]}"); use {{signin}} / {{signin-social}} in pages, SemfeAuth.methodsText() in scripts`); }
+  }
+  if (!typed) ok(`sign-in methods named only through the generated list (${srcs.length} files)`);
+}
+
+/* 6. what is still to do (not failures) */
 const f = C.FIREBASE || {};
 if (Object.values(f).some(v => String(v).includes('PASTE_'))) note('Firebase is not configured yet: sign-in stays off until assets/js/config.js has the real web config (FIREBASE-SETUP.md).');
 if (read('.firebaserc').includes('PASTE_')) note('.firebaserc still says PASTE_PROJECT_ID (needed only for deploying the rules from the CLI).');

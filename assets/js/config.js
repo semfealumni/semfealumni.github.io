@@ -14,9 +14,13 @@
  *     Sign-in method (a button for a provider that is not enabled fails with
  *     a clear message, but it is better not to show it at all).
  *       'google'   – Google / Gmail (built in)
- *       'facebook' – Facebook (built in; needs a Meta app)
+ *       'facebook' – Facebook (built in; needs a Meta app). Left out on
+ *                    purpose for now; Part C of the guide, if ever wanted.
  *       'linkedin' – LinkedIn (see LINKEDIN below and Part D of the guide)
  *     E-mail + password is always offered when Email/Password is enabled.
+ *     The pages that name the ways to sign in (account, privacy, terms,
+ *     support, data deletion) follow this list: rebuild them with
+ *     `node tools/build.mjs` after changing it or the LINKEDIN settings.
  *
  *  3. ADMIN_EMAILS: who sees the "Διαχείριση" (admin) page. This list only
  *     decides what the page SHOWS. What an admin may actually read and write
@@ -42,7 +46,7 @@ window.SEMFE = {
     appId: '1:478387432992:web:516c049d52286994875645'
   },
 
-  AUTH_PROVIDERS: ['google', 'linkedin'],   // add 'facebook' (after 'google') once Part C of FIREBASE-SETUP.md is done
+  AUTH_PROVIDERS: ['google', 'linkedin'],   // Google, LinkedIn and e-mail only (Facebook left out for now)
 
   /* LinkedIn has two routes (FIREBASE-SETUP.md, Part D):
        mode 'function'  the recommended one: LinkedIn sends the member back to

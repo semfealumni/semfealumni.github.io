@@ -4,8 +4,8 @@ The website of the **Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜ
 of the School of Applied Mathematical and Physical Sciences, NTUA), redesigned
 from the association's MkDocs site
 ([semfealumni/semfealumni.github.io](https://github.com/semfealumni/semfealumni.github.io))
-with a modern look and **member sign-in** (Google, Facebook, LinkedIn or
-e-mail) through Firebase.
+with a modern look and **member sign-in** (Google, LinkedIn or e-mail)
+through Firebase. (The code also supports Facebook; it is left out for now.)
 
 Live at **https://www.stouras.com/semfealumni/**.
 
@@ -27,7 +27,7 @@ as they are here; there is nothing to install to publish it.
     assets/img, assets/docs    photos, logos and the PDFs
     firestore.rules            the database security rules (the real gatekeeper)
     firebase.json, .firebaserc, check-project.mjs   for deploying the rules from the command line
-    FIREBASE-SETUP.md          step by step: Firebase, Google, Facebook, LinkedIn, e-mail
+    FIREBASE-SETUP.md          step by step: Firebase, Google, LinkedIn, e-mail
     tools/                     build, checks and tests (not published)
     CLAUDE.md, .github/        repository conventions; the CI checks run on every push
 
@@ -75,13 +75,13 @@ step is in **[FIREBASE-SETUP.md](FIREBASE-SETUP.md)**.
 
 What members get once it is on:
 
-* **Register or sign in** with Google, Facebook, LinkedIn, or e-mail and password
+* **Register or sign in** with Google, LinkedIn, or e-mail and password
   (e-mail accounts confirm their address first).
 * **Membership application** on "Ο λογαριασμός μου", replacing the Google Form,
   with the application's status (pending, active, not approved) and the dues on record.
 * **Members area** with a directory of active members who chose to be listed.
 * **Several sign-in methods on one account**, and **self-service deletion**
-  of the account and all its data (Facebook requires a deletion path).
+  of the account and all its data.
 
 The board manages applications at `/admin/` (only the addresses in
 `ADMIN_EMAILS` in `config.js` **and** in `isAdmin()` in `firestore.rules`).
@@ -98,8 +98,8 @@ the build.
 All links are relative, so the files work at any address. Change `siteUrl` in
 `assets/js/config.js`, add a `CNAME` file with the domain, run
 `node tools/build.mjs` and `node tools/make-share-images.mjs`, point the DNS at
-GitHub Pages, and add the new domain to Firebase's authorized domains (and to the
-Facebook app's App Domains).
+GitHub Pages, and add the new domain to Firebase's authorized domains and to
+the LinkedIn app's redirect URL (FIREBASE-SETUP.md, Part D).
 
 ## Tests
 

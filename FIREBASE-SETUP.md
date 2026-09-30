@@ -1,8 +1,8 @@
-# Sign-in with Google, Facebook, LinkedIn and e-mail: setup guide
+# Sign-in with Google, LinkedIn and e-mail: setup guide
 
 This guide switches on member accounts for the SEMFE Alumni site
 (https://www.stouras.com/semfealumni/). The code is already in place; what is
-left happens in four web consoles (Firebase, Google, Meta, LinkedIn) and in two
+left happens in three web consoles (Firebase, Google, LinkedIn) and in two
 small edits to `assets/js/config.js`.
 
 Until you finish Part A, the site works exactly as now: the "Σύνδεση" button
@@ -18,8 +18,11 @@ given in quotes.
 |---|---|---|---|
 | A. Firebase project | e-mail + password accounts, the member database | Free (Spark plan) | 20 min |
 | B. Google | "Συνέχεια με Google" (every Gmail address) | Free | 5 min |
-| C. Facebook | "Συνέχεια με Facebook" | Free | 30 min, plus Meta's review of your app if they ask for one |
 | D. LinkedIn | "Συνέχεια με LinkedIn" | Needs the Blaze (pay-as-you-go) plan; at this size it costs nothing in practice | 45 min |
+
+**Facebook is left out for now:** the site offers Google, LinkedIn and
+e-mail only, so skip Part C. Its steps are kept at the end of this guide in
+case Facebook is wanted later.
 
 In every step below, `semfe-alumni` stands for your Firebase project ID. Use
 yours if it is different.
@@ -93,8 +96,8 @@ Still in Security > Authentication, tab **Settings**:
    is refused on any site not in this list. (Projects made after April 2025 do
    not include `localhost`; add it only if you want to test on your own computer.)
 2. **User account linking**: keep **"Link accounts that use the same email"**.
-   This is what lets one person sign in with Google one day and Facebook the
-   next and still have ONE account (the site handles the linking).
+   This is what keeps one person to ONE account when they sign in in
+   different ways with the same e-mail (the site handles the linking).
 3. **User actions** > keep **"Email enumeration protection (recommended)"** on.
 4. Optional: **Password policy** > require at least 8 characters (the site
    already asks for 8).
@@ -158,7 +161,7 @@ is done, or register with e-mail and click the confirmation link). An address
 that already has an account cannot be registered by anyone else. This matters
 because the admin addresses are visible in the site's files: without this
 step, someone could register an admin address with a password of their own,
-never confirm it, and attach their own Facebook or Google login to that
+never confirm it, and attach their own Google or LinkedIn login to that
 account, keeping a way in after you later take the address back. The account
 page already refuses to attach a second login until the e-mail is confirmed,
 but claiming the addresses first closes the door completely.
@@ -203,114 +206,6 @@ add the authorized domain `stouras.com`, and set the home page
 `https://www.stouras.com/semfealumni/privacy/` and terms
 `https://www.stouras.com/semfealumni/terms/`. (Uploading a logo can trigger a
 short Google verification.)
-
----
-
-## Part C. Facebook
-
-You need a Facebook account. Everything happens at
-https://developers.facebook.com.
-
-### C1. Become a Meta developer (once)
-
-Go to https://developers.facebook.com, click **Get started** (or open
-https://developers.facebook.com/async/registration), accept the terms, and
-confirm your phone number and e-mail.
-
-### C2. Create the app
-
-1. **My Apps > Create App**.
-2. **App details**: App name `SEMFE Alumni` (it may not contain "Facebook" or
-   "FB"), contact e-mail. **Next**.
-3. **Use cases**: choose **"Authenticate and request data from users with
-   Facebook Login"**. Use it for this app only (use cases cannot be removed
-   later, so do not mix in Page management). **Next**.
-4. **Business**: if the association has a Meta business portfolio, connect it;
-   otherwise choose **"I don't want to connect a business portfolio yet"** (you
-   can connect one later, see C6). **Next**, then **Go to dashboard**.
-
-### C3. Ask for the e-mail address
-
-1. Left menu **Use cases** > the Facebook Login use case > **Customize**.
-2. **Permissions**: `public_profile` is already there. Next to **email** click
-   **Add**. Without this, Facebook does not give the site the member's e-mail.
-
-### C4. Connect Facebook and Firebase
-
-1. Facebook: left menu **App settings > Basic**. Copy the **App ID**. Click
-   **Show** next to **App secret** and copy it. **The secret goes ONLY into
-   Firebase, never into the website's code.**
-2. Firebase: Security > Authentication > Sign-in method > Add new provider >
-   **Facebook**. Enable, paste the **App ID** and **App secret**, and copy the
-   **OAuth redirect URI** Firebase shows. It looks like
-   `https://semfe-alumni.firebaseapp.com/__/auth/handler`. **Save**.
-3. Facebook: **Use cases** > Facebook Login > **Customize** > **Settings**:
-   * **Client OAuth login**: On.
-   * **Web OAuth login**: On. (Meta's checklist suggests switching it off if
-     you do not use it. Firebase does use it; leave it on.)
-   * **Enforce HTTPS**: On. **Use Strict Mode for redirect URIs**: On.
-   * **Valid OAuth Redirect URIs**: paste the Firebase URI from step 2, exactly,
-     with nothing added (not the site's address).
-   * "Login with the JavaScript SDK" is not needed.
-   * **Save changes**.
-
-### C5. Fill in the app's details (required before going live)
-
-Facebook: **App settings > Basic**:
-
-| Field | Value |
-|---|---|
-| Display name | `SEMFE Alumni` |
-| App domains | `stouras.com` |
-| Contact email | the association's address |
-| Privacy Policy URL | `https://www.stouras.com/semfealumni/privacy/` |
-| Terms of Service URL | `https://www.stouras.com/semfealumni/terms/` |
-| User data deletion | choose **"Data deletion instructions URL"**: `https://www.stouras.com/semfealumni/data-deletion/` |
-| App icon | upload `assets/img/logos/app-icon-1024.png` from the repository |
-| Category | Education (or Business and pages) |
-
-At the bottom click **+ Add platform > Website**, Site URL
-`https://www.stouras.com/semfealumni/`. **Save changes**.
-
-(The site has no "data deletion callback": that needs a server. The
-instructions page is the option Meta offers for sites like this one, and
-members can also delete everything themselves from "Ο λογαριασμός μου".)
-
-Facebook can sign someone in without giving an e-mail address (if they
-decline it or have none). The site copes: the membership form then simply asks
-for one.
-
-### C6. Go live
-
-1. Until the app is published, **only people with a role on the app** (you,
-   and anyone you add under **App roles**) can sign in with Facebook. Test now
-   with your own account: Σύνδεση > Συνέχεια με Facebook.
-2. Before Meta lets you publish, an admin must complete the **Data Use
-   Checkup** (a short questionnaire about what data the app uses: here only
-   the name, e-mail and profile photo, for member sign-in). Then left menu
-   **Publish** > **Go live**.
-3. Test again with a Facebook account that has **no** role on the app (ask a
-   friend). If it works, you are done.
-4. If Facebook refuses non-role users, open Use cases > Facebook Login >
-   Permissions and look for **Increase access** next to `public_profile` /
-   `email`. Meta's documentation disagrees with itself here: its login pages
-   say name and e-mail need no review, while other pages say an app used by
-   the public goes through **App Review** and that **Business Verification**
-   is needed for "advanced access". Be ready for both. For verification, the
-   app must belong to a business portfolio (create one for the association at
-   https://business.facebook.com, then connect it in App settings > Basic),
-   and a business admin verifies it with the association's documents.
-5. Add a second administrator (App roles > Roles), so the app does not depend
-   on one person. The **Data Use Checkup** comes back every year; if it is
-   missed, Facebook sign-in stops.
-6. Meta may send "data deletion requests" for people who removed the app from
-   their Facebook settings (App dashboard > Advanced settings > User Data
-   Deletion Requests). Find the person in Firebase console > Authentication
-   and delete them; their application and directory card are removed with
-   them (if the functions from Part D are deployed; otherwise also delete their
-   document in Firestore > members and directory).
-
-Finally, add `'facebook'` to `AUTH_PROVIDERS` in `assets/js/config.js` (after `'google'`) and push: the **Συνέχεια με Facebook** button appears. It is left out until this part is done, so visitors never see a button that does not work yet.
 
 ---
 
@@ -457,7 +352,7 @@ Try this only if you prefer not to deploy the function. If it fails with
 
 1. Firebase: Security > Authentication > **Settings** > **"Upgrade to Firebase
    Authentication with Identity Platform"**. On the free plan this limits
-   Google/Facebook/e-mail sign-ins to 3,000 people a day and LinkedIn to **2
+   Google and e-mail sign-ins to 3,000 people a day and LinkedIn to **2
    a day** (and 50 a month); on Blaze the first 50 LinkedIn users a month are
    free, then 0.015 USD per user. Google says nothing about undoing the
    upgrade, so treat it as permanent.
@@ -478,10 +373,9 @@ Try this only if you prefer not to deploy the function. If it fails with
 
 1. `node tools/check.mjs` passes.
 2. On a phone and on a computer: register with e-mail, confirm, apply; sign in
-   with Google; sign in with Facebook; sign in with LinkedIn.
-3. Sign in with Facebook using an e-mail you already used with Google: the site
-   says you already have an account, you sign in with Google, and Facebook is
-   then linked to the same account (Ο λογαριασμός μου > Τρόποι σύνδεσης shows both).
+   with Google; sign in with LinkedIn.
+3. Sign in with LinkedIn using the e-mail you already used with Google: you
+   land in the same account, not a new one.
 4. As an admin: approve the test application, mark the year's dues, open the
    Περιοχή μελών and see the directory.
 5. Delete the test account from Ο λογαριασμός μου > Διαγραφή λογαριασμού.
@@ -492,9 +386,7 @@ Try this only if you prefer not to deploy the function. If it fails with
 |---|---|---|
 | "Η σύνδεση μελών ανοίγει σύντομα" | `config.js` still has `PASTE_` values | A2 |
 | "Η σύνδεση δεν έχει εγκριθεί ακόμα για αυτή τη διεύθυνση" (auth/unauthorized-domain) | the site's host is not in Authorized domains | A4 step 1 |
-| "Αυτός ο τρόπος σύνδεσης δεν έχει ενεργοποιηθεί ακόμα" (auth/operation-not-allowed) | the provider is off in Firebase, or the OIDC provider ID is not exactly `oidc.linkedin` | B, C4, D3 |
-| Facebook: "URL blocked" / "redirect URI is not whitelisted" | the Firebase handler URI is missing or mistyped in Facebook's Valid OAuth Redirect URIs | C4 step 3 |
-| Facebook works for you but not for others | the app is not live, or needs Increase access / verification | C6 |
+| "Αυτός ο τρόπος σύνδεσης δεν έχει ενεργοποιηθεί ακόμα" (auth/operation-not-allowed) | the provider is off in Firebase, or the OIDC provider ID is not exactly `oidc.linkedin` | B, D3 |
 | LinkedIn: "Redirect_uri doesn't match" on LinkedIn's page | the redirect URL on LinkedIn's Auth tab differs by even one character | D2 step 2 |
 | LinkedIn: back on the site with "Η σύνδεση με LinkedIn δεν ολοκληρώθηκε" | function not deployed, wrong `functionUrl`, or the IAM role is missing | D2 steps 4 to 6; Google Cloud console > Logging shows the reason |
 | LinkedIn (D3): "client_secret is missing" | the Firebase OIDC bug | use D2 |
@@ -529,3 +421,125 @@ deploy and refuses when the target is not the project in `.firebaserc`.
 
 Nothing else is stored. The privacy policy (`/privacy/`) says the same in Greek;
 if you change what the site collects, update it too.
+
+---
+
+## Part C. Facebook (left out for now)
+
+Skip this part: the site offers Google, LinkedIn and e-mail only (the
+association's choice, 30 September 2026). The steps stay here in case
+Facebook is wanted later; the site's code already supports it.
+
+You need a Facebook account. Everything happens at
+https://developers.facebook.com.
+
+### C1. Become a Meta developer (once)
+
+Go to https://developers.facebook.com, click **Get started** (or open
+https://developers.facebook.com/async/registration), accept the terms, and
+confirm your phone number and e-mail.
+
+### C2. Create the app
+
+1. **My Apps > Create App**.
+2. **App details**: App name `SEMFE Alumni` (it may not contain "Facebook" or
+   "FB"), contact e-mail. **Next**.
+3. **Use cases**: choose **"Authenticate and request data from users with
+   Facebook Login"**. Use it for this app only (use cases cannot be removed
+   later, so do not mix in Page management). **Next**.
+4. **Business**: if the association has a Meta business portfolio, connect it;
+   otherwise choose **"I don't want to connect a business portfolio yet"** (you
+   can connect one later, see C6). **Next**, then **Go to dashboard**.
+
+### C3. Ask for the e-mail address
+
+1. Left menu **Use cases** > the Facebook Login use case > **Customize**.
+2. **Permissions**: `public_profile` is already there. Next to **email** click
+   **Add**. Without this, Facebook does not give the site the member's e-mail.
+
+### C4. Connect Facebook and Firebase
+
+1. Facebook: left menu **App settings > Basic**. Copy the **App ID**. Click
+   **Show** next to **App secret** and copy it. **The secret goes ONLY into
+   Firebase, never into the website's code.**
+2. Firebase: Security > Authentication > Sign-in method > Add new provider >
+   **Facebook**. Enable, paste the **App ID** and **App secret**, and copy the
+   **OAuth redirect URI** Firebase shows. It looks like
+   `https://semfe-alumni.firebaseapp.com/__/auth/handler`. **Save**.
+3. Facebook: **Use cases** > Facebook Login > **Customize** > **Settings**:
+   * **Client OAuth login**: On.
+   * **Web OAuth login**: On. (Meta's checklist suggests switching it off if
+     you do not use it. Firebase does use it; leave it on.)
+   * **Enforce HTTPS**: On. **Use Strict Mode for redirect URIs**: On.
+   * **Valid OAuth Redirect URIs**: paste the Firebase URI from step 2, exactly,
+     with nothing added (not the site's address).
+   * "Login with the JavaScript SDK" is not needed.
+   * **Save changes**.
+
+### C5. Fill in the app's details (required before going live)
+
+Facebook: **App settings > Basic**:
+
+| Field | Value |
+|---|---|
+| Display name | `SEMFE Alumni` |
+| App domains | `stouras.com` |
+| Contact email | the association's address |
+| Privacy Policy URL | `https://www.stouras.com/semfealumni/privacy/` |
+| Terms of Service URL | `https://www.stouras.com/semfealumni/terms/` |
+| User data deletion | choose **"Data deletion instructions URL"**: `https://www.stouras.com/semfealumni/data-deletion/` |
+| App icon | upload `assets/img/logos/app-icon-1024.png` from the repository |
+| Category | Education (or Business and pages) |
+
+At the bottom click **+ Add platform > Website**, Site URL
+`https://www.stouras.com/semfealumni/`. **Save changes**.
+
+(The site has no "data deletion callback": that needs a server. The
+instructions page is the option Meta offers for sites like this one, and
+members can also delete everything themselves from "Ο λογαριασμός μου".)
+
+Facebook can sign someone in without giving an e-mail address (if they
+decline it or have none). The site copes: the membership form then simply asks
+for one.
+
+### C6. Go live
+
+1. Until the app is published, **only people with a role on the app** (you,
+   and anyone you add under **App roles**) can sign in with Facebook. Test now
+   with your own account: Σύνδεση > Συνέχεια με Facebook.
+2. Before Meta lets you publish, an admin must complete the **Data Use
+   Checkup** (a short questionnaire about what data the app uses: here only
+   the name, e-mail and profile photo, for member sign-in). Then left menu
+   **Publish** > **Go live**.
+3. Test again with a Facebook account that has **no** role on the app (ask a
+   friend). If it works, you are done.
+4. If Facebook refuses non-role users, open Use cases > Facebook Login >
+   Permissions and look for **Increase access** next to `public_profile` /
+   `email`. Meta's documentation disagrees with itself here: its login pages
+   say name and e-mail need no review, while other pages say an app used by
+   the public goes through **App Review** and that **Business Verification**
+   is needed for "advanced access". Be ready for both. For verification, the
+   app must belong to a business portfolio (create one for the association at
+   https://business.facebook.com, then connect it in App settings > Basic),
+   and a business admin verifies it with the association's documents.
+5. Add a second administrator (App roles > Roles), so the app does not depend
+   on one person. The **Data Use Checkup** comes back every year; if it is
+   missed, Facebook sign-in stops.
+6. Meta may send "data deletion requests" for people who removed the app from
+   their Facebook settings (App dashboard > Advanced settings > User Data
+   Deletion Requests). Find the person in Firebase console > Authentication
+   and delete them; their application and directory card are removed with
+   them (if the functions from Part D are deployed; otherwise also delete their
+   document in Firestore > members and directory).
+
+Finally, add `'facebook'` to `AUTH_PROVIDERS` in `assets/js/config.js` (after
+`'google'`), run `node tools/build.mjs` and push. The **Συνέχεια με Facebook**
+button appears, and the rebuild adds Facebook to every page that lists the ways
+to sign in (account, privacy, terms, support, data deletion).
+
+If something goes wrong:
+
+| What you see | Why | Fix |
+|---|---|---|
+| Facebook: "URL blocked" / "redirect URI is not whitelisted" | the Firebase handler URI is missing or mistyped in Facebook's Valid OAuth Redirect URIs | C4 step 3 |
+| Facebook works for you but not for others | the app is not live, or needs Increase access / verification | C6 |

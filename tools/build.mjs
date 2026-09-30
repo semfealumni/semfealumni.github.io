@@ -18,6 +18,9 @@
  *   {{icon:NAME}}   an inline SVG icon from ICONS below
  *   {{latest}}      the three newest announcements as cards (home page)
  *   {{posts}}       every announcement as cards (the announcements page)
+ *   {{signin}}, {{signin-social}}, <!--if:KEY-->…<!--/if:KEY-->
+ *                   the sign-in methods the site offers (see below); these
+ *                   work in the META block too
  *
  * Every link the site writes is RELATIVE, so the same files work at
  * stouras.com/semfealumni/ today and at the root of semfealumni.gr later.
@@ -39,6 +42,33 @@ const SITE_URL = C.siteUrl.replace(/\/?$/, '/');
 const INDEXABLE = false;
 const YEAR_NOW = 2026;       // the footer's copyright range ends here
 const OG_W = 1200, OG_H = 630;
+
+/* ---- the sign-in methods a page names ------------------------------------- */
+/* Pages never type the list by hand: {{signin}} ("Google, LinkedIn ή e-mail"),
+   {{signin-social}} ("Google ή LinkedIn") and <!--if:KEY-->…<!--/if:KEY-->
+   blocks (KEY = google, facebook, linkedin, or social for "any of them") are
+   filled from AUTH_PROVIDERS by the same rule auth.js uses for the buttons:
+   LinkedIn counts only once its LINKEDIN settings are filled in (while
+   Firebase itself is not configured, every listed provider counts). So a page
+   can never name a way in that the sign-in window does not offer. */
+const PROVIDER_NAMES = { google: 'Google', facebook: 'Facebook', linkedin: 'LinkedIn' };
+const FB = C.FIREBASE || {};
+const FB_CONFIGURED = !!(FB.apiKey && FB.projectId && !String(FB.apiKey + FB.projectId).includes('PASTE_'));
+const LI = C.LINKEDIN || {};
+const LI_READY = LI.mode === 'oidc' || !!(LI.clientId && LI.functionUrl && !String(LI.clientId + LI.functionUrl).includes('PASTE_'));
+const OFFERED = (C.AUTH_PROVIDERS || []).filter(k => PROVIDER_NAMES[k] && (k !== 'linkedin' || LI_READY || !FB_CONFIGURED));
+const orList = names => names.length < 2 ? (names[0] || '') : `${names.slice(0, -1).join(', ')} ή ${names[names.length - 1]}`;
+const SIGNIN_SOCIAL = orList(OFFERED.map(k => PROVIDER_NAMES[k]));
+const SIGNIN_ALL = orList(OFFERED.map(k => PROVIDER_NAMES[k]).concat('e-mail'));
+function signinText(s, file) {
+  return s
+    .replace(/<!--if:([a-z]+)-->([\s\S]*?)<!--\/if:\1-->/g, (m, k, inner) => {
+      if (k !== 'social' && !PROVIDER_NAMES[k]) throw new Error(`${file}: unknown condition <!--if:${k}-->`);
+      return (k === 'social' ? OFFERED.length > 0 : OFFERED.includes(k)) ? signinText(inner, file) : '';
+    })
+    .replace(/\{\{signin\}\}/g, SIGNIN_ALL)
+    .replace(/\{\{signin-social\}\}/g, SIGNIN_SOCIAL);
+}
 
 /* ---- icons (stroke icons drawn on a 24px grid; brand marks filled) --------- */
 const ICONS = {
@@ -107,7 +137,7 @@ const greekDate = iso => { const [y, m, d] = iso.split('-').map(Number); return 
 function readSrc(dir) {
   const full = path.join(ROOT, '_src', dir);
   return readdirSync(full).filter(f => f.endsWith('.html')).sort().map(f => {
-    const raw = readFileSync(path.join(full, f), 'utf8');
+    const raw = signinText(readFileSync(path.join(full, f), 'utf8'), `${dir}/${f}`);   // META too
     const m = raw.match(/^\s*<!--META([\s\S]*?)META-->/);
     if (!m) throw new Error(`${dir}/${f}: missing <!--META {...} META--> block`);
     let meta;

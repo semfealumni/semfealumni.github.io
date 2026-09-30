@@ -1,7 +1,8 @@
 /* SEMFE Alumni: sign-in and registration (Firebase Authentication).
  *
- * Providers: Google, Facebook, LinkedIn (OpenID Connect) and e-mail +
- * password. Loads the Firebase "compat" SDK from gstatic only when
+ * Providers it can offer: Google, Facebook, LinkedIn (OpenID Connect) and
+ * e-mail + password; AUTH_PROVIDERS in config.js picks which (Facebook is
+ * left out for now). Loads the Firebase "compat" SDK from gstatic only when
  * config.js holds a real Firebase config; until then the header's
  * "Σύνδεση" button opens the same dialog with the buttons switched off and a
  * note that registration opens soon, so the page never breaks.
@@ -73,6 +74,15 @@
   // a provider is offered only when it is listed AND (for LinkedIn) its settings are filled in
   // (while Firebase itself is not configured every listed button shows, switched off, as a preview)
   var enabled = (C.AUTH_PROVIDERS || []).filter(function (k) { return PROVIDERS[k] && (k !== 'linkedin' || liReady || !configured); });
+  /* "Google ή LinkedIn" (with extra: "Google, LinkedIn ή e-mail"; except
+     leaves one button out): the buttons above, for every sentence that names
+     them. Never type the list by hand (tools/check.mjs fails on one);
+     tools/build.mjs writes the same list into the static pages. */
+  function methodsText(extra, except) {
+    var n = enabled.filter(function (k) { return k !== except; }).map(function (k) { return PROVIDERS[k].name; });
+    if (extra) n.push(extra);
+    return n.length < 2 ? (n[0] || '') : n.slice(0, -1).join(', ') + ' ή ' + n[n.length - 1];
+  }
   function keyForProviderId(id) {
     if (id === 'password') return 'password';
     for (var k in PROVIDERS) if (PROVIDERS[k].id === id) return k;
@@ -414,7 +424,7 @@
       var box = $('[data-link-notice]', dialog);
       box.className = 'notice warn';
       box.innerHTML = '<strong>Έχετε ήδη λογαριασμό' + (email ? ' με το ' + esc(email) : '') + '</strong>' +
-        '<p>Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά (π.χ. Google, LinkedIn ή e-mail και κωδικό). Αμέσως μετά θα συνδέσουμε και το ' + esc(who) + ' στον ίδιο λογαριασμό.</p>';
+        '<p>Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά (' + esc(methodsText('e-mail και κωδικό', key)) + '). Αμέσως μετά θα συνδέσουμε και το ' + esc(who) + ' στον ίδιο λογαριασμό.</p>';
       box.hidden = false;
       if (email) $('#auth-email').value = email;
       setMode('signin');
@@ -556,13 +566,14 @@
   /* ---- messages ---------------------------------------------------------- */
   function friendly(e) {
     var c = (e && e.code) || '';
+    var social = methodsText();
     var M = {
       'auth/invalid-email': 'Η διεύθυνση e-mail δεν φαίνεται σωστή.',
       'auth/missing-password': 'Γράψτε τον κωδικό σας.',
       'auth/weak-password': 'Ο κωδικός είναι πολύ αδύναμος. Χρησιμοποιήστε τουλάχιστον 8 χαρακτήρες.',
       'auth/password-does-not-meet-requirements': 'Ο κωδικός δεν πληροί τις απαιτήσεις ασφαλείας. Δοκιμάστε μακρύτερο κωδικό με γράμματα και αριθμούς.',
-      'auth/email-already-in-use': 'Υπάρχει ήδη λογαριασμός με αυτό το e-mail. Πατήστε «Σύνδεση» (ίσως τον δημιουργήσατε με Google, Facebook ή LinkedIn) ή ζητήστε νέο κωδικό.',
-      'auth/invalid-credential': 'Λάθος e-mail ή κωδικός. Αν δημιουργήσατε τον λογαριασμό σας με Google, Facebook ή LinkedIn, συνδεθείτε με το αντίστοιχο κουμπί.',
+      'auth/email-already-in-use': 'Υπάρχει ήδη λογαριασμός με αυτό το e-mail. Πατήστε «Σύνδεση»' + (social ? ' (ίσως τον δημιουργήσατε με ' + social + ')' : '') + ' ή ζητήστε νέο κωδικό.',
+      'auth/invalid-credential': 'Λάθος e-mail ή κωδικός.' + (social ? ' Αν δημιουργήσατε τον λογαριασμό σας με ' + social + ', συνδεθείτε με το αντίστοιχο κουμπί.' : ''),
       'auth/wrong-password': 'Λάθος e-mail ή κωδικός.',
       'auth/user-not-found': 'Λάθος e-mail ή κωδικός.',
       'auth/invalid-login-credentials': 'Λάθος e-mail ή κωδικός.',
@@ -583,7 +594,7 @@
       'auth/invalid-action-code': 'Ο σύνδεσμος δεν ισχύει πια. Ζητήστε νέο.',
       'semfe/relogin': 'Για λόγους ασφαλείας, αποσυνδεθείτε, συνδεθείτε ξανά και επαναλάβετε μέσα σε λίγα λεπτά.',
       'semfe/needs-password': 'Γράψτε τον κωδικό σας για επιβεβαίωση.',
-      'semfe/account-exists-unverified': 'Υπάρχει ήδη λογαριασμός με το e-mail του LinkedIn σας, που όμως δεν έχει επιβεβαιωθεί. Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά (π.χ. Facebook ή e-mail και κωδικό), επιβεβαιώστε το e-mail σας από τη σελίδα «Ο λογαριασμός μου» και μετά συνδέστε από εκεί το LinkedIn.',
+      'semfe/account-exists-unverified': 'Υπάρχει ήδη λογαριασμός με το e-mail του LinkedIn σας, που όμως δεν έχει επιβεβαιωθεί. Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά (' + methodsText('e-mail και κωδικό', 'linkedin') + '), επιβεβαιώστε το e-mail σας από τη σελίδα «Ο λογαριασμός μου» και μετά συνδέστε από εκεί το LinkedIn.',
       'semfe/link-needs-verified-email': 'Για να συνδέσετε το LinkedIn, χρειάζεται πρώτα να επιβεβαιώσετε το e-mail του λογαριασμού σας (δείτε «Τρόποι σύνδεσης» στη σελίδα «Ο λογαριασμός μου»).',
       'semfe/credential-already-in-use': 'Αυτός ο λογαριασμός LinkedIn είναι ήδη συνδεδεμένος με άλλον λογαριασμό του ιστότοπου.',
       'semfe/linkedin-code-rejected': 'Το LinkedIn δεν δέχτηκε τη σύνδεση (ίσως έληξε). Δοκιμάστε ξανά.',
@@ -628,7 +639,7 @@
     linkedinTakeState: linkedinTakeState, linkedinComplete: linkedinComplete, safeReturn: safeReturn,
     linkedinViaFunction: function () { return LI_FUNCTION; },
     friendly: friendly, flash: flash, esc: esc, avatarHtml: avatarHtml, displayName: displayName,
-    enabledProviders: function () { return enabled.slice(); }, providerInfo: function (k) { return PROVIDERS[k]; },
+    enabledProviders: function () { return enabled.slice(); }, providerInfo: function (k) { return PROVIDERS[k]; }, methodsText: methodsText,
     icon: function (k) { return ICONS[k] || ''; },
     user: function () { return current; }
   };
