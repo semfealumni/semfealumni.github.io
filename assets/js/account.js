@@ -301,7 +301,7 @@
       if (!on && k !== 'password') missing = true;
       var action = on
         ? (k === 'password' ? '<button type="button" class="btn btn-outline btn-sm" data-reset>Αλλαγή κωδικού</button>' : '<span class="badge ok">Συνδεδεμένο</span>')
-        : (k === 'password' ? '<span class="badge muted">Δεν χρησιμοποιείται</span>'
+        : (k === 'password' ? '<span class="badge muted">Ανενεργό</span>'
           : '<button type="button" class="btn btn-outline btn-sm" data-link="' + k + '"' + (blocked ? ' disabled aria-describedby="link-needs-email"' : '') + '>Σύνδεση</button>');
       rows += '<div class="row"><span>' + A.icon(k) + esc(info.name) + '</span>' + action + '</div>';
     });
@@ -312,7 +312,7 @@
       : blocked && missing ? '<p class="muted" id="link-needs-email" style="font-size:.88rem;margin:10px 0 0">Για να συνδέσετε κι άλλον τρόπο σύνδεσης, επιβεβαιώστε πρώτα το e-mail σας (δείτε παραπάνω).</p>'
       : '';
     return '<div class="panel" id="methods"><h2 tabindex="-1">Τρόποι σύνδεσης</h2><p class="muted intro">Συνδέστε περισσότερους τρόπους στον ίδιο λογαριασμό, για να μπαίνετε με όποιον σας βολεύει.</p>' +
-      '<div class="linked">' + rows + '</div>' + liNote + '<div class="form-error" data-methods-msg role="status" style="margin-top:10px"></div>' +
+      '<div class="linked">' + rows + '</div>' + liNote + '<div class="form-error" data-methods-msg role="status"></div>' +
       '<p style="margin:14px 0 0"><button type="button" class="btn btn-outline btn-sm" data-signout>Αποσύνδεση</button></p></div>';
   }
 

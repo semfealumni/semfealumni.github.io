@@ -102,7 +102,7 @@
   function card(r) {
     var li = /^https:\/\/([a-z]{2,3}\.)?(www\.)?linkedin\.com\//i.test(r.linkedin || '') ? r.linkedin : '';
     return '<div class="card"><h3>' + esc(r.name) + '</h3>' +
-      '<p class="muted" style="margin:0 0 6px">' + esc([r.gradYear ? 'Απόφοιτος ' + r.gradYear : '', r.direction].filter(Boolean).join(' · ')) + '</p>' +
+      '<p class="muted" style="margin:0 0 6px">' + esc([r.gradYear ? 'Απόφοιτος ' + r.gradYear : '', r.direction].filter(Boolean).join('\u00a0· ')) + '</p>' +
       (r.position || r.employer ? '<p style="margin:0">' + esc([r.position, r.employer].filter(Boolean).join(', ')) + '</p>' : '') +
       (r.city ? '<p class="muted" style="margin:4px 0 0">' + esc(r.city) + '</p>' : '') +
       (li ? '<p style="margin:10px 0 0"><a class="linkedin-btn" href="' + esc(li) + '" target="_blank" rel="noopener">LinkedIn</a></p>' : '') + '</div>';

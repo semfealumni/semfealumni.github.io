@@ -299,7 +299,23 @@ function fill(body, root, page) {
     .replace(/\{\{social\}\}/g, () => `<div class="social">${SOCIAL.map(([k, label, href]) => `<a class="${k}" href="${href}" target="_blank" rel="noopener">${ICONS[k]}${label}</a>`).join('')}</div>`);
 }
 
+/* Greek typesetting on the text of the page body (never inside tags, scripts or
+   styles): a day stays with its month ("27 Φεβρουαρίου") and a one-letter word
+   (ο, η, ή, Ο, Η, Ή) stays with the word after it, so a line never ends on one. */
+const ONE_LETTER = /(^|[\s(«"])([οηήΟΗΉ]) (?=[^\s])/g;
+function typeset(html) {
+  const at = html.indexOf('<body');
+  if (at < 0) return html;
+  const parts = html.slice(at).split(/(<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]+>)/);
+  for (let i = 0; i < parts.length; i += 2)       // even entries are text between tags
+    parts[i] = keepDate(parts[i]).replace(ONE_LETTER, '$1$2&nbsp;');
+  return html.slice(0, at) + parts.join('');
+}
+
 function render(page) {
+  return typeset(renderRaw(page));
+}
+function renderRaw(page) {
   /* 404.html is served for a missing address at ANY depth, so its links
      cannot be relative; they use the site's own path (/semfealumni/). */
   const root = page.meta.absRoot ? new URL(SITE_URL).pathname : rootFor(page.path);

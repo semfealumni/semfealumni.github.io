@@ -12,6 +12,8 @@
   var esc = A.esc, db = null, FV = null, unsub = null, all = [], filter = 'pending', query = '', me = null, keepFocus = null;
   var YEAR = new Date().getFullYear();
   var STAGES = { graduate: 'Απόφοιτος', 'final-year': 'Τελειόφοιτος', faculty: 'ΔΕΠ' };
+  var PROVIDER = { 'google.com': 'Google', 'facebook.com': 'Facebook', 'oidc.linkedin': 'LinkedIn', linkedin: 'LinkedIn', password: 'E-mail' };
+  function providerName(p) { return PROVIDER[p] || String(p || ''); }
   var STATUS = { pending: ['warn', 'Σε αναμονή'], active: ['ok', 'Ενεργό μέλος'], rejected: ['err', 'Απορρίφθηκε'] };
 
   function html(s) { app.innerHTML = s; }
@@ -142,7 +144,7 @@
       '<td data-label="ΣΕΜΦΕ">' + esc(STAGES[m.stage] || m.stage || '') + (m.entryYear ? '<br>Εισ. ' + esc(m.entryYear) : '') + (m.gradYear ? '<br>Αποφ. ' + esc(m.gradYear) : '') + (m.direction ? '<br>' + esc(m.direction) : '') + '</td>' +
       '<td data-label="Εργασία">' + ([esc([m.position, m.employer].filter(Boolean).join(', ')), m.city ? '<span class="muted">' + esc(m.city) + '</span>' : '']
         .filter(Boolean).join('<br>') || '—') + '</td>' +
-      '<td data-label="Αίτηση">' + date(m.createdAt) + '<br><small class="muted">' + esc(String(m.provider || '').replace('.com', '')) + '</small></td>' +
+      '<td data-label="Αίτηση">' + date(m.createdAt) + '<br><small class="muted">' + esc(providerName(m.provider)) + '</small></td>' +
       '<td data-label="Συνδρομές">' + (years.length ? esc(years.join(', ')) : '—') + '</td>' +
       '<td class="acts" data-label="Ενέργειες"><div class="acts-in">' +
       (m.status !== 'active' ? '<button type="button" class="btn btn-dark btn-sm" data-act="approve">Έγκριση</button> ' : '') +
@@ -206,16 +208,17 @@
       ['entryYear', 'Εισαγωγή'], ['gradYear', 'Αποφοίτηση'], ['direction', 'Κατεύθυνση'], ['position', 'Θέση'], ['employer', 'Εργοδότης'], ['city', 'Πόλη'],
       ['linkedin', 'LinkedIn'], ['duesYears', 'Συνδρομές'], ['consentNewsletter', 'Newsletter'], ['consentJobs', 'Θέσεις εργασίας'],
       ['consentDirectory', 'Κατάλογος'], ['note', 'Σημείωση'], ['createdAt', 'Αίτηση'], ['provider', 'Σύνδεση']];
-    var cell = function (v) {
+    var cell = function (v, key) {
       if (v && v.toMillis) v = new Date(v.toMillis()).toISOString().slice(0, 10);
       if (Array.isArray(v)) v = v.join(' ');
       if (typeof v === 'boolean') v = v ? 'ναι' : 'όχι';
+      if (key === 'provider') v = providerName(v);
       v = v == null ? '' : String(v);
       if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;           // stop spreadsheet formula injection
       return '"' + v.replace(/"/g, '""') + '"';
     };
     var csv = '﻿' + cols.map(function (c) { return cell(c[1]); }).join(',') + '\r\n' +
-      list.map(function (m) { return cols.map(function (c) { return cell(m[c[0]]); }).join(','); }).join('\r\n');
+      list.map(function (m) { return cols.map(function (c) { return cell(m[c[0]], c[0]); }).join(','); }).join('\r\n');
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
