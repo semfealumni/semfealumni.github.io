@@ -1578,6 +1578,86 @@ await scenario('N3', 'admin page: approving with the keyboard never lands on the
   t(await waitFor(page, () => document.querySelectorAll('#admin-app tr[data-id]').length === 1), '… the other application is still pending');
 });
 
+/* ======================= R. regressions from the whole-site review ======================= */
+await scenario('R1', 'signing out wipes the sign-in dialog (a shared computer keeps no password)', { cfg: 'oidc',
+  seed: { accounts: { 'u-e': acct('u-e', { email: 'eleni@example.com', name: 'Ελένη', providers: ['password'], password: 'right-password-1' }) } } }, async (page) => {
+  await page.goto(URL_('blog/'));
+  await openDialog(page, 'signin');
+  await page.fill('#auth-email', 'eleni@example.com');
+  await page.fill('#auth-pass', 'right-password-1');
+  await page.click('.modal [data-pw]');
+  await page.click('.modal [data-submit]');
+  t(await visible(page.locator('#acct-slot .acct-chip')), 'signed in');
+  await page.click('#acct-slot .acct-chip');
+  await page.click('#acct-menu [data-signout]');
+  t(await visible(page.locator('#acct-slot [data-signin]')), 'signed out (on a page that does not reload)');
+  await page.click('#acct-slot [data-signin]');
+  await visible(page.locator('.modal-backdrop'));
+  const f = await page.evaluate(() => ({ email: document.getElementById('auth-email').value, pass: document.getElementById('auth-pass').value, type: document.getElementById('auth-pass').type,
+    toggle: document.querySelector('.modal [data-pw]').textContent }));
+  t(f.email === '' && f.pass === '' && f.type === 'password' && f.toggle === 'Εμφάνιση', 'the dialog opens empty, the password hidden again' + list([js(f)]));
+});
+
+await scenario('R2', 'registering: the page hears of the new account only once its name is saved', { cfg: 'oidc' }, async (page) => {
+  await page.goto(URL_('account/'));
+  await page.click('#account-app [data-open="register"]');
+  await sdkReady(page);
+  await queue(page, 'updateProfile', { delayMs: 600 });
+  await page.fill('#auth-first', 'Νίκος'); await page.fill('#auth-last', 'Δημητρίου');
+  await page.fill('#auth-email', 'nikos.d@example.com'); await page.fill('#auth-pass', 'a-good-password-1');
+  await page.click('.modal [data-submit]');
+  await sleep(250);
+  t(await dialogOpen(page), 'while the name is being saved, the dialog stays open (nothing half-done on screen)');
+  t(await waitFor(page, () => document.getElementById('f-firstName') && document.getElementById('f-firstName').value === 'Νίκος', null, 6000), 'then the application form starts with the first name');
+  t((await page.inputValue('#f-lastName')) === 'Δημητρίου', '… and the last name');
+  t(await hasText(page.locator('#acct-slot .acct-chip .nm'), 'Νίκος Δημητρίου'), 'the header shows the full name, not the e-mail');
+});
+
+await scenario('R3', 'the account menu closes after a link to the same page', { cfg: 'oidc',
+  seed: signedInSeed(acct(MARIA.uid, { email: MARIA.email, name: MARIA.name })) }, async (page) => {
+  await page.goto(URL_('account/'));
+  await visible(page.locator('#account-app #methods'));
+  await page.click('#acct-slot .acct-chip');
+  await page.click('#acct-menu a[href$="account/#methods"]');
+  t(await page.evaluate(() => document.getElementById('acct-menu').hidden), 'the menu is closed after «Τρόποι σύνδεσης»');
+});
+
+await scenario('R4', 'the LinkedIn return page with a broken address says so (no endless spinner)', { cfg: 'function' }, async (page) => {
+  await page.goto(URL_('auth/linkedin/?code=abc%E0%A4&state=x'));
+  t(await hasText(page.locator('#li-app'), 'LinkedIn'), 'a message about the LinkedIn sign-in is shown');
+  t(!(await page.locator('#li-app .spinner').count()), '… and no spinner');
+});
+
+await scenario('R5', 'account page: a double click on «Υποβολή αίτησης» sends it once', { cfg: 'oidc',
+  seed: signedInSeed(acct(MARIA.uid, { email: MARIA.email, name: MARIA.name })) }, async (page) => {
+  await page.goto(URL_('account/'));
+  await visible(page.locator('#account-app form[data-apply]'));
+  await page.selectOption('#f-stage', 'graduate');
+  await page.check('#f-acceptedPrivacy');
+  await queue(page, 'fs.set', { delayMs: 500 });
+  await page.click('#account-app form[data-apply] [type=submit]');
+  await page.click('#account-app form[data-apply] [type=submit]').catch(() => {});
+  await sleep(900);
+  const w = (await calls(page, 'fs.set')).filter(c => c.args[0] === 'members/' + MARIA.uid).length + (await calls(page, 'fs.update')).filter(c => c.args[0] === 'members/' + MARIA.uid).length;
+  t(w === 1, 'one write, not two (' + w + ')');
+});
+
+await scenario('R6', 'merging: the person is asked, with the other account named, and can say no', { cfg: 'oidc',
+  seed: signedInSeed(acct(MARIA.uid, { email: MARIA.email, name: MARIA.name, providers: ['google.com'] }), {
+    accounts: { [MARIA.uid]: acct(MARIA.uid, { email: MARIA.email, name: MARIA.name, providers: ['google.com'] }),
+      'u-pw2': acct('u-pw2', { email: 'maria.old@example.com', name: 'Μαρία', providers: ['password'], password: 'old-pass-123' }) } }) }, async (page, env) => {
+  env.dialogPolicy = 'dismiss';
+  await page.goto(URL_('account/'));
+  await visible(page.locator('#account-app #methods'));
+  await page.click('#account-app [data-merge-open]');
+  await page.fill('#merge-email', 'maria.old@example.com');
+  await page.fill('#merge-pass', 'old-pass-123');
+  await page.click('#account-app [data-merge-pw] [type=submit]');
+  t(await waitFor(page, () => /ακυρώθηκε/.test((document.querySelector('#account-app [data-merge-msg]') || {}).textContent || '')), '«Η ένωση ακυρώθηκε: δεν άλλαξε τίποτα.»');
+  t(env.dialogs.some(d => d.type === 'confirm' && /maria\.old@example\.com/.test(d.message)), 'the question names the account that would be merged away');
+  t(!env.fnRequests || !env.fnRequests.some(r => /accounts/.test(r.url || '')), 'nothing was sent to the server');
+});
+
 /* ======================= Q. the Σχόλια page and the admin inbox ======================= */
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 const JPG_URL = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';

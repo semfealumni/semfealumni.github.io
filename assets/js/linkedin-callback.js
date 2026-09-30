@@ -10,11 +10,16 @@
   var box = document.getElementById('li-app');
   if (!A || !box) return;
   var q = {};
+  // a malformed address (a broken %-sequence) must not leave the page on its spinner
+  var dec = function (v) { try { return decodeURIComponent(v); } catch (e) { return null; } };
+  var broken = false;
   location.search.replace(/^\?/, '').split('&').forEach(function (kv) {
     if (!kv) return;
-    var i = kv.indexOf('='), k = decodeURIComponent(i < 0 ? kv : kv.slice(0, i));
-    q[k] = i < 0 ? '' : decodeURIComponent(kv.slice(i + 1).replace(/\+/g, ' '));
+    var i = kv.indexOf('='), k = dec(i < 0 ? kv : kv.slice(0, i)), v = i < 0 ? '' : dec(kv.slice(i + 1).replace(/\+/g, ' '));
+    if (k === null || v === null) { broken = true; return; }
+    q[k] = v;
   });
+  if (broken) q = { error: 'invalid_request' };
   try { if (history.replaceState) history.replaceState(null, '', location.pathname); } catch (e) {}
 
   function show(title, text, kind) {

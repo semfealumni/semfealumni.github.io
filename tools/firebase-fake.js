@@ -247,7 +247,9 @@
       var claims = { email: self.email, email_verified: self.emailVerified, user_id: self.uid,
         firebase: { sign_in_provider: a.lastProvider || ((a.providers || [])[0] || {}).providerId || 'custom' } };
       for (var k in (a.claims || {})) claims[k] = a.claims[k];
-      return { token: 'fake-id-token.' + self.uid, claims: claims, signInProvider: claims.firebase.sign_in_provider };
+      // like the SDK: UTC date strings, the sign-in time and the time this token was issued (server clock)
+      return { token: 'fake-id-token.' + self.uid, claims: claims, signInProvider: claims.firebase.sign_in_provider,
+        authTime: new Date(a.lastSignIn || a.created || now()).toUTCString(), issuedAtTime: new Date(now()).toUTCString() };
     });
   };
   User.prototype.linkWithCredential = function (cred) {

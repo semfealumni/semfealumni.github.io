@@ -122,12 +122,10 @@
           // "Αποσύνδεση" pressed before the SDK had loaded: do not bring the
           // restored session back on screen, auth.signOut() is on its way
           if (u && signingOut) return;
-          current = u; authKnown = true;
-          // signed in some other way (another tab, a LinkedIn return): the dialog has nothing left to do
-          if (u && dialog && !dialog.hidden && !pendingLink) close();
-          if (u) saveHint(u); else clearHint();
-          paintHeader();
-          listeners.forEach(function (fn) { try { fn(u); } catch (e) { if (window.console) console.error(e); } });
+          // a registration fires this BEFORE the name is saved: the page hears
+          // about the new account once it has its name (settle(), below)
+          if (u && registering) { current = u; authKnown = true; return; }
+          settle(u);
         });
       });
     sdkPromise.catch(function () {
@@ -137,6 +135,29 @@
       listeners.forEach(function (fn) { try { fn(null); } catch (e) {} });
     });
     return sdkPromise;
+  }
+  var registering = false;
+  function settle(u) {
+    current = u; authKnown = true;
+    if (u) freshToken(u).catch(function () {});
+    // signed in some other way (another tab, a LinkedIn return): the dialog has nothing left to do
+    if (u && dialog && !dialog.hidden && !pendingLink) close();
+    if (u) saveHint(u); else clearHint();
+    paintHeader();
+    listeners.forEach(function (fn) { try { fn(u); } catch (e) { if (window.console) console.error(e); } });
+  }
+  /* The SDK refreshes the USER record when a page loads (so emailVerified can
+     turn true) but keeps the cached ID TOKEN, which may still say
+     email_verified:false for up to an hour: the rules and the Cloud Functions
+     read the token, and would refuse a member who has just confirmed their
+     address. Fetch a new token in that case (and only then). */
+  function freshToken(u) {
+    u = u || current;
+    if (!u || !u.getIdTokenResult) return Promise.resolve(null);
+    return u.getIdTokenResult().then(function (r) {
+      if (u.emailVerified && !(r && r.claims && r.claims.email_verified === true)) return u.getIdToken(true);
+      return r && r.token;
+    });
   }
   var fsPromise = null;
   function db() {
@@ -158,7 +179,7 @@
     return loadSdk().then(function () {
       if (idToken) return idToken;
       if (!auth.currentUser) throw { code: 'semfe/relogin' };
-      return auth.currentUser.getIdToken();
+      return freshToken(auth.currentUser).then(function () { return auth.currentUser.getIdToken(); });
     }).then(function (tok) {
       return fetch(FN_BASE + 'accounts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify(body) })
         .then(function (r) {
@@ -194,6 +215,10 @@
       var other = cred && cred.user ? cred.user : a.currentUser;
       if (!other) throw { code: 'semfe/relogin' };
       if (current && other.uid === current.uid) throw { code: 'semfe/same-account' };
+      // the chooser may have signed in to an account the person did not mean:
+      // say which one will be merged away, and let them stop
+      var who = other.email || other.displayName || 'τον άλλο λογαριασμό';
+      if (!window.confirm('Ο λογαριασμός ' + who + ' θα ενωθεί σε αυτόν και μετά θα διαγραφεί: η αίτηση μέλους και οι τρόποι σύνδεσής του έρχονται εδώ.\n\nΣυνέχεια;')) throw { code: 'semfe/merge-cancelled' };
       return other.getIdToken(true).then(function (tok) { return callAccounts({ action: 'mergeSelf', otherIdToken: tok }); });
     }).then(function (j) {
       return (a ? a.signOut() : Promise.resolve()).catch(function () {}).then(function () {
@@ -262,6 +287,12 @@
   function paintHeader() {
     var slot = $('#acct-slot');
     if (!slot) return;
+    // the button being replaced may hold the keyboard focus: give it to its successor
+    var had = slot.contains(document.activeElement) && !($('#acct-menu', slot) && !$('#acct-menu', slot).hidden);
+    paintSlot(slot);
+    if (had) { var f = $('.acct-chip, [data-signin]', slot); if (f) try { f.focus({ preventScroll: true }); } catch (e) {} }
+  }
+  function paintSlot(slot) {
     var u = current, h = !authKnown && configured ? hint() : null;
     if (!u && !h) {
       slot.innerHTML = '<a class="btn btn-primary btn-sm acct-signin" href="' + root + 'account/" data-signin>Σύνδεση</a>';
@@ -295,6 +326,9 @@
       if (e.relatedTarget && !U.closest(e.relatedTarget, '.acct-menu-wrap')) setMenu(false);
     });
     $('[data-signout]', slot).addEventListener('click', function () { setMenu(false); signOut(); });
+    // a link to this same page (account/#methods from account/) does not
+    // navigate away, so close the menu on any link
+    $$('#acct-menu a', slot).forEach(function (a) { a.addEventListener('click', function () { setMenu(false); }); });
   }
   /* the menu is redrawn on every sign-in change, so these page-wide
      listeners are registered once and look the menu up when they fire */
@@ -474,12 +508,16 @@
     if (reg && pass.length < 8) return bad('#auth-pass', 'Ο κωδικός χρειάζεται τουλάχιστον 8 χαρακτήρες.');
     var submit = $('[data-submit]', dialog);
     submit.disabled = true;
+    if (reg) registering = true;
     var job = reg
       ? auth.createUserWithEmailAndPassword(email, pass).then(function (res) {
           return res.user.updateProfile({ displayName: (first + ' ' + last).trim() })
+            .catch(function (e) {                // the account exists: say so, and go on without the name
+              flash('Ο λογαριασμός δημιουργήθηκε, αλλά το όνομα δεν αποθηκεύτηκε (' + friendly(e) + '). Συμπληρώστε το στην αίτηση μέλους.');
+            })
             .then(function () { return res.user.sendEmailVerification({ url: absolute(root + 'account/') }).catch(function () {}); })
-            .then(function () { return res; });
-        })
+            .then(function () { registering = false; settle(auth.currentUser || res.user); return res; });
+        }, function (e) { registering = false; throw e; })
       : auth.signInWithEmailAndPassword(email, pass);
     job.then(function (res) { submit.disabled = false; return afterSignIn(res, reg); })
       .catch(function (e) { submit.disabled = false; handleError(e, 'password'); });
@@ -513,6 +551,7 @@
     }
     return chain.then(function () {
       close();
+      resetDialog();
       var onAccount = /\/account\/?$/.test(location.pathname);
       if (isNew && !onAccount) location.href = root + 'account/#apply';
     });
@@ -536,8 +575,22 @@
     }
     showStatus(friendly(e));
   }
+  /* after signing in or out, the dialog forgets what was typed: on a shared
+     computer the next person must not find the last password in it */
+  function resetDialog() {
+    if (!dialog) return;
+    var f = $('[data-email-form]', dialog); if (f && f.reset) f.reset();
+    var pw = $('#auth-pass', dialog), t = $('[data-pw]', dialog);
+    if (pw) pw.type = 'password';
+    if (t) { t.textContent = 'Εμφάνιση'; t.setAttribute('aria-pressed', 'false'); }
+    $$('[aria-invalid]', dialog).forEach(function (el) { el.removeAttribute('aria-invalid'); });
+    pendingLink = null;
+    var ln = $('[data-link-notice]', dialog); if (ln) ln.hidden = true;
+    showStatus('');
+  }
   function signOut() {
     clearHint();
+    resetDialog();
     if (!configured) { current = null; paintHeader(); return Promise.resolve(); }
     // the SDK may still be downloading (the header was drawn from the saved
     // hint): wait for it and sign out for real, or the session comes back. The
@@ -550,7 +603,8 @@
       signingOut = false;
       try { localStorage.removeItem(SIGNOUT_KEY); } catch (e) {}
       clearHint();
-      if (/\/(account|members|admin)\/?$/.test(location.pathname)) location.reload();
+      // a fresh page without the #hash: account/#apply would otherwise open the registration dialog
+      if (/\/(account|members|admin)\/?$/.test(location.pathname)) location.replace(location.pathname + location.search);
     }, function (e) { signingOut = false; throw e; });
   }
 
@@ -571,7 +625,9 @@
   function link(key) {
     var p = PROVIDERS[key];
     if (!p || !current) return Promise.reject(new Error('no-user'));
-    if (key === 'linkedin' && LI_FUNCTION) { linkedinStart('link'); return new Promise(function () {}); }  // the page navigates away
+    if (key === 'linkedin' && LI_FUNCTION) {                  // the page navigates away, or says why it cannot
+      return linkedinStart('link') ? new Promise(function () {}) : Promise.reject({ code: 'semfe/storage-blocked' });
+    }
     return current.linkWithPopup(p.make());
   }
   function reauth(u) {
@@ -587,17 +643,18 @@
   // blockers and the opener being cut off by LinkedIn's security headers; the
   // member comes back to auth/linkedin/, which calls linkedinComplete().
   function linkedinStart(mode, waiting) {
-    if (!liReady) return;
+    if (!liReady) return false;
     var state = randomState();
     try {
       sessionStorage.setItem(LI_STATE, JSON.stringify({ state: state, mode: mode === 'link' || mode === 'merge' ? mode : 'signin', returnTo: returnAddress(),
         waiting: String(waiting || '').slice(0, 40), t: Date.now() }));
-    } catch (e) { showStatus('Ο browser σας δεν επιτρέπει την αποθήκευση δεδομένων (cookies), που χρειάζεται η σύνδεση με LinkedIn.'); return; }
+    } catch (e) { showStatus(friendly({ code: 'semfe/storage-blocked' })); return false; }
     location.assign('https://www.linkedin.com/oauth/v2/authorization?response_type=code' +
       '&client_id=' + encodeURIComponent(LI.clientId) +
       '&redirect_uri=' + encodeURIComponent(linkedinRedirectUri()) +
       '&state=' + encodeURIComponent(state) +
       '&scope=' + encodeURIComponent('openid profile email'));
+    return true;
   }
   /* this page without its #hash and without ?signin / ?register, which would open the dialog again */
   function returnAddress() {
@@ -723,6 +780,8 @@
       'semfe/email-not-verified': 'Επιβεβαιώστε πρώτα το e-mail αυτού του λογαριασμού (με τον σύνδεσμο που σας στείλαμε) και δοκιμάστε ξανά.',
       'semfe/cannot-remove-admin': 'Ο λογαριασμός ενός διαχειριστή δεν διαγράφεται ούτε ενώνεται σε άλλον. Κρατήστε αυτόν και ενώστε τον άλλο σε αυτόν.',
       'semfe/merge-busy': 'Γίνεται ήδη μια ένωση με αυτούς τους λογαριασμούς. Περιμένετε λίγο και δοκιμάστε ξανά.',
+      'semfe/storage-blocked': 'Ο browser σας δεν επιτρέπει την αποθήκευση δεδομένων (cookies), που χρειάζεται η σύνδεση με LinkedIn. Επιτρέψτε τα για αυτόν τον ιστότοπο και δοκιμάστε ξανά.',
+      'auth/user-mismatch': 'Συνδεθήκατε με άλλον λογαριασμό από αυτόν που έχετε ανοιχτό εδώ. Διαλέξτε τον ίδιο λογαριασμό και δοκιμάστε ξανά.',
       'auth/provider-already-linked': 'Αυτός ο τρόπος σύνδεσης είναι ήδη συνδεδεμένος με τον λογαριασμό σας.',
       'permission-denied': 'Δεν έχετε δικαίωμα για αυτή την ενέργεια (ή οι κανόνες ασφαλείας της βάσης δεν έχουν δημοσιευτεί ακόμα).',
       'unavailable': 'Η βάση δεδομένων δεν είναι διαθέσιμη αυτή τη στιγμή. Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά.'
@@ -760,7 +819,7 @@
     friendly: friendly, flash: flash, esc: esc, avatarHtml: avatarHtml, displayName: displayName,
     enabledProviders: function () { return enabled.slice(); }, providerInfo: function (k) { return PROVIDERS[k]; }, methodsText: methodsText,
     callAccounts: callAccounts, mergeWith: mergeWith, mergeSummary: mergeSummary, linkedinStart: linkedinStart,
-    noteMenu: noteMenu, menuInfo: menuInfo,
+    noteMenu: noteMenu, menuInfo: menuInfo, freshToken: freshToken,
     icon: function (k) { return ICONS[k] || ''; },
     user: function () { return current; }
   };

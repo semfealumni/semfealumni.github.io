@@ -310,7 +310,7 @@
       check('acceptedPrivacy', 'Έχω διαβάσει την <a href="' + A.root + 'privacy/" target="_blank" rel="noopener">πολιτική απορρήτου</a> και συμφωνώ να αποθηκευτούν τα στοιχεία μου για την τήρηση του μητρώου μελών.', m.acceptedPrivacy, true) +
       '</div></fieldset>' +
       '<div class="form-error" role="alert" id="apply-msg" tabindex="-1" data-form-msg>' + esc(msg) + '</div>' +
-      '<div class="section-foot" style="margin-top:0"><button type="submit" class="btn btn-primary"' + (blocked ? ' disabled' : '') + '>' + (member ? 'Αποθήκευση' : 'Υποβολή αίτησης') + '</button>' +
+      '<div class="section-foot" style="margin-top:0"><button type="submit" class="btn btn-primary"' + (blocked || saving ? ' disabled' : '') + '>' + (saving ? 'Αποθήκευση…' : member ? 'Αποθήκευση' : 'Υποβολή αίτησης') + '</button>' +
       (member ? '<button type="button" class="btn btn-outline" data-cancel>Ακύρωση</button>' : '') + '</div>' +
       '</form></div>';
   }
@@ -529,7 +529,11 @@
     if (!d.acceptedPrivacy) return bad('acceptedPrivacy', 'Για να υποβάλετε αίτηση, χρειάζεται να συμφωνήσετε με την πολιτική απορρήτου.');
     return '';
   }
+  // while a save is on its way, the redraws its own write causes must not
+  // bring back an enabled button (a second click sent it twice)
+  var saving = false;
   function submitApplication(form) {
+    if (saving) return;
     var msg = form.querySelector('[data-form-msg]'), btn = form.querySelector('[type=submit]');
     var d = readForm(form), err = validate(d, form);
     msg.className = 'form-error';
@@ -546,15 +550,13 @@
     if (member && member.status !== 'pending') { d.firstName = member.firstName; d.lastName = member.lastName; }
     d.provider = provider.slice(0, 40);
     d.updatedAt = FV.serverTimestamp();
-    var job;
-    if (member) {
-      job = ref.update(d);
-    } else {
-      d.status = 'pending';
-      d.createdAt = FV.serverTimestamp();
-      job = ref.set(d);
-    }
+    var existing = !!member;
+    if (!existing) { d.status = 'pending'; d.createdAt = FV.serverTimestamp(); }
+    saving = true;
+    // the rules read the sign-in token: after confirming the e-mail it may still say "not confirmed"
+    var job = A.freshToken(user).catch(function () {}).then(function () { return existing ? ref.update(d) : ref.set(d); });
     job.then(function () {
+      saving = false;
       editing = false; draft = null; formErr = '';
       // an active member: the directory follows the form (listed, updated, or removed)
       if (member && member.status === 'active') {
@@ -565,6 +567,7 @@
       refocus = '#apply h2';
       render(true);
     }, function (e) {
+      saving = false;
       formErr = A.friendly(e);
       editing = !wasNew;
       refocus = '#apply-msg';
@@ -586,7 +589,8 @@
     box.disabled = true;
     dirMsg = null;
     var want = box.checked;
-    var job = (want ? writeDirectory() : db.collection('directory').doc(user.uid).delete().then(function () { dirEntry = null; }))
+    var job = A.freshToken(user).catch(function () {})
+      .then(function () { return want ? writeDirectory() : db.collection('directory').doc(user.uid).delete().then(function () { dirEntry = null; }); })
       .then(function () {
         // remember the choice on the application too, so it is not re-listed automatically
         if (member.consentDirectory !== want) return db.collection('members').doc(user.uid).update({ consentDirectory: want, updatedAt: FV.serverTimestamp() });
@@ -622,7 +626,7 @@
       });
     }, function (err) {
       if (b) { b.disabled = false; try { b.focus(); } catch (e) {} }     // disabling it had dropped keyboard focus
-      if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) return;
+      if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request' || err.code === 'auth/user-cancelled')) return;
       if (err && TAKEN.indexOf(err.code) !== -1) {
         var name = A.providerInfo(k).name;
         conflict = { provider: k, credential: err.credential || null,
@@ -685,7 +689,8 @@
       });
     }, function (err) {
       if (btn) { btn.disabled = false; try { btn.focus(); } catch (e) {} }
-      if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) { if (msg) msg.textContent = ''; return; }
+      if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request' || err.code === 'auth/user-cancelled')) { if (msg) msg.textContent = ''; return; }
+      if (err && err.code === 'semfe/merge-cancelled') { if (msg) { msg.className = 'form-ok'; msg.textContent = 'Η ένωση ακυρώθηκε: δεν άλλαξε τίποτα.'; } return; }
       if (msg) { msg.className = 'form-error'; msg.textContent = A.friendly(err); }
     });
   }
@@ -693,12 +698,20 @@
   function deleteAccount() {
     var q = function (s) { return app.querySelector(s); };
     var msg = q('[data-del-msg]'), btn = q('[data-del-go]');
-    if (q('#del-confirm').value.trim().toUpperCase() !== 'ΔΙΑΓΡΑΦΗ') { msg.textContent = 'Γράψτε ΔΙΑΓΡΑΦΗ για επιβεβαίωση.'; return; }
+    // «διαγραφή», «Διαγραφή» and «ΔΙΑΓΡΑΦΗ» all count (accents are dropped before comparing)
+    var typed = q('#del-confirm').value.trim();
+    if (typed.normalize) typed = typed.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (typed.toUpperCase() !== 'ΔΙΑΓΡΑΦΗ') { msg.textContent = 'Γράψτε ΔΙΑΓΡΑΦΗ για επιβεβαίωση.'; return; }
     var pass = q('#del-pass');
     btn.disabled = true; msg.className = 'form-error'; msg.textContent = '';
-    var recent = user.metadata && user.metadata.lastSignInTime && (Date.now() - new Date(user.metadata.lastSignInTime).getTime() < 4 * 60 * 1000);
-    // prove identity FIRST: deleting the sign-in account removes the right to delete its data
-    var proof = recent ? Promise.resolve() : (pass ? A.reauthPassword(pass.value) : A.reauth(user));
+    var prove = function () { return pass ? A.reauthPassword(pass.value) : A.reauth(user); };
+    // prove identity FIRST: deleting the sign-in account removes the right to delete its data.
+    // "Recent" is measured on the server's own clock (the token's sign-in and issue
+    // times), not this device's, and not the account's last sign-in on another device.
+    var proof = user.getIdTokenResult(true).then(function (r) {
+      var signedIn = Date.parse(r && r.authTime), issued = Date.parse(r && r.issuedAtTime);
+      return isFinite(signedIn) && isFinite(issued) && issued - signedIn < 4 * 60 * 1000;
+    }, function () { return false; }).then(function (recent) { return recent ? null : prove(); });
     proof.then(function () {
       if (unsub) { unsub(); unsub = null; }
       return db.collection('directory').doc(user.uid).delete().catch(function () {});
@@ -706,7 +719,13 @@
       return db.collection('members').doc(user.uid).delete();
     }).then(function () {
       deleted = true;
-      return user.delete();
+      // still refused as "not recent" (a slow click): prove it once more and try again
+      return user.delete().catch(function (e) {
+        if (!e || e.code !== 'auth/requires-recent-login') throw e;
+        return prove().then(function () { return user.delete(); }).catch(function (e2) {
+          throw { code: 'semfe/delete-half', cause: e2 };
+        });
+      });
     }).then(function () {
       try { localStorage.removeItem('semfe:auth-hint'); } catch (e) {}
       html('<div class="notice ok" tabindex="-1" id="deleted-msg"><strong>Ο λογαριασμός σας διαγράφηκε.</strong><p>Διαγράψαμε τον λογαριασμό σύνδεσης, την αίτηση μέλους και την καταχώρισή σας στον κατάλογο.</p></div>');
@@ -714,7 +733,13 @@
     }).catch(function (e) {
       deleted = false;
       btn.disabled = false;
-      if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request')) { msg.textContent = 'Η διαγραφή ακυρώθηκε.'; return; }
+      if (e && e.code === 'semfe/delete-half') {
+        // the application and the directory card are gone, the sign-in is not
+        msg.textContent = 'Η αίτηση μέλους και η καταχώριση στον κατάλογο διαγράφηκαν, αλλά ο λογαριασμός σύνδεσης όχι ακόμα (' +
+          A.friendly(e.cause) + '). Πατήστε ξανά «Διαγραφή» για να ολοκληρωθεί.';
+        return;
+      }
+      if (e && (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request' || e.code === 'auth/user-cancelled')) { msg.textContent = 'Η διαγραφή ακυρώθηκε.'; return; }
       msg.textContent = A.friendly(e);
     });
   }
