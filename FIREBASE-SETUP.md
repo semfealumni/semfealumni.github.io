@@ -299,6 +299,10 @@ before anything costs money.
    * `ALLOWED_ORIGINS`: press Enter to keep `https://www.stouras.com,https://stouras.com`.
    * `LINKEDIN_REDIRECT_URIS`: press Enter to keep
      `https://www.stouras.com/semfealumni/auth/linkedin/`.
+   * "How many days do you want to keep container images before they're
+     deleted?": press Enter to keep **1**. Each deploy stores a copy of the
+     function's build; the running function never needs the old ones, and
+     keeping them only adds a small storage charge.
 
    It saves your answers in `functions/.env.semfe-alumni` (safe to commit: none
    of them is secret). At the end it prints a **Function URL** such as
