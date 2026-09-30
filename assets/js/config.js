@@ -34,15 +34,15 @@ window.SEMFE = {
   annualFee: 10,
 
   FIREBASE: {
-    apiKey: 'PASTE_API_KEY',
-    authDomain: 'PASTE_PROJECT_ID.firebaseapp.com',
-    projectId: 'PASTE_PROJECT_ID',
-    storageBucket: 'PASTE_PROJECT_ID.firebasestorage.app',
-    messagingSenderId: 'PASTE_SENDER_ID',
-    appId: 'PASTE_APP_ID'
+    apiKey: 'AIzaSyBOcWAPSn4FgZtH70J4OntxeZ42zhnZgQE',
+    authDomain: 'semfe-alumni.firebaseapp.com',
+    projectId: 'semfe-alumni',
+    storageBucket: 'semfe-alumni.firebasestorage.app',
+    messagingSenderId: '478387432992',
+    appId: '1:478387432992:web:516c049d52286994875645'
   },
 
-  AUTH_PROVIDERS: ['google', 'facebook', 'linkedin'],
+  AUTH_PROVIDERS: ['google', 'linkedin'],   // add 'facebook' (after 'google') once Part C of FIREBASE-SETUP.md is done
 
   /* LinkedIn has two routes (FIREBASE-SETUP.md, Part D):
        mode 'function'  the recommended one: LinkedIn sends the member back to

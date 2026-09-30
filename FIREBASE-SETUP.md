@@ -310,7 +310,7 @@ for one.
    them (if the functions from Part D are deployed; otherwise also delete their
    document in Firestore > members and directory).
 
-Keep `'facebook'` in `AUTH_PROVIDERS` in `config.js` (it is there).
+Finally, add `'facebook'` to `AUTH_PROVIDERS` in `assets/js/config.js` (after `'google'`) and push: the **Συνέχεια με Facebook** button appears. It is left out until this part is done, so visitors never see a button that does not work yet.
 
 ---
 

@@ -70,8 +70,10 @@ function configFor(kind) {
   if (kind === 'oidc') li = { mode: 'oidc', providerId: LI_ID, clientId: 'unused', functionUrl: 'unused' };
   if (kind === 'function') li = { mode: 'function', providerId: LI_ID, clientId: 'li-client-123', functionUrl: FN_URL };
   // 'shipped': the LINKEDIN block exactly as committed
+  // every provider is exercised, whichever ones the live site has switched on so far
   return CONFIG_SRC + '\n/* auth-flow.mjs: sign-in switched on with a test project */\n' +
     'window.SEMFE.FIREBASE = ' + JSON.stringify(TEST_FIREBASE) + ';\n' +
+    (kind === 'shipped' ? '' : "window.SEMFE.AUTH_PROVIDERS = ['google', 'facebook', 'linkedin'];\n") +
     (li ? 'window.SEMFE.LINKEDIN = ' + JSON.stringify(li) + ';\n' : '');
 }
 
@@ -974,7 +976,10 @@ await scenario('I1', 'LinkedIn with the shipped settings (Cloud Function, not fi
   const shippedMode = (C.LINKEDIN || {}).mode;
   const filled = !String((C.LINKEDIN || {}).clientId + (C.LINKEDIN || {}).functionUrl).includes('PASTE_');
   if (shippedMode === 'oidc' || filled) note('config.js already has LinkedIn configured (mode ' + shippedMode + '); the hidden-button check does not apply');
-  else t(!provs.includes('linkedin') && provs.includes('google') && provs.includes('facebook'), 'without clientId/functionUrl the LinkedIn button is hidden, the others shown' + list(provs));
+  else {
+    const others = (C.AUTH_PROVIDERS || []).filter(k => k !== 'linkedin');
+    t(!provs.includes('linkedin') && js(provs) === js(others), 'without clientId/functionUrl the LinkedIn button is hidden, the others listed in config.js shown' + list(provs));
+  }
 });
 await scenario('I2', 'LinkedIn through the Cloud Function: authorize, callback, sign in', { cfg: 'function' }, async (page, env) => {
   let authUrl = null;
