@@ -317,10 +317,14 @@ before anything costs money.
    * Google Cloud console (https://console.cloud.google.com), pick the project.
    * **APIs & Services > Library** > search **"IAM Service Account Credentials
      API"** > **Enable**.
-   * **IAM & Admin > IAM** (not "Service Accounts") > find the account named
-     `<project-number>-compute@developer.gserviceaccount.com` ("Default compute
-     service account"; for this project `478387432992-compute@…`) > pencil >
-     **Add another role** > **Service Account Token Creator** > **Save**.
+   * **IAM & Admin > IAM** (the "IAM" line in the left menu, not "Service
+     Accounts") > **Grant access** (top of the list). **New principals**:
+     `<project-number>-compute@developer.gserviceaccount.com` (the "Default
+     compute service account"; for this project
+     `478387432992-compute@developer.gserviceaccount.com`). **Select a role**:
+     type `Service Account Token Creator` and pick it. **Save**. (This works
+     whether or not the account is already listed on the IAM page; if it is,
+     its pencil leads to the same place.)
 
    That account does not exist until step 4 has deployed the function (the
    first deploy creates it). If it is missing, finish step 4 first; the API
