@@ -593,6 +593,23 @@ try {
       `${w}px ${big ? '125% text' : 'no web font'}: the header fits (${r.row ? 'one row of links' : 'menu button'})`);
     await ctx.close();
   }
+  // the narrowest phones, also without the web font (a wider fallback): menu
+  // button, logo and name, «Σύνδεση» never overlap
+  for (const w of [320, 360, 375]) {
+    for (const noFonts of [false, true]) {
+      const { ctx, page } = await open(SUB, { width: w, height: 640, phone: true, touch: true, noFonts });
+      await page.waitForTimeout(200);
+      const r = await page.evaluate(() => {
+        const box = e => e.getBoundingClientRect();
+        let br = 0; document.querySelectorAll('.brand, .brand-text span').forEach(s => { const b = box(s); if (b.width > 0) br = Math.max(br, b.right, b.left + s.scrollWidth); });
+        return { tog: box(document.querySelector('.nav-toggle')), brandL: box(document.querySelector('.brand')).left, brandR: br,
+          acct: box(document.querySelector('#acct-slot').firstElementChild), vw: innerWidth, over: document.documentElement.scrollWidth > innerWidth };
+      });
+      t(!r.over && r.tog.left >= 0 && r.tog.right <= r.brandL + 0.5 && r.brandR <= r.acct.left + 0.5 && r.acct.right <= r.vw,
+        `${w}px ${noFonts ? 'no web font' : 'web font'}: menu button, name and Σύνδεση do not overlap (${Math.round(r.acct.left - r.brandR)}px to spare)`);
+      await ctx.close();
+    }
+  }
   // the header slims down once the page scrolls, and comes back at the top
   for (const [w, h] of [[1440, 900], [1101, 800], [390, 844]]) {
     const phone = isPhone(w, h);
@@ -630,11 +647,14 @@ try {
       const brand = [...document.querySelectorAll('.brand, .brand-text span')].filter(e => e.getBoundingClientRect().width > 0)
         .map(e => ({ right: Math.max(e.getBoundingClientRect().right, e.getBoundingClientRect().left + e.scrollWidth) }));
       return { toggle: getComputedStyle(document.querySelector('.nav-toggle')).display, navShown: box('#nav').height > 0,
-        brandR: Math.max(...brand.map(b => b.right)), acct: box('#acct-slot'), tog: box('.nav-toggle'), vw: innerWidth, headerH: box('.site-header').height };
+        brandL: box('.brand').left, brandR: Math.max(...brand.map(b => b.right)), acct: box('#acct-slot'), tog: box('.nav-toggle'), vw: innerWidth,
+        headerH: box('.site-header').height };
     });
     t(hdr.toggle !== 'none' && !hdr.navShown, `${tag}: menu button shown, menu closed`);
-    t(hdr.brandR <= hdr.acct.left && hdr.acct.right <= hdr.tog.left && hdr.tog.right <= hdr.vw && hdr.headerH < 80,
-      `${tag}: brand, Σύνδεση and menu button share one row without overlapping (header ${Math.round(hdr.headerH)}px)`);
+    t(hdr.tog.left >= 0 && hdr.tog.right <= hdr.brandL && hdr.brandR <= hdr.acct.left && hdr.acct.right <= hdr.vw && hdr.headerH < 80,
+      `${tag}: menu button (left), brand and Σύνδεση (right) share one row without overlapping (header ${Math.round(hdr.headerH)}px)`);
+    t(hdr.tog.left < 30 && hdr.vw - hdr.acct.right < 30,
+      `${tag}: the menu button is at the left edge, the account button alone at the right (${Math.round(hdr.tog.left)}px / ${Math.round(hdr.vw - hdr.acct.right)}px from the edges)`);
     await tap('.nav-toggle');
     const opened = await page.evaluate(() => {
       const nav = document.getElementById('nav');

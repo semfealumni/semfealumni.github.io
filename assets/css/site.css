@@ -138,18 +138,21 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
   -webkit-backdrop-filter: saturate(140%) blur(10px); backdrop-filter: saturate(140%) blur(10px);
   color: #fff; border-bottom: 1px solid rgba(255,255,255,.08);
 }
-.site-header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: var(--header-h); }
+.site-header .wrap { display: flex; align-items: center; gap: 12px; min-height: var(--header-h); }
 .brand { display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; min-width: 0; min-height: 44px; }
 .brand-mark { width: 42px; height: 42px; flex: none; border-radius: 50%; background: #fff; padding: 3px; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.1; min-width: 0; }
 .brand-text .top { font-size: .68rem; letter-spacing: .2em; font-weight: 700; opacity: .8; white-space: nowrap; max-height: 2.6em; overflow: hidden; }
 .brand-text .bottom { font-size: 1.02rem; letter-spacing: .04em; font-weight: 800; white-space: nowrap; }
-.header-right { display: flex; align-items: center; gap: 6px; }
+/* the account button (and on a wide screen the links) keep to the right */
+.header-right { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .nav { display: flex; align-items: center; gap: 2px; }
 .nav a { color: rgba(255,255,255,.88); text-decoration: none; font-weight: 700; font-size: .93rem; padding: 10px 11px; border-radius: 8px; white-space: nowrap; }
 .nav a[aria-current="page"] { color: #fff; background: rgba(255,255,255,.12); }
 @media (hover: hover) { .nav a:hover { background: rgba(255,255,255,.1); color: #fff; } }
-.nav-toggle { display: none; background: none; border: 0; color: #fff; padding: 8px; cursor: pointer; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; border-radius: 10px; }
+/* the menu button sits at the far LEFT, before the logo, so the right-hand
+   corner holds only the account button (a phone's usual layout) */
+.nav-toggle { display: none; flex: none; background: none; border: 0; color: #fff; padding: 8px; margin-left: -8px; margin-right: -4px; cursor: pointer; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; border-radius: 10px; }
 .nav-toggle svg { width: 28px; height: 28px; }
 .nav-toggle .i-close { display: none; }
 .nav-toggle[aria-expanded="true"] .i-open { display: none; }
@@ -212,7 +215,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
 }
 
 @media (max-width: 1100px) {
-  .js .nav-toggle { display: inline-flex; order: 1; }
+  .js .nav-toggle { display: inline-flex; }
   html:not(.js) .site-header { position: static; }
   .js .nav {
     position: absolute; left: 0; right: 0; top: 100%;
@@ -241,7 +244,7 @@ html.js.nav-compact .nav a { padding-left: 6px; padding-right: 6px; font-size: .
 /* the same menu on a wide screen whose header row does not fit: the web font
    failed (a wider fallback font), or the reader uses a larger text size.
    site.js measures and sets .nav-tight; keep in step with the block above */
-html.js.nav-tight .nav-toggle { display: inline-flex; order: 1; }
+html.js.nav-tight .nav-toggle { display: inline-flex; }
 html.js.nav-tight .nav {
   position: absolute; left: 0; right: 0; top: 100%;
   flex-direction: column; align-items: stretch; gap: 0;
@@ -269,6 +272,15 @@ html.js.nav-tight .nav a + a { border-top: 1px solid rgba(255,255,255,.08); }
   .brand-text .top { letter-spacing: .06em; font-size: .56rem; }
   .site-header .wrap { gap: 8px; }
   .header-right { gap: 2px; }
+}
+@media (max-width: 360px) {
+  /* menu button + logo + name + «Σύνδεση» on a 320px screen, even in a wider
+     fallback font: a little less room around each */
+  .site-header .wrap { gap: 6px; }
+  .brand { gap: 8px; }
+  .brand-mark, html.hdr-small .brand-mark { width: 32px; height: 32px; }
+  .brand-text .bottom, html.hdr-small .brand-text .bottom { font-size: .86rem; letter-spacing: .02em; }
+  .acct-signin { padding-left: 10px; padding-right: 10px; }
 }
 @media (max-width: 350px) {
   .brand-text .top { display: none; }
