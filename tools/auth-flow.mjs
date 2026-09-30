@@ -66,6 +66,8 @@ const TEST_FIREBASE = { apiKey: 'test-key', authDomain: 'demo-semfe.firebaseapp.
 const FN_URL = 'https://europe-west1-demo-semfe.cloudfunctions.net/linkedinSignIn';
 const LI_ID = (C.LINKEDIN && C.LINKEDIN.providerId) || 'oidc.linkedin';
 function configFor(kind) {
+  // 'off': sign-in not set up yet (the placeholders the site shipped with)
+  if (kind === 'off') return CONFIG_SRC + "\nwindow.SEMFE.FIREBASE = { apiKey: 'PASTE_API_KEY', authDomain: 'PASTE', projectId: 'PASTE_PROJECT_ID', appId: 'PASTE' };\n";
   let li = null;
   if (kind === 'oidc') li = { mode: 'oidc', providerId: LI_ID, clientId: 'unused', functionUrl: 'unused' };
   if (kind === 'function') li = { mode: 'function', providerId: LI_ID, clientId: 'li-client-123', functionUrl: FN_URL };
@@ -84,6 +86,7 @@ const dirBlock = grab(/match \/directory\/\{uid\}\s*\{[\s\S]*?\n    \}/, 'the di
 const R = {
   profileKeys: strList(grab(/function profileKeys\(\)\s*\{\s*return\s*\[([\s\S]*?)\]/, 'profileKeys()')[1]),
   adminKeys: strList(grab(/function adminKeys\(\)\s*\{\s*return\s*\[([\s\S]*?)\]/, 'adminKeys()')[1]),
+  fbKeys: strList(grab(/function fbKeys\(\)\s*\{\s*return\s*\[([\s\S]*?)\]/, 'fbKeys()')[1]),
   stages: strList(grab(/d\.stage in \[([^\]]*)\]/, 'the stage list')[1]),
   statuses: strList(grab(/data\.status in \[([^\]]*)\]/, 'the status list')[1]),
   admins: strList(grab(/\.lower\(\) in \[([^\]]*)\]/, 'isAdmin() e-mails')[1]),
@@ -1557,6 +1560,169 @@ await scenario('L2', 'LinkedIn: connecting one that opens another account -> off
   t(fnBodies.length === 2 && fnBodies[1].b.merge === true && /^Bearer /.test(fnBodies[1].auth), '… and the function is asked, with the account\'s token, to MERGE' + list(fnBodies.map(x => js(x.b))));
   t(new URL(page.url()).hash === '#methods', 'it lands on account/#methods');
   t(await waitFor(page, () => /Οι δύο λογαριασμοί ενώθηκαν/.test(document.body.textContent)), 'a toast says the two accounts were merged');
+});
+
+/* ======================= Q. the Σχόλια page and the admin inbox ======================= */
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+const JPG_URL = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
+const TICKET_RE = /^SEMFE-\d{6}-[A-Z0-9]{4}$/;
+const fbDocOf = (uid, o) => Object.assign({ ticket: 'SEMFE-260101-AAAA', uid, email: 'x@example.com', emailVerified: true, name: 'Όνομα', kind: 'problem',
+  message: 'Κάτι δεν λειτουργεί.', page: '', screenshots: [], ua: 'UA', status: 'open', createdAt: ts(Date.now() - DAY) }, o);
+
+await scenario('Q1', 'Σχόλια page signed out: asks to sign in, points to Επικοινωνία', { cfg: 'oidc' }, async (page) => {
+  await page.goto(URL_('feedback/'));
+  const app = page.locator('#feedback-app');
+  t(await hasText(app, 'Συνδεθείτε για να μας γράψετε'), 'a signed-out visitor is asked to sign in');
+  t(await page.locator('#feedback-app a[href$="contact/"]').count() === 1, '… with a link to Επικοινωνία for people without an account');
+  await page.click('#feedback-app [data-open-signin]');
+  t(await visible(page.locator('.modal-backdrop')), '«Σύνδεση ή εγγραφή» opens the sign-in dialog');
+});
+
+await scenario('Q2', 'Σχόλια page: a member sends a message with a screenshot and gets a ticket number', { cfg: 'oidc',
+  seed: signedInSeed(acct(MARIA.uid, { email: MARIA.email, name: MARIA.name })) }, async (page) => {
+  await page.goto(URL_('feedback/?from=' + encodeURIComponent(SUB + 'account/')));
+  t(await visible(page.locator('#fb-message')), 'the form is shown');
+  t((await page.inputValue('#fb-page')) === ORIGIN + SUB + 'account/', 'the page it is about is filled in from ?from=');
+  t(await hasText(page.locator('#feedback-app .fb-mail'), 'Θα σας απαντήσουμε στο ' + MARIA.email), 'it says the answer goes to the account e-mail');
+  await page.click('#feedback-app [data-send]');
+  t(await hasText(page.locator('#feedback-app [data-fb-msg]'), 'Γράψτε πρώτα το μήνυμά σας') && (await page.getAttribute('#fb-message', 'aria-invalid')) === 'true', 'an empty message is refused, with a reason');
+  t((await calls(page, 'fs.set')).length === 0, '… and nothing is written');
+  await page.check('#feedback-app input[name=kind][value=idea]');
+  await page.fill('#fb-message', 'Θα ήταν χρήσιμο <b>ένα</b> ημερολόγιο εκδηλώσεων.\nΚαι στο κινητό.');
+  await page.setInputFiles('#feedback-app [data-files]', [{ name: 'one.png', mimeType: 'image/png', buffer: PNG }, { name: 'two.png', mimeType: 'image/png', buffer: PNG }]);
+  t(await waitFor(page, () => document.querySelectorAll('#feedback-app .fb-thumb').length === 2), 'two screenshots become two thumbnails');
+  await page.click('#feedback-app [data-remove="1"]');
+  t(await waitFor(page, () => document.querySelectorAll('#feedback-app .fb-thumb').length === 1), '… one can be removed');
+  if (process.env.SHOTS) {
+    await page.screenshot({ path: path.join(process.env.SHOTS, 'fb-form.png'), fullPage: true });
+    await page.setViewportSize({ width: 390, height: 844 }); await sleep(200);
+    await page.screenshot({ path: path.join(process.env.SHOTS, 'fb-form-phone.png'), fullPage: true });
+    await page.setViewportSize({ width: 1280, height: 900 });
+  }
+  await page.click('#feedback-app a[data-view="0"]');
+  t(await visible(page.locator('.lightbox')), 'a thumbnail opens in the photo viewer (a data: address cannot be opened in a tab)');
+  await page.keyboard.press('Escape');
+  t(await hidden(page.locator('.lightbox')), '… and Escape closes it');
+  await page.click('#feedback-app [data-send]');
+  const sets = await waitCalls(page, 'fs.set', 1);
+  const w = sets[0] || { args: [] }, wpath = String(w.args[0] || ''), d = w.args[1] || {};
+  const tk = wpath.split('/')[1] || '';
+  t(wpath.startsWith('feedback/') && TICKET_RE.test(tk), 'written to feedback/<ticket> (' + wpath + ')');
+  t(d.ticket === tk && d.uid === MARIA.uid && d.email === MARIA.email && d.emailVerified === true && d.kind === 'idea' && d.status === 'open', 'as the member, with their sign-in e-mail, the kind, status open');
+  t(js(Object.keys(d).sort()) === js(R.fbKeys.slice().sort()), 'exactly the fields firestore.rules fbKeys() allows' + list([js(Object.keys(d).sort())]));
+  t(d.createdAt && d.createdAt.__fv === 'serverTimestamp', 'createdAt is the server time (the rules demand request.time)');
+  t(Array.isArray(d.screenshots) && d.screenshots.length === 1 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(d.screenshots[0]) && d.screenshots[0].length <= 170 * 1024,
+    'the screenshot is sent as a JPEG data URL under 170 KB');
+  t(d.page === ORIGIN + SUB + 'account/' && d.message.startsWith('Θα ήταν χρήσιμο <b>ένα</b>'), 'the page and the message as typed');
+  t((await calls(page, 'user.getIdTokenResult')).some(c => c.args[0] === true), 'the e-mail fields come from a fresh sign-in token (what the rules compare against)');
+  t(await hasText(page.locator('#feedback-app .fb-thanks'), 'Ευχαριστούμε') && (await text(page.locator('#feedback-app .fb-ticket code'))) === tk, 'the thank-you panel shows the ticket number');
+  if (process.env.SHOTS) await page.screenshot({ path: path.join(process.env.SHOTS, 'fb-thanks.png'), fullPage: true });
+  t(await hasText(page.locator('#feedback-app .fb-thanks'), 'Σας στείλαμε επιβεβαίωση στο ' + MARIA.email), '… and where the confirmation went');
+  t(await page.evaluate(() => document.activeElement && document.activeElement.id === 'fb-thanks-h'), '… and takes the focus');
+  t(await hasText(page.locator('#feedback-app [data-mine]'), tk) && await hasText(page.locator('#feedback-app [data-mine]'), 'Σε εξέταση'), '«Τα μηνύματά μου» lists it, «Σε εξέταση»');
+  t((await calls(page, 'fs.list')).some(c => c.args[0] === 'feedback' && js(c.args[1]) === js({ where: [['uid', MARIA.uid]] })), 'the list asks only for the member\'s own (where uid ==, as the rules require)');
+  t(!(await xssFired(page)), 'nothing typed runs as markup');
+  await page.click('#feedback-app [data-new]');
+  t(await visible(page.locator('#fb-message')) && (await page.inputValue('#fb-message')) === '' && (await page.locator('#feedback-app .fb-thumb').count()) === 0, '«Νέο μήνυμα»: an empty form again');
+});
+
+await scenario('Q3', 'Σχόλια page: the member\'s messages, with the answers; nobody else\'s', { cfg: 'oidc',
+  seed: signedInSeed(acct(MARIA.uid, { email: MARIA.email, name: MARIA.name }), { docs: {
+    'feedback/SEMFE-260901-AAAA': fbDocOf(MARIA.uid, { ticket: 'SEMFE-260901-AAAA', createdAt: ts(Date.now() - 20 * DAY), status: 'closed', resolution: 'Διορθώθηκε. ' + XSS, resolutionUrl: 'https://www.stouras.com/semfealumni/', resolvedAt: ts(Date.now() - 19 * DAY) }),
+    'feedback/SEMFE-260920-BBBB': fbDocOf(MARIA.uid, { ticket: 'SEMFE-260920-BBBB', createdAt: ts(Date.now() - 2 * DAY), message: 'Δεύτερο μήνυμα' }),
+    'feedback/SEMFE-260921-CCCC': fbDocOf('someone-else', { ticket: 'SEMFE-260921-CCCC', message: 'ΞΕΝΟ' })
+  } }) }, async (page) => {
+  await page.goto(URL_('feedback/'));
+  t(await waitFor(page, () => document.querySelectorAll('#feedback-app .fb-item').length === 2), 'two messages listed');
+  const order = await page.$$eval('#feedback-app .fb-item code', cs => cs.map(c => c.textContent));
+  t(js(order) === js(['SEMFE-260920-BBBB', 'SEMFE-260901-AAAA']), 'newest first' + list(order));
+  t(!(await hasText(page.locator('#feedback-app [data-mine]'), 'ΞΕΝΟ', 300)), 'another member\'s message is not there');
+  const done = page.locator('#feedback-app .fb-item').nth(1);
+  t(await hasText(done, 'Ολοκληρώθηκε') && await hasText(done, 'Διορθώθηκε.') && await done.locator('a[href="https://www.stouras.com/semfealumni/"]').count() === 1, 'a closed one shows «Ολοκληρώθηκε», our answer and its link');
+  t(!(await xssFired(page)), 'an answer containing markup does not run');
+});
+
+await scenario('Q4', 'Σχόλια page: an unconfirmed e-mail is told the answer shows only here; a taken ticket number is drawn again', { cfg: 'oidc',
+  seed: signedInSeed(acct('u-pw', { email: 'nikos@example.com', name: 'Νίκος', verified: false, providers: ['password'], password: 'pass-word-123' })) }, async (page) => {
+  await page.goto(URL_('feedback/'));
+  t(await hasText(page.locator('#feedback-app .fb-mail'), 'δεν έχει επιβεβαιωθεί'), 'the page says the answer will show only here');
+  await queue(page, 'fs.set', { reject: { code: 'permission-denied' } });
+  await page.fill('#fb-message', 'Ένα μήνυμα');
+  await page.click('#feedback-app [data-send]');
+  const sets = await waitCalls(page, 'fs.set', 2);
+  t(sets.length === 2 && sets[0].args[0] !== sets[1].args[0], 'a refused write (the number already taken) is retried once with a new number');
+  t(sets[1] && sets[1].args[1].emailVerified === false && sets[1].args[1].email === 'nikos@example.com', 'emailVerified: false, as the token says');
+  t(await hasText(page.locator('#feedback-app .fb-thanks'), 'Θα βλέπετε εδώ'), 'the thank-you panel does not promise an e-mail');
+});
+
+const FB_ADMIN_SEED = signedInSeed(acct('u-admin', { email: ADMIN, name: 'Διαχειριστής' }), { docs: {
+  'feedback/SEMFE-260929-OPEN': fbDocOf('u-maria', { ticket: 'SEMFE-260929-OPEN', name: 'Μαρία ' + XSS, email: 'maria@example.com', page: 'https://www.stouras.com/semfealumni/account/', screenshots: [JPG_URL, JPG_URL], message: 'Το κουμπί δεν λειτουργεί.\n' + XSS, createdAt: ts(Date.now() - HOUR) }),
+  'feedback/SEMFE-260928-UNVR': fbDocOf('u-x', { ticket: 'SEMFE-260928-UNVR', email: 'x@example.com', emailVerified: false, createdAt: ts(Date.now() - 2 * HOUR) }),
+  'feedback/SEMFE-260901-DONE': fbDocOf('u-y', { ticket: 'SEMFE-260901-DONE', status: 'closed', resolution: 'Έγινε.', resolvedBy: 'repo', resolvedAt: ts(Date.now() - 5 * DAY), resolutionSentAt: ts(Date.now() - 5 * DAY), createdAt: ts(Date.now() - 9 * DAY) })
+} });
+await scenario('Q5', 'admin page: the Σχόλια inbox, close with an answer, reopen, delete', { cfg: 'oidc', seed: FB_ADMIN_SEED }, async (page, env) => {
+  await page.goto(URL_('admin/#feedback'));
+  const box = page.locator('#admin-feedback');
+  t(await waitFor(page, () => document.querySelectorAll('#admin-feedback .afb-card').length === 2), 'the inbox opens on the two open messages');
+  t(await page.evaluate(() => !document.getElementById('feedback').hidden), 'its section is shown to an admin');
+  const tabs = await page.$$eval('#admin-feedback [data-view-tab]', bs => bs.map(b => b.textContent));
+  t(js(tabs) === js(['Ανοιχτά (2)', 'Ολοκληρωμένα (1)', 'Όλα (3)']), 'tabs with counts' + list(tabs));
+  const c = page.locator('#admin-feedback [data-t="SEMFE-260929-OPEN"]');
+  t(await hasText(c, 'maria@example.com') && await c.locator('a[href="https://www.stouras.com/semfealumni/account/"]').count() === 1, 'the card shows the sender and the page');
+  t(await c.locator('.fb-thumb').count() === 2, 'its two screenshots');
+  t(!(await xssFired(page)), 'a name or message with markup does not run');
+  if (process.env.SHOTS) await page.locator('#feedback').screenshot({ path: path.join(process.env.SHOTS, 'fb-inbox.png') });
+  await c.locator('.fb-thumb').first().click();
+  t(await visible(page.locator('.lightbox')), 'a screenshot opens in the photo viewer');
+  await page.keyboard.press('Escape');
+  t(await hasText(page.locator('#admin-feedback [data-t="SEMFE-260928-UNVR"]'), 'μη επιβεβαιωμένο'), 'an unconfirmed address is marked');
+  await c.locator('[data-act="close"]').click();
+  t(await page.evaluate(() => document.activeElement && document.activeElement.id === 'afb-res-SEMFE-260929-OPEN'), '«Κλείσιμο με απάντηση» opens the answer box, focused');
+  t(await hasText(c, 'Θα σταλεί e-mail στο maria@example.com'), '… saying the answer will be e-mailed');
+  await c.locator('[data-act="send"]').click();
+  t(await hasText(c.locator('[data-close-msg]'), 'Γράψτε τι κάναμε'), 'an empty answer is refused');
+  await page.fill('#afb-res-SEMFE-260929-OPEN', 'Διορθώθηκε, ευχαριστούμε!');
+  await page.fill('#afb-url-SEMFE-260929-OPEN', 'http://insecure.example/');
+  await c.locator('[data-act="send"]').click();
+  t(await hasText(c.locator('[data-close-msg]'), 'https://'), 'a link that is not https is refused');
+  await page.fill('#afb-url-SEMFE-260929-OPEN', 'https://www.stouras.com/semfealumni/account/');
+  await c.locator('[data-act="send"]').click();
+  const ups = await waitCalls(page, 'fs.update', 1);
+  const u = (ups[0] || { args: [] }).args;
+  t(u[0] === 'feedback/SEMFE-260929-OPEN' && u[1] && u[1].status === 'closed' && u[1].resolution === 'Διορθώθηκε, ευχαριστούμε!' && u[1].resolutionUrl === 'https://www.stouras.com/semfealumni/account/' &&
+    u[1].resolvedBy === ADMIN && u[1].resolvedAt && u[1].resolvedAt.__fv === 'serverTimestamp', 'closing writes status, the answer, the link, who and when');
+  t(u[1] && Object.keys(u[1]).every(k => ['status', 'resolution', 'resolutionUrl', 'resolvedAt', 'resolvedBy'].includes(k)), '… and nothing else (the rules allow only those)');
+  t(await waitFor(page, () => document.querySelectorAll('#admin-feedback .afb-card').length === 1), 'it leaves the «Ανοιχτά» list');
+  await page.click('#admin-feedback [data-view-tab="closed"]');
+  const done = page.locator('#admin-feedback [data-t="SEMFE-260929-OPEN"]');
+  t(await hasText(done, 'Διορθώθηκε, ευχαριστούμε!'), 'it is under «Ολοκληρωμένα» with the answer');
+  t(await hasText(page.locator('#admin-feedback [data-t="SEMFE-260901-DONE"]'), 'από το αποθετήριο') && await hasText(page.locator('#admin-feedback [data-t="SEMFE-260901-DONE"]'), 'στάλθηκε με e-mail'), 'a ticket closed from the repository says so, and that the answer was mailed');
+  await done.locator('[data-act="reopen"]').click();
+  const ups2 = await waitCalls(page, 'fs.update', 2);
+  t(ups2[1] && js(ups2[1].args[1]) === js({ status: 'open' }), '«Άνοιγμα ξανά» writes only status: open');
+  await page.click('#admin-feedback [data-view-tab="all"]');
+  await page.locator('#admin-feedback [data-t="SEMFE-260928-UNVR"] [data-act="delete"]').click();
+  t(env.dialogs.some(d => d.type === 'confirm' && /SEMFE-260928-UNVR/.test(d.message)), 'deleting asks first, naming the ticket');
+  const del = await waitCalls(page, 'fs.delete', 1);
+  t(del[0] && del[0].args[0] === 'feedback/SEMFE-260928-UNVR', '… then deletes it');
+  await page.click('#acct-slot .acct-chip');
+  t(await hasText(page.locator('#acct-menu a[href$="admin/#feedback"]'), 'Σχόλια μελών'), 'the account menu has «Σχόλια μελών» for an admin');
+  t(await hasText(page.locator('#acct-menu a[href$="feedback/"]'), 'Σχόλια και προβλήματα'), '… and «Σχόλια και προβλήματα»');
+});
+
+await scenario('Q6', 'admin page for a member: no inbox; the menu has «Σχόλια και προβλήματα» only', { cfg: 'oidc',
+  seed: signedInSeed(acct(MARIA.uid, { email: MARIA.email, name: MARIA.name }), { docs: { 'feedback/SEMFE-260929-OPEN': fbDocOf('u-other', { ticket: 'SEMFE-260929-OPEN' }) } }) }, async (page) => {
+  await page.goto(URL_('admin/'));
+  t(await hasText(page.locator('#admin-app'), 'Δεν έχετε πρόσβαση'), 'a member has no access');
+  t(await page.evaluate(() => document.getElementById('feedback').hidden && !document.getElementById('admin-feedback').textContent.trim()), 'and the inbox stays hidden and empty');
+  t(!(await calls(page, 'fs.onSnapshot')).some(c => c.args[0] === 'feedback'), '… nothing is even asked of feedback/');
+  await page.click('#acct-slot .acct-chip');
+  t(await page.locator('#acct-menu a[href$="feedback/"]').count() === 1 && await page.locator('#acct-menu a[href$="admin/#feedback"]').count() === 0, 'the menu: «Σχόλια και προβλήματα», no «Σχόλια μελών»');
+});
+
+await scenario('Q7', 'Σχόλια page when sign-in is not set up yet: points to Επικοινωνία', { cfg: 'off' }, async (page) => {
+  await page.goto(URL_('feedback/'));
+  t(await hasText(page.locator('#feedback-app'), 'ανοίγει σύντομα') && await page.locator('#feedback-app a[href$="contact/"]').count() === 1, '«ανοίγει σύντομα», with a link to Επικοινωνία');
 });
 
 await browser.close();

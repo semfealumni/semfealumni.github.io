@@ -17,7 +17,9 @@ jobs:
           node-version: 22
       # pages match _src/, links resolve, share card, admin list in sync, deploy guards
       - run: node tools/check.mjs
-      # the Cloud Functions (LinkedIn sign-in, the accounts list and merge),
-      # against fakes (no install needed)
-      - run: node test.js && node test-accounts.js
+      # the Cloud Functions (LinkedIn sign-in, the accounts list and merge,
+      # the feedback e-mails), against fakes (no install needed)
+      - run: npm test
         working-directory: functions
+      # the feedback resolution files and the ticket log (offline)
+      - run: node tools/feedback-sync.mjs --selftest

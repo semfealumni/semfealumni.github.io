@@ -23,11 +23,16 @@ as they are here; there is nothing to install to publish it.
     assets/js/auth.js          sign-in and registration (Firebase Authentication)
     assets/js/account.js       "Ο λογαριασμός μου": membership application, sign-in methods, delete account
     assets/js/members.js       "Περιοχή μελών": members-only directory
+    assets/js/feedback.js      "Σχόλια και προβλήματα": a member's message + screenshots, ticket number, their own tickets
+    assets/js/admin-feedback.js  the admin page's inbox of those messages: answer and close, reopen, delete
     assets/js/admin.js         "Διαχείριση": approve applications, record dues, every account, merge duplicates, export CSV
     assets/img, assets/docs    photos, logos and the PDFs
     firestore.rules            the database security rules (the real gatekeeper)
     firebase.json, .firebaserc, check-project.mjs   for deploying the rules from the command line
     FIREBASE-SETUP.md          step by step: Firebase, Google, LinkedIn, e-mail
+    FEEDBACK-SETUP.md          step by step: the feedback e-mails and the private ticket log
+    _feedback-resolutions/     one file per ticket closed from the repository (see its README)
+    functions/                 Cloud Functions: LinkedIn sign-in, accounts list/merge, feedback e-mails
     tools/                     build, checks and tests (not published)
     CLAUDE.md, .github/        repository conventions; the CI checks run on every push
 
@@ -84,6 +89,11 @@ What members get once it is on:
   to add the ways in they do not have yet, and a member with two accounts
   (say one from Google, one from LinkedIn) can merge them into one.
 * **Self-service deletion** of the account and all its data.
+* **Σχόλια και προβλήματα**: members report a problem or an idea, with
+  screenshots, and get a ticket number by e-mail; the answer is e-mailed to
+  them when the ticket is closed (from the admin page, or from a file in
+  `_feedback-resolutions/`). Every ticket is copied to a private GitHub
+  repository. Setup: `FEEDBACK-SETUP.md`.
 
 The board manages applications at `/admin/` (only the addresses in
 `ADMIN_EMAILS` in `config.js` **and** in `isAdmin()` in `firestore.rules`).
@@ -110,9 +120,10 @@ the LinkedIn app's redirect URL (FIREBASE-SETUP.md, Part D).
 
     node tools/check.mjs                  offline checks (fast; run before every commit)
     node tools/smoke.mjs                  every page at 10 screen sizes, menu, dialog, gallery (Playwright)
-    node tools/auth-flow.mjs              the sign-in, account, members and admin flows against a fake Firebase
+    node tools/auth-flow.mjs              the sign-in, account, members, admin and feedback flows against a fake Firebase
+    node tools/feedback-sync.mjs --selftest   the feedback resolution files and the ticket log (offline)
     cd tools/rules-test && npm install && npm test   the Firestore rules against the real emulator (needs Java)
-    cd functions && npm test                         the Cloud Functions: LinkedIn sign-in, accounts list and merge (offline, with fakes)
+    cd functions && npm test                         the Cloud Functions: LinkedIn sign-in, accounts list and merge, feedback e-mails (offline, with fakes)
 
 ## Hosting
 

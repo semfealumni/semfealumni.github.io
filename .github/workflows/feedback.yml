@@ -1,0 +1,59 @@
+# The Σχόλια tickets, outside Firebase (tools/feedback-sync.mjs):
+#  - closes the tickets named by files in _feedback-resolutions/ (the feedback
+#    Cloud Function then e-mails each sender the answer);
+#  - copies every ticket into the PRIVATE log repository, so they can be read
+#    and acted on from GitHub.
+# Until the secrets exist (FEEDBACK-SETUP.md) it does nothing and says so.
+#   secrets.FIREBASE_SERVICE_ACCOUNT  the JSON key of a Firebase service account
+#   secrets.FEEDBACK_LOG_TOKEN        a token that may push to the log repository
+#   vars.FEEDBACK_LOG_REPO            owner/name of that PRIVATE repository
+name: feedback
+on:
+  schedule:
+    - cron: '23,53 * * * *'
+  push:
+    branches: [main]
+    paths: ['_feedback-resolutions/**', 'tools/feedback-sync.mjs']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: feedback-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      HAS_LOG: ${{ secrets.FEEDBACK_LOG_TOKEN != '' && vars.FEEDBACK_LOG_REPO != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # the resolution files are checked even before anything is set up
+      - run: node tools/feedback-sync.mjs --scan
+      - if: env.FIREBASE_SERVICE_ACCOUNT != ''
+        run: npm ci --omit=dev --no-audit --no-fund
+        working-directory: functions
+      - name: Check out the private log
+        if: env.FIREBASE_SERVICE_ACCOUNT != '' && env.HAS_LOG == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.FEEDBACK_LOG_REPO }}
+          token: ${{ secrets.FEEDBACK_LOG_TOKEN }}
+          path: _log
+      - name: Close tickets and mirror them
+        run: node tools/feedback-sync.mjs $( [ -d _log ] && echo --log _log )
+      - name: Push the log
+        if: env.FIREBASE_SERVICE_ACCOUNT != '' && env.HAS_LOG == 'true'
+        working-directory: _log
+        run: |
+          git config user.name "semfe-feedback-bot"
+          git config user.email "semfe-feedback-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          git commit -q -m "Sync feedback tickets"
+          for i in 1 2 3; do git push -q && exit 0; git pull -q --rebase; done
+          exit 1

@@ -747,8 +747,33 @@
   };
   ColRef.prototype.onSnapshot = function (a, b) { return listen('col', this.path, a, b); };
   ColRef.prototype.add = function (data) { var r = this.doc(); return r.set(data).then(function () { return r; }); };
-  ['where', 'orderBy', 'limit'].forEach(function (m) {
+  ['orderBy', 'limit'].forEach(function (m) {
     ColRef.prototype[m] = function () { throw errOf({ code: 'unimplemented', message: 'fake: query ' + m + '() is not supported; add it to tools/firebase-fake.js if the site starts using it' }); };
+  });
+  /* where(field, '==', value) only, and get() only (the Σχόλια page's own
+     messages); recorded as fs.list with the filters, scriptable as fs.list */
+  function Query(path, filters) { this.path = path; this.filters = filters; }
+  ColRef.prototype.where = function (f, op, v) { return new Query(this.path, []).where(f, op, v); };
+  Query.prototype.where = function (f, op, v) {
+    if (op !== '==') throw errOf({ code: 'unimplemented', message: 'fake: only where(field, "==", value) is supported' });
+    if (v === undefined) throw errOf({ code: 'invalid-argument', message: 'Function where() called with invalid data. Unsupported field value: undefined' });
+    return new Query(this.path, this.filters.concat([[f, v]]));
+  };
+  Query.prototype.get = function () {
+    rec('fs.list', [this.path, { where: this.filters }]);
+    var path = this.path, filters = this.filters, q = take('fs.list', { path: path });
+    return later((q && q.delayMs) || 8).then(function () {
+      if (q && q.reject) throw errOf(q.reject);
+      var all = colView(path), out = {};
+      Object.keys(all).forEach(function (p) {
+        var d = fromStored(all[p]);
+        if (filters.every(function (f) { return d && same(d[f[0]], f[1]); })) out[p] = all[p];
+      });
+      return new QuerySnap(path, out);
+    });
+  };
+  ['onSnapshot', 'orderBy', 'limit'].forEach(function (m) {
+    Query.prototype[m] = function () { throw errOf({ code: 'unimplemented', message: 'fake: query.' + m + '() is not supported yet' }); };
   });
 
   var dbInstance = null;

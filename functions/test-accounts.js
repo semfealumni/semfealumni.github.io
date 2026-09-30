@@ -149,7 +149,8 @@ const APP = (o) => Object.assign({
       { uid: 'g1', email: 'maria@gmail.com', emailVerified: true, displayName: 'Maria', providerData: [G('g1', 'maria@gmail.com')] },
       { uid: 'li1', email: 'maria@work.gr', emailVerified: true, displayName: 'Μαρία Π.', customClaims: { li: true } }
     ]);
-    const db = fakeDb({ 'members/li1': APP({ status: 'active', duesYears: [2026], email: 'maria@work.gr' }), 'directory/li1': { name: 'Μαρία Παπαδοπούλου' }, 'linkedinLinks/sub9': { uid: 'li1' } });
+    const db = fakeDb({ 'members/li1': APP({ status: 'active', duesYears: [2026], email: 'maria@work.gr' }), 'directory/li1': { name: 'Μαρία Παπαδοπούλου' }, 'linkedinLinks/sub9': { uid: 'li1' },
+      'feedback/SEMFE-260930-AB23': { uid: 'li1', ticket: 'SEMFE-260930-AB23', message: 'hi' } });
     const r = await accounts.mergeAccounts({ auth, db, now: () => NOW, keepUid: 'g1', dropUid: 'li1', by: 'kstouras@gmail.com' });
     assert.strictEqual(r.application, 'moved');
     assert.strictEqual(db.docs.get('members/g1').status, 'active');
@@ -161,6 +162,8 @@ const APP = (o) => Object.assign({
     assert.strictEqual(auth.byUid.get('g1').customClaims.li, true);
     assert.ok(!auth.byUid.has('li1'), 'DROP deleted');
     assert.deepStrictEqual(r.moved, ['linkedin']);
+    assert.strictEqual(db.docs.get('feedback/SEMFE-260930-AB23').uid, 'g1', 'the messages sent from the Σχόλια page follow the person');
+    assert.strictEqual(db.docs.get('feedback/SEMFE-260930-AB23').message, 'hi'); assert.strictEqual(r.feedback, 1);
     const log = [...db.docs.entries()].find(([k]) => k.startsWith('accountMerges/'))[1];
     assert.strictEqual(log.keep, 'g1'); assert.strictEqual(log.drop, 'li1'); assert.strictEqual(log.by, 'kstouras@gmail.com');
   });

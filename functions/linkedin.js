@@ -196,8 +196,13 @@ async function handle(req, res, deps, cfg) {
 async function cleanupUser({ db, uid }) {
   if (!uid) return 0;
   const refs = [db.collection('members').doc(uid), db.collection('directory').doc(uid)];
-  const links = await db.collection(LINKS).where('uid', '==', uid).get();
-  links.forEach(d => refs.push(d.ref));
+  // the LinkedIn links, and the messages sent from the Σχόλια page (the
+  // privacy page promises that deleting the account deletes everything; a
+  // merge moves them to the kept account first, so none are lost there)
+  for (const col of [LINKS, 'feedback']) {
+    const hits = await db.collection(col).where('uid', '==', uid).get();
+    hits.forEach(d => refs.push(d.ref));
+  }
   await Promise.all(refs.map(r => r.delete()));
   return refs.length;
 }

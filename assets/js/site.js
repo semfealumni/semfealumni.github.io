@@ -270,5 +270,5 @@
     return !!(f.apiKey && f.projectId && String(f.apiKey).indexOf('PASTE_') === -1 && String(f.projectId).indexOf('PASTE_') === -1);
   }
   window.SEMFE_UTIL = { closest: closest, trapTab: trapTab, copyText: copyText, firebaseConfigured: firebaseConfigured,
-    announce: announce, lockScroll: lockScroll, unlockScroll: unlockScroll };
+    announce: announce, lockScroll: lockScroll, unlockScroll: unlockScroll, lightbox: openLightbox };
 })();

@@ -21,10 +21,35 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
 * Sign-in is OFF while `assets/js/config.js` holds `PASTE_` placeholders; the
   site then shows "opens soon" and never loads the Firebase SDK.
 * `firestore.rules` is the gatekeeper (members/{uid}, directory/{uid},
-  linkedinLinks/{sub}). `ADMIN_EMAILS` in config.js must equal the list in
+  feedback/{ticket}, and the server-only linkedinLinks/, accountMerges/,
+  mergeLocks/). `ADMIN_EMAILS` in config.js must equal the list in
   `isAdmin()`; check.mjs fails when they differ.
 * LinkedIn sign-in goes through the Cloud Function in `functions/`
   (`LINKEDIN.mode: 'function'` in config.js).
+* The admin page's list of every account, and merging two accounts of one
+  person, run in the `accounts` Cloud Function (`functions/accounts.js`). Its
+  safety rules (confirmed e-mail on the kept account, an admin is never the
+  one removed, a sign-in that cannot move stays put) are pinned by
+  `functions/test-accounts.js`: keep them.
+
+## Feedback tickets (the «Σχόλια και προβλήματα» page)
+
+Members send messages from `/feedback/`; each gets a ticket number
+`SEMFE-YYMMDD-XXXX` (the id of `feedback/{ticket}` in Firestore). Setup and
+the whole flow: `FEEDBACK-SETUP.md`.
+
+**Acting on a ticket** ("look at feedback SEMFE-260930-AB23"):
+1. Read it in the PRIVATE log repository `konstantinosStouras/semfealumni-feedback-log`
+   (`feedback/INDEX.md`, then `feedback/<TICKET>/feedback.md` and its
+   screenshots). If it is not in the session, ask to add it.
+2. Fix the site as usual (source, build, tests).
+3. In the SAME change, add `_feedback-resolutions/<TICKET>.md` (format in the
+   README there): a short, friendly Greek answer saying what was done, plus an
+   optional https link to the page. When it reaches `main`, the `feedback`
+   workflow closes the ticket and the sender is e-mailed the text.
+4. This repository is PUBLIC: never write the sender's name or e-mail in a
+   resolution file (`node tools/feedback-sync.mjs --scan` refuses one that
+   carries an address).
 
 ## Deploying Firebase: always name the project
 
@@ -41,8 +66,9 @@ guard refuses every deploy. Keep `firebase.json`'s functions `runtime` equal to
     node tools/check.mjs                      offline checks (fast)
     node tools/smoke.mjs                      every page, 10 screen sizes, no web font, larger text (Playwright)
     node tools/auth-flow.mjs                  sign-in, account, members, admin flows against a fake Firebase
-    cd functions && npm test                  the LinkedIn Cloud Function, against fakes
+    cd functions && npm test                  the Cloud Functions (LinkedIn, accounts, feedback e-mails), against fakes
+    node tools/feedback-sync.mjs --selftest   the feedback resolution files and the ticket log
     cd tools/rules-test && npm install && npm test   firestore.rules on the real emulator (needs Java)
 
-Any change to the account, members or admin pages gets a scenario in
+Any change to the account, members, admin or feedback pages gets a scenario in
 `tools/auth-flow.mjs`; any layout change must keep `tools/smoke.mjs` green.

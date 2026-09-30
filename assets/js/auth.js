@@ -283,6 +283,8 @@
       '<a href="' + root + 'account/#apply">' + svg('doc') + '<span>Η αίτηση μέλους μου</span>' + (app ? count(app[0], app[1]) : '') + '</a>' +
       '<a href="' + root + 'members/">' + svg('users') + '<span>Περιοχή μελών</span></a>' +
       '<a href="' + root + 'account/#methods">' + svg('key') + '<span>Τρόποι σύνδεσης</span>' + (info.methods === 1 ? count('Προσθήκη', 'warn') : '') + '</a>' +
+      '<a href="' + root + 'feedback/">' + svg('chat') + '<span>Σχόλια και προβλήματα</span></a>' +
+      (admin ? '<a href="' + root + 'admin/#feedback">' + svg('chat') + '<span>Σχόλια μελών</span>' + count(info.fbOpen, 'warn') + '</a>' : '') +
       '<hr>' +
       '<button type="button" data-signout class="out">' + svg('out') + '<span>Αποσύνδεση</span></button>' +
       '</div></div>';

@@ -762,6 +762,50 @@ table.data .acts-in .btn { flex: 1 1 auto; justify-content: center; }
 @media (max-width: 860px) { .footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .footer-grid > :first-child { grid-column: 1 / -1; } }
 @media (max-width: 420px) { .footer-grid { grid-template-columns: minmax(0, 1fr); } }
 
+/* ---------- feedback: the Σχόλια page and the admin inbox ---------- */
+.fb-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 900px) { .fb-grid { grid-template-columns: minmax(0, 1fr); } }
+.fb-signin { max-width: 680px; }
+.fb-kinds { display: flex; flex-wrap: wrap; gap: 8px; }
+.fb-kinds legend { margin-bottom: 4px; }
+.fb-kind { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1.5px solid var(--field-line); border-radius: 999px; cursor: pointer; font-weight: 700; font-size: .95rem; }
+.fb-kind input { width: 18px; height: 18px; margin: 0; accent-color: var(--navy); }
+.fb-kind:has(input:checked) { border-color: var(--navy); background: var(--mist); }
+.fb-kind:focus-within { box-shadow: 0 0 0 3px var(--gold-soft); }
+.fb-drop { border: 1.5px dashed var(--field-line); border-radius: 12px; padding: 14px 16px; background: var(--surface); }
+.fb-drop.over { border-color: var(--navy); background: var(--mist); }
+.fb-drop > p:first-child { margin: 0; font-size: .95rem; }
+.fb-pick { position: relative; display: inline; cursor: pointer; }
+.fb-pick input { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); border: 0; opacity: 0; }
+.fb-pick:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.fb-thumbs { display: flex; flex-wrap: wrap; gap: 10px; }
+.fb-thumbs:not(:empty) { margin-top: 12px; }
+.fb-thumb { position: relative; margin: 0; display: block; width: 116px; height: 84px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--mist); }
+.fb-thumb img, .fb-thumb a { display: block; width: 100%; height: 100%; }
+.fb-thumb img { object-fit: cover; }
+.fb-x { position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(4, 12, 24, .72); color: #fff; font-size: 1.2rem; line-height: 1; cursor: pointer; }
+.fb-working { display: flex; align-items: center; gap: 8px; margin: 0; font-size: .9rem; }
+.fb-mail { margin: 0; font-size: .92rem; }
+.fb-ticket { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.fb-ticket code { font-size: 1.35rem; font-weight: 800; letter-spacing: .04em; padding: 6px 12px; border-radius: 10px; background: var(--mist); }
+.fb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.fb-item { border-top: 1px solid var(--line); padding-top: 14px; }
+.fb-item:first-child { border-top: 0; padding-top: 0; }
+.fb-item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.fb-item-head code { font-weight: 800; }
+.fb-meta { margin: 4px 0 6px; font-size: .85rem; }
+.fb-text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
+.fb-answer { background: var(--ok-soft); border-radius: 10px; padding: 10px 14px; margin-top: 8px; }
+.fb-answer p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.afb { padding-top: 0; }
+.afb h2:focus { outline: none; }
+.afb-card { margin-bottom: 16px; }
+.afb-from, .afb-page { margin: 8px 0 0; overflow-wrap: anywhere; font-size: .95rem; }
+.afb-card .fb-thumbs { margin-top: 12px; }
+.afb-mail { font-size: .88rem; margin: 8px 0 0; }
+.afb-actions { margin-top: 12px; }
+.afb-close { margin-top: 12px; }
+
 @media (max-width: 600px) {
   body { font-size: 16px; }
   section { padding: 54px 0; }

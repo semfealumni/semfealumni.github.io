@@ -32,7 +32,8 @@
  *      joined, and the further-along status wins (active > pending > rejected),
  *      bringing that application's vetted name with it;
  *   2. the directory card follows the merged application;
- *   3. LinkedIn links (linkedinLinks/) that pointed to DROP now point to KEEP;
+ *   3. LinkedIn links (linkedinLinks/) that pointed to DROP now point to KEEP,
+ *      and so do the messages DROP sent from the Σχόλια page (feedback/);
  *   4. DROP's Google / Facebook / LinkedIn-OIDC sign-ins move to KEEP, unless
  *      KEEP already has one of that kind (Firebase allows one per kind);
  *      DROP's e-mail + password cannot move (a password belongs to an address),
@@ -201,6 +202,14 @@ async function mergeLocked({ auth, db, now, keep, drop, keepUid, dropUid, by }) 
     if (claims.li !== true) { claims.li = true; await auth.setCustomUserClaims(keepUid, claims); }
     if (methodsOf(keep).indexOf('linkedin') === -1) report.moved.push('linkedin');
   }
+
+  // 3b. messages sent from the Σχόλια page follow the person (deleting DROP
+  //     would otherwise delete them, see cleanupUser in linkedin.js)
+  const fbs = await db.collection('feedback').where('uid', '==', dropUid).get();
+  const fbRefs = [];
+  fbs.forEach(d => fbRefs.push(d.ref));
+  await Promise.all(fbRefs.map(r => r.set({ uid: keepUid }, { merge: true })));
+  report.feedback = fbRefs.length;
 
   // 4. sign-in methods: which of DROP's can move
   const keepHas = (keep.providerData || []).map(p => p.providerId);

@@ -210,8 +210,9 @@ async function run(opts) {
     await handle(req({ code: 'C', redirectUri: RU }), r, { fetch: fakeFetch(P), auth, db: fakeDb(), now: () => 1, log: () => {} }, CFG);
     assert.strictEqual(r.statusCode, 500); assert.deepStrictEqual(r.body, { error: 'internal' });
   });
-  await t('cleanup of a deleted account removes its application, directory card and LinkedIn links', async () => {
-    const docs = new Map([['members/u1', {}], ['directory/u1', {}], ['linkedinLinks/a', { uid: 'u1' }], ['linkedinLinks/b', { uid: 'u2' }], ['members/u2', {}]]);
+  await t('cleanup of a deleted account removes its application, directory card, LinkedIn links and feedback', async () => {
+    const docs = new Map([['members/u1', {}], ['directory/u1', {}], ['linkedinLinks/a', { uid: 'u1' }], ['linkedinLinks/b', { uid: 'u2' }], ['members/u2', {}],
+      ['feedback/SEMFE-260930-AAAA', { uid: 'u1' }], ['feedback/SEMFE-260930-BBBB', { uid: 'u2' }]]);
     const ref = key => ({ key, delete: async () => { docs.delete(key); } });
     const db = { collection(name) { return {
       doc: id => ref(name + '/' + id),
@@ -221,8 +222,8 @@ async function run(opts) {
       } }; }
     }; } };
     const n = await cleanupUser({ db, uid: 'u1' });
-    assert.strictEqual(n, 3);
-    assert.deepStrictEqual([...docs.keys()].sort(), ['linkedinLinks/b', 'members/u2']);
+    assert.strictEqual(n, 4);
+    assert.deepStrictEqual([...docs.keys()].sort(), ['feedback/SEMFE-260930-BBBB', 'linkedinLinks/b', 'members/u2']);
   });
   console.log(failed ? `\n${failed} failed, ${passed} passed` : `\nall ${passed} passed`);
   process.exit(failed ? 1 : 0);

@@ -747,6 +747,101 @@ describe('unauthenticated: denied everywhere', () => {
   });
 });
 
+/* ---- feedback: the payload assets/js/feedback.js send() writes, and what
+   assets/js/admin-feedback.js update() writes when an admin closes/reopens ---- */
+describe('feedback (the Σχόλια page)', () => {
+  const T = 'SEMFE-260930-AB23';
+  const JPG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBD';
+  const fbDoc = (who, o) => ({
+    ticket: T, uid: who.uid, email: who.token.email || '', emailVerified: who.token.email_verified === true,
+    name: 'Alice', kind: 'problem', message: 'Κάτι δεν λειτουργεί στη σελίδα.', page: 'https://www.stouras.com/semfealumni/account/',
+    screenshots: [JPG, JPG], ua: 'Mozilla/5.0', status: 'open', createdAt: ST(), ...(o || {})
+  });
+  const put = (who, o, id) => dbAs(who).collection('feedback').doc(id || T).set(fbDoc(who, o));
+  const stored = (who, o) => ({ ...fbDoc(who, o), createdAt: PAST });
+
+  it('a signed-in member sends one, as themselves', async () => {
+    await assertSucceeds(put(U.alice));
+  });
+  it('every sign-in method may send (no e-mail, unconfirmed e-mail, LinkedIn function)', async () => {
+    let i = 0;
+    for (const who of [U.pwUnverified, U.linkedinNoEmail, U.linkedinFn, U.linkedinFnNoEmail, U.facebook]) {
+      const id = 'SEMFE-260930-AAA' + (i++);
+      await assertSucceeds(dbAs(who).collection('feedback').doc(id).set(fbDoc(who, { ticket: id })));
+    }
+  });
+  it('up to 5 screenshots, or none', async () => {
+    await assertSucceeds(put(U.alice, { screenshots: [] }));
+    await assertSucceeds(put(U.bob, { ticket: 'SEMFE-260930-BBBB', screenshots: [JPG, JPG, JPG, JPG, JPG] }, 'SEMFE-260930-BBBB'));
+    // the page's own ceiling: 5 screenshots of 170 KB each (feedback.js SHOT_BUDGET)
+    const big = 'data:image/jpeg;base64,' + 'A'.repeat(170 * 1024 - 23);
+    await assertSucceeds(put(U.bob, { ticket: 'SEMFE-260930-CCCC', screenshots: [big, big, big, big, big], message: 'x'.repeat(5000) }, 'SEMFE-260930-CCCC'));
+  });
+  it('refused: signed out, or an anonymous sign-in', async () => {
+    await assertFails(dbAs(null).collection('feedback').doc(T).set(fbDoc(U.alice)));
+    await assertFails(put(U.anonymous));
+  });
+  it('refused: in someone else\'s name, or with an e-mail that is not the sign-in one, or a false "confirmed"', async () => {
+    await assertFails(put(U.alice, { uid: 'bob' }));
+    await assertFails(put(U.alice, { email: 'victim@example.com' }));
+    await assertFails(put(U.pwUnverified, { emailVerified: true }));
+    await assertFails(put(U.linkedinNoEmail, { email: 'someone@example.com' }));
+  });
+  it('refused: a document id that is not the ticket, or not a ticket at all', async () => {
+    await assertFails(put(U.alice, {}, 'SEMFE-260930-ZZZZ'));
+    await assertFails(put(U.alice, { ticket: 'hello' }, 'hello'));
+    await assertFails(put(U.alice, { ticket: 'SEMFE-2609-AB23' }, 'SEMFE-2609-AB23'));
+  });
+  it('refused: missing or extra fields, a closed status, a client clock, a bad kind', async () => {
+    const d = fbDoc(U.alice); delete d.ua;
+    await assertFails(dbAs(U.alice).collection('feedback').doc(T).set(d));
+    await assertFails(put(U.alice, { admin: true }));
+    await assertFails(put(U.alice, { status: 'closed' }));
+    await assertFails(put(U.alice, { resolution: 'fixed' }));
+    await assertFails(put(U.alice, { createdAt: PAST }));
+    await assertFails(put(U.alice, { kind: 'spam' }));
+  });
+  it('refused: an empty or too long message, 6 screenshots, a screenshot that is not a JPEG data URL', async () => {
+    await assertFails(put(U.alice, { message: '' }));
+    await assertFails(put(U.alice, { message: 'x'.repeat(5001) }));
+    await assertFails(put(U.alice, { screenshots: [JPG, JPG, JPG, JPG, JPG, JPG] }));
+    await assertFails(put(U.alice, { screenshots: ['https://evil.example/x.jpg'] }));
+    await assertFails(put(U.alice, { screenshots: ['data:text/html;base64,PHNjcmlwdD4='] }));
+    await assertFails(put(U.alice, { screenshots: [JPG, 'data:image/svg+xml;base64,PHN2Zz4='] }));
+  });
+  it('the sender reads their own (one, and the list the page asks for); another member cannot', async () => {
+    await seed('feedback/' + T, stored(U.alice));
+    await assertSucceeds(dbAs(U.alice).collection('feedback').doc(T).get());
+    await assertSucceeds(dbAs(U.alice).collection('feedback').where('uid', '==', U.alice.uid).get());
+    await assertFails(dbAs(U.bob).collection('feedback').doc(T).get());
+    await assertFails(dbAs(U.bob).collection('feedback').get());
+    await assertFails(dbAs(null).collection('feedback').doc(T).get());
+  });
+  it('the sender cannot change or delete it, and nobody can take over its number', async () => {
+    await seed('feedback/' + T, stored(U.alice));
+    await assertFails(dbAs(U.alice).collection('feedback').doc(T).update({ message: 'changed' }));
+    await assertFails(dbAs(U.alice).collection('feedback').doc(T).update({ status: 'closed' }));
+    await assertFails(dbAs(U.alice).collection('feedback').doc(T).delete());
+    await assertFails(put(U.bob));
+  });
+  it('an admin reads them all, closes one with an answer, reopens it, and deletes it', async () => {
+    await seed('feedback/' + T, stored(U.alice));
+    const db = dbAs(U.admin), ref = db.collection('feedback').doc(T);
+    await assertSucceeds(db.collection('feedback').get());
+    await assertSucceeds(ref.update({ status: 'closed', resolution: 'Διορθώθηκε.', resolutionUrl: 'https://www.stouras.com/semfealumni/', resolvedAt: ST(), resolvedBy: 'kstouras@gmail.com' }));
+    await assertSucceeds(ref.update({ status: 'open' }));
+    await assertSucceeds(ref.delete());
+  });
+  it('an admin cannot rewrite what the member sent, or set a made-up status', async () => {
+    await seed('feedback/' + T, stored(U.alice));
+    const ref = dbAs(U.admin).collection('feedback').doc(T);
+    await assertFails(ref.update({ message: 'something else' }));
+    await assertFails(ref.update({ email: 'other@example.com' }));
+    await assertFails(ref.update({ status: 'spam' }));
+    await assertFails(ref.update({ status: 'closed', resolution: 'x'.repeat(5001) }));
+  });
+});
+
 describe('everything else is denied, even to the admin', () => {
   it('admin cannot read or write an unlisted collection', async () => {
     const db = dbAs(U.admin);

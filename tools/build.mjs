@@ -116,7 +116,7 @@ const NAV = [
 const SUBNAV = {
   club: [['Όραμα & Σκοπός', '#orama', ''], ['Όργανα', '', 'organa/'], ['Διοίκηση', '', 'governance/']],
   history: [['Πώς ξεκινήσαμε', '', 'how_we_started/'], ['Φωτοθήκη', '', 'fotothiki/'], ['Αρχείο', '', 'archive/']],
-  members: [['Ο λογαριασμός μου', '', 'account/'], ['Περιοχή μελών', '', 'members/']]
+  members: [['Ο λογαριασμός μου', '', 'account/'], ['Περιοχή μελών', '', 'members/'], ['Σχόλια', '', 'feedback/']]
 };
 const SOCIAL = [
   ['linkedin', 'LinkedIn', 'https://www.linkedin.com/company/semfealumni'],
@@ -307,6 +307,7 @@ function footer(root) {
           <li><a href="${root}support/">Εγγραφές &amp; Δωρεές</a></li>
           <li><a href="${root}account/">Ο λογαριασμός μου</a></li>
           <li><a href="${root}members/">Περιοχή μελών</a></li>
+          <li><a href="${root}feedback/">Σχόλια και προβλήματα</a></li>
           <li><a href="${root}contact/">Επικοινωνία</a></li>
         </ul>
       </div>
