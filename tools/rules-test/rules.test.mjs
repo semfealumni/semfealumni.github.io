@@ -767,6 +767,15 @@ describe('everything else is denied, even to the admin', () => {
       await assertFails(dbAs(who).collection('linkedinLinks').get());
     }
   });
+  // functions/accounts.js writes accountMerges/ (who merged which account into which) through the Admin SDK.
+  it('nobody can read or write the merge log (accountMerges), not even the admin', async () => {
+    await seed('accountMerges/m1', { keep: 'alice', drop: 'alice2', by: 'adm', at: PAST });
+    for (const who of [U.alice, U.admin]) {
+      await assertFails(dbAs(who).collection('accountMerges').doc('m1').get());
+      await assertFails(dbAs(who).collection('accountMerges').get());
+      await assertFails(dbAs(who).collection('accountMerges').doc('m2').set({ keep: 'alice', drop: 'bob' }));
+    }
+  });
   it('an active member cannot read or write an unlisted collection', async () => {
     await seed('members/alice', storedMember('active'));
     const db = dbAs(U.alice);

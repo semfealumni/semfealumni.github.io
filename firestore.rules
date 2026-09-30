@@ -155,5 +155,12 @@ service cloud.firestore {
     match /linkedinLinks/{sub} {
       allow read, write: if false;
     }
+
+    // ---- the log of merged accounts: server only ------------------------
+    // Written by the `accounts` Cloud Function (Admin SDK, which these rules
+    // do not bind) each time two accounts become one. No browser reads it.
+    match /accountMerges/{id} {
+      allow read, write: if false;
+    }
   }
 }

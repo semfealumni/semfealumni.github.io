@@ -148,6 +148,93 @@
     return fsPromise;
   }
 
+  /* ---- the accounts Cloud Function (functions/accounts.js) ----------------
+     The admin page's list of registered accounts, and merging two accounts of
+     one person. Until that function is deployed the call fails as
+     semfe/accounts-unreachable, and the pages say so instead of breaking. */
+  var FN_BASE = 'https://' + (C.FUNCTIONS_REGION || 'europe-west1') + '-' + FB.projectId + '.cloudfunctions.net/';
+  function callAccounts(body, idToken) {
+    if (!configured) return Promise.reject({ code: 'auth/operation-not-allowed' });
+    return loadSdk().then(function () {
+      if (idToken) return idToken;
+      if (!auth.currentUser) throw { code: 'semfe/relogin' };
+      return auth.currentUser.getIdToken();
+    }).then(function (tok) {
+      return fetch(FN_BASE + 'accounts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify(body) })
+        .then(function (r) {
+          return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j || {} }; }, function () { return { ok: false, status: r.status, j: {} }; });
+        }, function () { throw { code: 'semfe/accounts-unreachable' }; });   // not deployed yet (no CORS answer), or offline
+    }).then(function (x) {
+      if (!x.ok) throw { code: 'semfe/' + (x.j.error || (x.status === 404 ? 'accounts-unreachable' : 'internal')) };
+      return x.j;
+    });
+  }
+  /* Sign in to ANOTHER account without touching this page's session: a second
+     Firebase app that keeps nothing (Persistence.NONE), used only to prove the
+     person owns that account too. Then the server merges it into this one. */
+  var otherApp = null;
+  function otherAuth() {
+    return loadSdk().then(function () {
+      if (!otherApp) otherApp = firebase.initializeApp(FB, 'semfe-merge');
+      var a = otherApp.auth();
+      a.languageCode = 'el';
+      return a.setPersistence(firebase.auth.Auth.Persistence.NONE).then(function () { return a; });
+    });
+  }
+  /* how: { credential } (from a link that hit "already in use"), { provider: 'google' },
+     or { email, password }. Resolves with the server's report. */
+  function mergeWith(how) {
+    var a = null;
+    return otherAuth().then(function (oa) {
+      a = oa;
+      if (how.credential) return a.signInWithCredential(how.credential);
+      if (how.provider && PROVIDERS[how.provider]) return a.signInWithPopup(PROVIDERS[how.provider].make());
+      return a.signInWithEmailAndPassword(String(how.email || '').trim(), how.password || '');
+    }).then(function (cred) {
+      var other = cred && cred.user ? cred.user : a.currentUser;
+      if (!other) throw { code: 'semfe/relogin' };
+      if (current && other.uid === current.uid) throw { code: 'semfe/same-account' };
+      return other.getIdToken(true).then(function (tok) { return callAccounts({ action: 'mergeSelf', otherIdToken: tok }); });
+    }).then(function (j) {
+      return (a ? a.signOut() : Promise.resolve()).catch(function () {}).then(function () {
+        // this account now holds more: a fresh user record (new sign-in methods) and token (the li claim)
+        return auth.currentUser ? auth.currentUser.reload().then(function () { return auth.currentUser.getIdToken(true); }) : null;
+      }).then(function () { return j.report || {}; });
+    }, function (e) {
+      if (a) a.signOut().catch(function () {});
+      throw e;
+    });
+  }
+  /* one sentence on what a merge did (the server's report) */
+  function mergeSummary(r) {
+    r = r || {};
+    var s = 'Οι δύο λογαριασμοί ενώθηκαν σε αυτόν.';
+    if (r.application === 'moved') s += ' Η αίτηση μέλους του άλλου λογαριασμού μεταφέρθηκε εδώ.';
+    else if (r.application === 'merged') s += ' Οι δύο αιτήσεις μέλους έγιναν μία.';
+    var moved = (r.moved || []).map(function (k) { return PROVIDERS[k] ? PROVIDERS[k].name : k; });
+    if (moved.length) s += ' Μπαίνετε πλέον εδώ και με ' + moved.join(' και ') + '.';
+    if ((r.notMoved || []).some(function (x) { return x.method === 'password'; }))
+      s += ' Ο κωδικός του άλλου λογαριασμού δεν μεταφέρεται· αν θέλετε, ορίστε κωδικό εδώ, στους «Τρόπους σύνδεσης».';
+    return s;
+  }
+
+  /* ---- what the account menu shows beside its links -----------------------
+     Counts the pages learn anyway (the admin page: applications waiting; the
+     account page: the application's status and how many ways in), kept per
+     account in this browser, so the menu costs no reads of its own. */
+  var MENU_KEY = 'semfe:menu:';
+  function menuInfo(uid) { try { return JSON.parse(localStorage.getItem(MENU_KEY + uid) || '{}') || {}; } catch (e) { return {}; } }
+  function noteMenu(patch) {
+    var u = current;
+    if (!u || !patch) return;
+    var o = menuInfo(u.uid), changed = false;
+    for (var k in patch) if (o[k] !== patch[k]) { o[k] = patch[k]; changed = true; }
+    if (!changed) return;
+    try { localStorage.setItem(MENU_KEY + u.uid, JSON.stringify(o)); } catch (e) {}
+    var open = !!($('#acct-menu') && !$('#acct-menu').hidden);
+    if (!open) paintHeader();                             // never redraw a menu someone is using
+  }
+
   /* ---- header ------------------------------------------------------------ */
   function hint() { try { return JSON.parse(localStorage.getItem(HINT_KEY) || 'null'); } catch (e) { return null; } }
   function saveHint(u) { try { localStorage.setItem(HINT_KEY, JSON.stringify({ n: displayName(u), p: u.photoURL || '', e: u.email || '' })); } catch (e) {} }
@@ -176,17 +263,22 @@
       return;
     }
     var name = u ? displayName(u) : h.n, photo = u ? (u.photoURL || '') : h.p, email = u ? (u.email || '') : h.e;
-    var admin = u && isAdmin(u);
+    var admin = u && isAdmin(u), info = u ? menuInfo(u.uid) : {};
+    var count = function (n, cls) { return n ? '<span class="count' + (cls ? ' ' + cls : '') + '">' + esc(n) + '</span>' : ''; };
+    var APP = { pending: ['Σε αναμονή', 'warn'], active: ['Ενεργή', 'ok'], rejected: ['Δεν εγκρίθηκε', 'err'] }, app = APP[info.app];
     slot.innerHTML = '<div class="acct-menu-wrap">' +
       '<button type="button" class="acct-chip" aria-expanded="false" aria-controls="acct-menu">' +
       avatarHtml(name, photo) + '<span class="nm">' + esc(name) + '</span>' +
       '<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>' +
       '<div class="acct-menu" id="acct-menu" hidden>' +
-      '<div class="who">Συνδεδεμένος/η ως<strong>' + esc(name) + '</strong>' + (email ? esc(email) : '') + '</div>' +
-      '<a href="' + root + 'account/">' + svg('user') + 'Ο λογαριασμός μου</a>' +
-      '<a href="' + root + 'members/">' + svg('users') + 'Περιοχή μελών</a>' +
-      (admin ? '<a href="' + root + 'admin/">' + svg('shield') + 'Διαχείριση μελών</a>' : '') +
-      '<button type="button" data-signout>' + svg('out') + 'Αποσύνδεση</button>' +
+      '<div class="who"><small>Συνδεδεμένος/η ως</small><strong>' + esc(name) + '</strong>' + (email ? '<span>' + esc(email) + '</span>' : '') + '</div>' +
+      (admin ? '<a href="' + root + 'admin/">' + svg('shield') + '<span>Διαχείριση</span>' + count(info.pending, 'warn') + '</a>' : '') +
+      '<a href="' + root + 'account/" class="strong">' + svg('user') + '<span>Ο λογαριασμός μου</span></a>' +
+      '<a href="' + root + 'account/#apply">' + svg('doc') + '<span>Η αίτηση μέλους μου</span>' + (app ? count(app[0], app[1]) : '') + '</a>' +
+      '<a href="' + root + 'members/">' + svg('users') + '<span>Περιοχή μελών</span></a>' +
+      '<a href="' + root + 'account/#methods">' + svg('key') + '<span>Τρόποι σύνδεσης</span>' + (info.methods === 1 ? count('Προσθήκη', 'warn') : '') + '</a>' +
+      '<hr>' +
+      '<button type="button" data-signout class="out">' + svg('out') + '<span>Αποσύνδεση</span></button>' +
       '</div></div>';
     var chip = $('.acct-chip', slot);
     chip.addEventListener('click', function (e) { e.stopPropagation(); setMenu($('#acct-menu').hidden); });
@@ -216,7 +308,10 @@
     var p = { user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
       users: '<circle cx="9" cy="8" r="3.5"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M15 20a5 5 0 0 1 6-4.6"/>',
       shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
-      out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>' }[k];
+      out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+      doc: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+      key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14 9l2 2"/>',
+      chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/>' }[k];
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
   }
 
@@ -487,7 +582,7 @@
     if (!liReady) return;
     var state = randomState();
     try {
-      sessionStorage.setItem(LI_STATE, JSON.stringify({ state: state, mode: mode === 'link' ? 'link' : 'signin', returnTo: returnAddress(),
+      sessionStorage.setItem(LI_STATE, JSON.stringify({ state: state, mode: mode === 'link' || mode === 'merge' ? mode : 'signin', returnTo: returnAddress(),
         waiting: String(waiting || '').slice(0, 40), t: Date.now() }));
     } catch (e) { showStatus('Ο browser σας δεν επιτρέπει την αποθήκευση δεδομένων (cookies), που χρειάζεται η σύνδεση με LinkedIn.'); return; }
     location.assign('https://www.linkedin.com/oauth/v2/authorization?response_type=code' +
@@ -513,17 +608,20 @@
   }
   function linkedinComplete(code, mode) {
     if (!configured || !liReady) return Promise.reject({ code: 'auth/operation-not-allowed' });
+    var withUser = mode === 'link' || mode === 'merge';   // merge: connect LinkedIn, merging the account it already opens
     return loadSdk().then(function () {
-      return mode === 'link' ? firstUser() : null;
+      return withUser ? firstUser() : null;
     }).then(function (u) {
-      if (mode === 'link' && !u) throw { code: 'semfe/relogin' };
+      if (withUser && !u) throw { code: 'semfe/relogin' };
       // a fresh token: the server checks email_verified, and a member who has
       // just confirmed their address still holds a token that says false
       var tok = u ? u.reload().then(function () { return u.getIdToken(true); }) : Promise.resolve(null);
       return tok.then(function (idToken) {
         var headers = { 'Content-Type': 'application/json' };
         if (idToken) headers.Authorization = 'Bearer ' + idToken;
-        return fetch(LI.functionUrl, { method: 'POST', headers: headers, body: JSON.stringify({ code: code, redirectUri: linkedinRedirectUri() }) });
+        var body = { code: code, redirectUri: linkedinRedirectUri() };
+        if (mode === 'merge') body.merge = true;
+        return fetch(LI.functionUrl, { method: 'POST', headers: headers, body: JSON.stringify(body) });
       });
     }).then(function (r) {
       return r.json().then(function (j) { return { ok: r.ok, j: j || {} }; }, function () { return { ok: false, j: {} }; });
@@ -534,7 +632,7 @@
       return auth.signInWithCustomToken(x.j.token).then(function () {
         // refresh so the new "li" claim is in the token the rules and the account page read
         return auth.currentUser ? auth.currentUser.getIdToken(true) : null;
-      }).then(function () { return { isNew: !!x.j.isNew, linked: !!x.j.linked }; });
+      }).then(function () { return { isNew: !!x.j.isNew, linked: !!x.j.linked, merged: x.j.merged || null }; });
     });
   }
   function firstUser() {
@@ -603,8 +701,18 @@
       'semfe/origin-not-allowed': 'Η σύνδεση με LinkedIn δεν έχει εγκριθεί για αυτή τη διεύθυνση του ιστότοπου.',
       'semfe/not-configured': 'Η σύνδεση με LinkedIn δεν έχει ολοκληρωθεί από τους διαχειριστές.',
       'semfe/bad-id-token': 'Η σύνδεσή σας έληξε. Συνδεθείτε ξανά και επαναλάβετε.',
-      'semfe/internal': 'Κάτι πήγε στραβά στην υπηρεσία σύνδεσης LinkedIn. Δοκιμάστε ξανά αργότερα.',
+      'semfe/internal': 'Κάτι πήγε στραβά στην υπηρεσία σύνδεσης. Δοκιμάστε ξανά αργότερα.',
       'semfe/linkedin-failed': 'Η σύνδεση με LinkedIn δεν ολοκληρώθηκε. Δοκιμάστε ξανά.',
+      'semfe/accounts-unreachable': 'Η υπηρεσία λογαριασμών δεν είναι διαθέσιμη αυτή τη στιγμή. Δοκιμάστε ξανά αργότερα ή γράψτε μας.',
+      'semfe/same-account': 'Συνδεθήκατε στον ίδιο λογαριασμό. Για ένωση, συνδεθείτε στον ΑΛΛΟ λογαριασμό σας.',
+      'semfe/other-sign-in-too-old': 'Η σύνδεση στον άλλο λογαριασμό έληξε. Δοκιμάστε ξανά.',
+      'semfe/bad-other-token': 'Η σύνδεση στον άλλο λογαριασμό δεν επιβεβαιώθηκε. Δοκιμάστε ξανά.',
+      'semfe/not-signed-in': 'Η σύνδεσή σας έληξε. Συνδεθείτε ξανά και επαναλάβετε.',
+      'semfe/not-admin': 'Η ενέργεια αυτή είναι μόνο για τους διαχειριστές.',
+      'semfe/cannot-remove-yourself': 'Δεν μπορείτε να διαγράψετε ή να ενώσετε τον λογαριασμό με τον οποίο είστε συνδεδεμένος/η.',
+      'semfe/no-such-account': 'Ο λογαριασμός δεν υπάρχει πια (ίσως διαγράφηκε ή ενώθηκε ήδη).',
+      'semfe/bad-request': 'Κάτι πήγε στραβά με το αίτημα. Ανανεώστε τη σελίδα και δοκιμάστε ξανά.',
+      'auth/provider-already-linked': 'Αυτός ο τρόπος σύνδεσης είναι ήδη συνδεδεμένος με τον λογαριασμό σας.',
       'permission-denied': 'Δεν έχετε δικαίωμα για αυτή την ενέργεια (ή οι κανόνες ασφαλείας της βάσης δεν έχουν δημοσιευτεί ακόμα).',
       'unavailable': 'Η βάση δεδομένων δεν είναι διαθέσιμη αυτή τη στιγμή. Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά.'
     };
@@ -640,6 +748,8 @@
     linkedinViaFunction: function () { return LI_FUNCTION; },
     friendly: friendly, flash: flash, esc: esc, avatarHtml: avatarHtml, displayName: displayName,
     enabledProviders: function () { return enabled.slice(); }, providerInfo: function (k) { return PROVIDERS[k]; }, methodsText: methodsText,
+    callAccounts: callAccounts, mergeWith: mergeWith, mergeSummary: mergeSummary, linkedinStart: linkedinStart,
+    noteMenu: noteMenu, menuInfo: menuInfo,
     icon: function (k) { return ICONS[k] || ''; },
     user: function () { return current; }
   };

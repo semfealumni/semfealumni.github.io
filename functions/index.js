@@ -1,5 +1,7 @@
-/* SEMFE Alumni Cloud Functions (see linkedin.js):
- *   linkedinSignIn      LinkedIn sign-in (HTTPS)
+/* SEMFE Alumni Cloud Functions:
+ *   linkedinSignIn      LinkedIn sign-in (HTTPS, linkedin.js)
+ *   accounts            the admin page's list of registered accounts, and
+ *                       merging two accounts of one person (HTTPS, accounts.js)
  *   cleanupDeletedUser  when a sign-in account is deleted, removes its
  *                       application, directory card and LinkedIn link
  *
@@ -23,6 +25,7 @@ const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const functionsV1 = require('firebase-functions/v1');
 const { handle, cleanupUser, splitList } = require('./linkedin');
+const accounts = require('./accounts');
 
 initializeApp();
 
@@ -44,13 +47,25 @@ exports.linkedinSignIn = onRequest(
     auth: getAuth(),
     db: getFirestore(),
     now: () => FieldValue.serverTimestamp(),
-    log: e => logger.error('linkedinSignIn failed', e)
+    log: e => logger.error('linkedinSignIn failed', e),
+    merge: (keep, drop) => accounts.mergeAccounts({ auth: getAuth(), db: getFirestore(), now: () => FieldValue.serverTimestamp(), keepUid: keep, dropUid: drop, by: 'linkedin' })
   }, {
     clientId: LINKEDIN_CLIENT_ID.value(),
     clientSecret: LINKEDIN_CLIENT_SECRET.value(),
     allowedOrigins: splitList(ALLOWED_ORIGINS.value()),
     redirectUris: splitList(LINKEDIN_REDIRECT_URIS.value())
   })
+);
+
+exports.accounts = onRequest(
+  { region: 'europe-west1', invoker: 'public', maxInstances: 3, timeoutSeconds: 120, memory: '256MiB' },
+  (req, res) => accounts.handle(req, res, {
+    auth: getAuth(),
+    db: getFirestore(),
+    now: () => FieldValue.serverTimestamp(),
+    clock: () => Date.now(),
+    log: e => logger.error('accounts failed', e)
+  }, { allowedOrigins: splitList(ALLOWED_ORIGINS.value()) })
 );
 
 /* Firebase Auth has no 2nd-generation "user deleted" trigger, so this one is 1st generation. */

@@ -17,6 +17,7 @@ jobs:
           node-version: 22
       # pages match _src/, links resolve, share card, admin list in sync, deploy guards
       - run: node tools/check.mjs
-      # the LinkedIn sign-in function, against fakes (no install needed)
-      - run: node test.js
+      # the Cloud Functions (LinkedIn sign-in, the accounts list and merge),
+      # against fakes (no install needed)
+      - run: node test.js && node test-accounts.js
         working-directory: functions

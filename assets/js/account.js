@@ -18,6 +18,10 @@
   var esc = A.esc, FV = null, db = null, unsub = null, user = null, member = null, dirEntry = null;
   var editing = false, deleted = false, autoDirTried = false, linked = [];
   var draft = null, formErr = '', dirMsg = null, refocus = null, applyScrolled = false, deleteShown = false, delBox = null;
+  // sign-in methods: the set-password form (open, what is typed), the merge box,
+  // a method that turned out to belong to another account, deep links already followed
+  var pwOpen = false, pwBox = null, mergeOpen = false, conflict = null, jumped = {};
+  var TAKEN = ['auth/credential-already-in-use', 'auth/email-already-in-use', 'auth/account-exists-with-different-credential'];
   var YEAR = new Date().getFullYear();
   var STAGES = { graduate: 'Απόφοιτος/η ΣΕΜΦΕ', 'final-year': 'Τελειόφοιτος/η ΣΕΜΦΕ', faculty: 'Μέλος ΔΕΠ ΣΕΜΦΕ' };
   var DIRECTIONS = ['Εφαρμοσμένα Μαθηματικά', 'Εφαρμοσμένη Φυσική', 'Άλλη / δεν ισχύει'];
@@ -35,7 +39,7 @@
     user = u;
     if (unsub) { unsub(); unsub = null; }
     member = null; dirEntry = null; editing = false; draft = null; formErr = ''; dirMsg = null; refocus = null;
-    autoDirTried = false; delBox = null;
+    autoDirTried = false; delBox = null; pwOpen = false; pwBox = null; mergeOpen = false; conflict = null;
     linked = u ? A.providers(u) : [];
     if (deleted) {                  // keep the "account deleted" message on screen…
       if (!u) return;
@@ -112,9 +116,10 @@
     var el = document.activeElement;
     if (!el || el === document.body || !app.contains(el)) return null;
     var attrs = ['data-dir', 'data-edit', 'data-cancel', 'data-verified', 'data-resend', 'data-send-verify', 'data-verified-li',
-      'data-reset', 'data-signout', 'data-del-open', 'data-del-go'], sel = el.id ? '#' + el.id : null;
+      'data-reset', 'data-signout', 'data-del-open', 'data-del-go', 'data-setpw', 'data-pw-cancel', 'data-merge-open', 'data-merge-cancel',
+      'data-merge-conflict', 'data-prompt-hide'], sel = el.id ? '#' + el.id : null;
     for (var i = 0; !sel && i < attrs.length; i++) if (el.hasAttribute(attrs[i])) sel = '[' + attrs[i] + ']';
-    if (!sel && el.hasAttribute('data-link')) sel = '[data-link="' + el.getAttribute('data-link') + '"]';
+    ['data-link', 'data-prompt', 'data-merge-with'].forEach(function (a) { if (!sel && el.hasAttribute(a)) sel = '[' + a + '="' + el.getAttribute(a) + '"]'; });
     if (!sel && el.type === 'submit') sel = '#apply [type=submit]';
     var panel = el.closest ? el.closest('.panel[id]') : null, caret = null;
     try { if (typeof el.selectionStart === 'number') caret = [el.selectionStart, el.selectionEnd, el.selectionDirection || 'none']; } catch (e) {}
@@ -149,6 +154,10 @@
     var del = app.querySelector('[data-del-box]');
     if (del && !del.hidden) delBox = { confirm: (app.querySelector('#del-confirm') || {}).value || '', pass: (app.querySelector('#del-pass') || {}).value || '' };
     else if (del) delBox = null;
+    var pwf = app.querySelector('[data-pw-form]');
+    if (pwf) pwBox = { a: pwf.elements['pw-new'].value, b: pwf.elements['pw-new2'].value };
+    var mf = app.querySelector('[data-merge-pw]');
+    var mergeTyped = mf ? { email: mf.elements['merge-email'].value, pass: mf.elements['merge-pass'].value } : null;
     var name = A.displayName(user);
     var s = '<div class="panel profile-head">' + A.avatarHtml(name, user.photoURL, 'avatar-lg') +
       '<div class="who"><strong>' + esc(name) + '</strong><span class="muted">' + esc(user.email || '') + '</span></div>' + statusBadge(member) + '</div>';
@@ -160,6 +169,7 @@
         '<p class="form-ok" data-verify-msg role="status" style="margin:8px 0 0"></p></div>';
     }
 
+    s += addMethodPrompt();
     s += '<div class="acct-grid" style="margin-top:18px"><div>';
     s += membershipPanel();
     s += '</div><div>';
@@ -174,11 +184,23 @@
       app.querySelector('#del-confirm').value = delBox.confirm;
       if (app.querySelector('#del-pass')) app.querySelector('#del-pass').value = delBox.pass || '';   // kept in memory only, never stored
     }
+    if (pwBox && app.querySelector('[data-pw-form]')) { app.querySelector('#pw-new').value = pwBox.a; app.querySelector('#pw-new2').value = pwBox.b; }
+    if (mergeTyped && app.querySelector('[data-merge-pw]')) { app.querySelector('#merge-email').value = mergeTyped.email; app.querySelector('#merge-pass').value = mergeTyped.pass; }
+    // what the account menu shows (auth.js keeps it for this browser)
+    A.noteMenu({ app: member ? (member.status || 'pending') : null, methods: linked.length });
     restoreFocus(keep);
     // arriving at account/#apply (straight after registering): show the form, once
     if (/apply/.test(location.hash) && !member && !applyScrolled) {
       applyScrolled = true;
       var f = document.getElementById('apply'); if (f && f.scrollIntoView) f.scrollIntoView({ block: 'start' });
+    }
+    // arriving at account/#methods or #apply from the account menu: the panels are drawn
+    // only now, after the browser's own jump to the fragment, so go there once ourselves
+    var hm = /^#(methods|apply)$/.exec(location.hash);
+    if (hm && !jumped[hm[1]] && (hm[1] === 'methods' || member)) {
+      jumped[hm[1]] = true;
+      var jh = app.querySelector('#' + hm[1] + ' h2');
+      if (jh) { if (jh.scrollIntoView) jh.scrollIntoView({ block: 'start' }); try { jh.focus({ preventScroll: true }); } catch (e) { jh.focus(); } }
     }
     // arriving at account/#delete (from the data-deletion page): the panel is drawn only now,
     // after the browser's own jump to the fragment, so go there once ourselves
@@ -293,16 +315,23 @@
       '</form></div>';
   }
 
+  /* the ways this account can sign in: every method the site offers, whether
+     it is connected, and what can be added */
+  function available() {
+    return A.enabledProviders().concat(user && user.email ? ['password'] : []);
+  }
+  function methodName(k) { return k === 'password' ? 'e-mail και κωδικό' : (A.providerInfo(k) || {}).name || k; }
   function methodsPanel() {
     var rows = '', blocked = linkNeedsVerifiedEmail(), missing = false;
     A.enabledProviders().concat(['password']).forEach(function (k) {
       var info = k === 'password' ? { name: 'E-mail και κωδικός' } : A.providerInfo(k);
       var on = linked.indexOf(k) !== -1;
-      if (!on && k !== 'password') missing = true;
+      if (!on && (k !== 'password' || user.email)) missing = true;
+      var dis = blocked ? ' disabled aria-describedby="link-needs-email"' : '';
       var action = on
         ? (k === 'password' ? '<button type="button" class="btn btn-outline btn-sm" data-reset>Αλλαγή κωδικού</button>' : '<span class="badge ok">Συνδεδεμένο</span>')
-        : (k === 'password' ? '<span class="badge muted">Ανενεργό</span>'
-          : '<button type="button" class="btn btn-outline btn-sm" data-link="' + k + '"' + (blocked ? ' disabled aria-describedby="link-needs-email"' : '') + '>Σύνδεση</button>');
+        : (k === 'password' ? (user.email ? '<button type="button" class="btn btn-outline btn-sm" data-setpw aria-expanded="' + pwOpen + '"' + dis + '>Ορισμός κωδικού</button>' : '<span class="badge muted">Ανενεργό</span>')
+          : '<button type="button" class="btn btn-outline btn-sm" data-link="' + k + '"' + dis + '>Σύνδεση</button>');
       rows += '<div class="row"><span>' + A.icon(k) + esc(info.name) + '</span>' + action + '</div>';
     });
     // (an e-mail + password account that still has to confirm already has the box at the top)
@@ -311,9 +340,53 @@
         '<button type="button" class="link-btn" data-send-verify>Στείλτε μου e-mail επιβεβαίωσης</button> · <button type="button" class="link-btn" data-verified-li>Το επιβεβαίωσα</button></p>'
       : blocked && missing ? '<p class="muted" id="link-needs-email" style="font-size:.88rem;margin:10px 0 0">Για να συνδέσετε κι άλλον τρόπο σύνδεσης, επιβεβαιώστε πρώτα το e-mail σας (δείτε παραπάνω).</p>'
       : '';
+    var pw = pwOpen && linked.indexOf('password') === -1 && user.email && !blocked
+      ? '<form class="form sub-form" data-pw-form novalidate><p class="muted" style="margin:0 0 10px">Θα μπαίνετε και με <strong>' + esc(user.email) + '</strong> και αυτόν τον κωδικό.</p>' +
+        '<div class="field"><label for="pw-new">Νέος κωδικός (τουλάχιστον 8 χαρακτήρες)</label><input id="pw-new" name="pw-new" type="password" autocomplete="new-password" minlength="8" required></div>' +
+        '<div class="field"><label for="pw-new2">Ξανά ο ίδιος κωδικός</label><input id="pw-new2" name="pw-new2" type="password" autocomplete="new-password" required></div>' +
+        '<div class="form-error" data-pw-msg role="alert"></div>' +
+        '<div class="section-foot" style="margin:0"><button type="submit" class="btn btn-dark btn-sm">Αποθήκευση κωδικού</button><button type="button" class="btn btn-outline btn-sm" data-pw-cancel>Ακύρωση</button></div></form>'
+      : '';
+    var clash = conflict
+      ? '<div class="notice warn" style="margin:14px 0 0" data-clash><strong>' + esc(conflict.title) + '</strong><p>' + esc(conflict.text) + '</p>' +
+        '<p class="section-foot" style="margin:8px 0 0"><button type="button" class="btn btn-dark btn-sm" data-merge-conflict>Ένωση των δύο λογαριασμών</button></p></div>'
+      : '';
     return '<div class="panel" id="methods"><h2 tabindex="-1">Τρόποι σύνδεσης</h2><p class="muted intro">Συνδέστε περισσότερους τρόπους στον ίδιο λογαριασμό, για να μπαίνετε με όποιον σας βολεύει.</p>' +
-      '<div class="linked">' + rows + '</div>' + liNote + '<div class="form-error" data-methods-msg role="status"></div>' +
+      '<div class="linked">' + rows + '</div>' + pw + liNote + clash + '<div class="form-error" data-methods-msg role="status"></div>' +
+      mergeSection() +
       '<p style="margin:14px 0 0"><button type="button" class="btn btn-outline btn-sm" data-signout>Αποσύνδεση</button></p></div>';
+  }
+  /* "Do you have a second account here?": sign in to it as well, and it is
+     merged into this one (the server moves its application and ways in). */
+  function mergeSection() {
+    if (!mergeOpen) return '<p style="margin:12px 0 0"><button type="button" class="link-btn" data-merge-open aria-expanded="false">Έχετε και δεύτερο λογαριασμό εδώ; Ενώστε τους σε έναν</button></p>';
+    var btns = A.enabledProviders().map(function (k) {
+      return '<button type="button" class="btn btn-outline btn-sm prov-sm" data-merge-with="' + k + '">' + A.icon(k) + 'Με ' + esc(A.providerInfo(k).name) + '</button>';
+    }).join('');
+    return '<div class="merge-box" id="merge"><h3 tabindex="-1">Ένωση με άλλον λογαριασμό σας</h3>' +
+      '<p class="muted">Αν φτιάξατε κατά λάθος και δεύτερο λογαριασμό (π.χ. μία φορά με Google και μία με LinkedIn), συνδεθείτε εδώ και σε εκείνον. ' +
+      'Η αίτηση μέλους, οι συνδρομές και οι τρόποι σύνδεσής του μεταφέρονται σε αυτόν τον λογαριασμό' + (user.email ? ' (' + esc(user.email) + ')' : '') + ' και ο άλλος διαγράφεται.</p>' +
+      '<p class="muted" style="margin:0 0 8px"><strong>Συνδεθείτε στον άλλο λογαριασμό:</strong></p>' +
+      '<div class="section-foot" style="margin:0 0 12px">' + btns + '</div>' +
+      '<form class="form sub-form" data-merge-pw novalidate><p class="muted" style="margin:0 0 8px">…ή με το e-mail και τον κωδικό του:</p>' +
+      '<div class="field"><label for="merge-email">E-mail του άλλου λογαριασμού</label><input id="merge-email" name="merge-email" type="text" inputmode="email" autocomplete="off" autocapitalize="none" spellcheck="false"></div>' +
+      '<div class="field"><label for="merge-pass">Κωδικός του άλλου λογαριασμού</label><input id="merge-pass" name="merge-pass" type="password" autocomplete="off"></div>' +
+      '<div class="section-foot" style="margin:0"><button type="submit" class="btn btn-dark btn-sm">Σύνδεση και ένωση</button><button type="button" class="btn btn-outline btn-sm" data-merge-cancel>Ακύρωση</button></div></form>' +
+      '<div class="form-error" data-merge-msg role="status"></div></div>';
+  }
+  /* one method only: say so at the top, name the others, and offer them */
+  var PROMPT_KEY = 'semfe:no-method-prompt:';
+  function addMethodPrompt() {
+    if (!user || needsEmailCheck() || linkNeedsVerifiedEmail() || linked.length !== 1) return '';
+    try { if (localStorage.getItem(PROMPT_KEY + user.uid)) return ''; } catch (e) {}
+    var missing = available().filter(function (k) { return linked.indexOf(k) === -1; });
+    if (!missing.length) return '';
+    var names = missing.map(methodName), list = names.length < 2 ? names[0] : names.slice(0, -1).join(', ') + ' ή ' + names[names.length - 1];
+    return '<div class="notice info add-method" style="margin-top:18px"><strong>Προσθέστε κι άλλον τρόπο σύνδεσης</strong>' +
+      '<p>Μπαίνετε μόνο με ' + esc(methodName(linked[0])) + '. Συνδέστε και ' + esc(list) + ', ώστε να μπαίνετε με όποιον σας βολεύει και να μη χάσετε την πρόσβαση αν ξεχάσετε έναν.</p>' +
+      '<p class="section-foot" style="margin:10px 0 0">' + missing.map(function (k) {
+        return '<button type="button" class="btn btn-dark btn-sm" data-prompt="' + k + '">' + (k === 'password' ? 'Ορισμός κωδικού' : 'Σύνδεση ' + esc(methodName(k))) + '</button>';
+      }).join('') + '<button type="button" class="btn btn-outline btn-sm" data-prompt-hide>Όχι τώρα</button></p></div>';
   }
 
   function dangerPanel() {
@@ -359,27 +432,44 @@
     on('[data-send-verify]', 'click', function () { sendVerify(q('[data-methods-msg]')); });
     on('[data-verified-li]', 'click', function () { checkVerified(q('[data-methods-msg]'), '#methods h2'); });
     Array.prototype.forEach.call(app.querySelectorAll('[data-link]'), function (b) {
+      b.addEventListener('click', function () { linkProvider(b.getAttribute('data-link'), b); });
+    });
+    Array.prototype.forEach.call(app.querySelectorAll('[data-prompt]'), function (b) {
       b.addEventListener('click', function () {
-        var k = b.getAttribute('data-link'), msg = q('[data-methods-msg]');
-        b.disabled = true;
-        A.link(k).then(function () {
-          user = firebase.auth().currentUser;
-          // linkWithPopup keeps the uid, so onChange does not fire; the async
-          // list keeps a LinkedIn that was connected through the Cloud Function
-          return A.providersAsync(user).then(function (l) {
-            linked = l;
-            refocus = '#methods h2';
-            render();
-            A.flash('Το ' + A.providerInfo(k).name + ' συνδέθηκε με τον λογαριασμό σας.');
-          });
-        }, function (err) {
-          b.disabled = false;
-          try { b.focus(); } catch (e) {}      // disabling it had dropped keyboard focus
-          if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) return;
-          msg.className = 'form-error';
-          msg.textContent = A.friendly(err);
-        });
+        var k = b.getAttribute('data-prompt');
+        if (k === 'password') return openPasswordForm();
+        linkProvider(k, b);
       });
+    });
+    on('[data-prompt-hide]', 'click', function () {
+      try { localStorage.setItem(PROMPT_KEY + user.uid, '1'); } catch (e) {}
+      refocus = '#methods h2'; render();
+    });
+    on('[data-setpw]', 'click', openPasswordForm);
+    on('[data-pw-cancel]', 'click', function () { pwOpen = false; pwBox = null; refocus = '[data-setpw]'; render(); });
+    on('[data-pw-form]', 'submit', function (e) { e.preventDefault(); setPassword(e.target); });
+    on('[data-merge-open]', 'click', function () { mergeOpen = true; refocus = '#merge h3'; render(); });
+    on('[data-merge-cancel]', 'click', function () { mergeOpen = false; refocus = '[data-merge-open]'; render(); });
+    on('[data-merge-conflict]', 'click', function () {
+      var c = conflict, btn = this, msg = q('[data-methods-msg]');
+      if (!c) return;
+      if (c.provider === 'linkedin' && A.linkedinViaFunction()) return A.linkedinStart('merge');   // through the Cloud Function: leaves the page
+      if (c.provider === 'password') { conflict = null; mergeOpen = true; refocus = '#merge-email'; render(); return; }
+      runMerge(c.credential ? { credential: c.credential } : { provider: c.provider }, btn, msg);
+    });
+    Array.prototype.forEach.call(app.querySelectorAll('[data-merge-with]'), function (b) {
+      b.addEventListener('click', function () {
+        var k = b.getAttribute('data-merge-with');
+        if (k === 'linkedin' && A.linkedinViaFunction()) return A.linkedinStart('merge');
+        runMerge({ provider: k }, b, q('[data-merge-msg]'));
+      });
+    });
+    on('[data-merge-pw]', 'submit', function (e) {
+      e.preventDefault();
+      var f = e.target, msg = q('[data-merge-msg]');
+      var em = f.elements['merge-email'].value.trim(), pw = f.elements['merge-pass'].value;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em) || !pw) { msg.className = 'form-error'; msg.textContent = 'Γράψτε το e-mail και τον κωδικό του ΑΛΛΟΥ λογαριασμού σας.'; return; }
+      runMerge({ email: em, password: pw }, f.querySelector('[type=submit]'), msg);
     });
     on('[data-reset]', 'click', function () {
       var msg = q('[data-methods-msg]');
@@ -511,6 +601,92 @@
       refocus = '[data-dir]';
       render();
       say(dirMsg.text);
+    });
+  }
+
+  /* connect another provider to this account; if it already opens ANOTHER
+     account here, offer to merge the two instead of just saying no */
+  function linkProvider(k, b) {
+    var msg = app.querySelector('[data-methods-msg]');
+    if (b) b.disabled = true;
+    conflict = null;
+    A.link(k).then(function () {
+      user = firebase.auth().currentUser;
+      // linkWithPopup keeps the uid, so onChange does not fire; the async
+      // list keeps a LinkedIn that was connected through the Cloud Function
+      return A.providersAsync(user).then(function (l) {
+        linked = l;
+        refocus = '#methods h2';
+        render();
+        A.flash('Το ' + A.providerInfo(k).name + ' συνδέθηκε με τον λογαριασμό σας.');
+      });
+    }, function (err) {
+      if (b) { b.disabled = false; try { b.focus(); } catch (e) {} }     // disabling it had dropped keyboard focus
+      if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) return;
+      if (err && TAKEN.indexOf(err.code) !== -1) {
+        var name = A.providerInfo(k).name;
+        conflict = { provider: k, credential: err.credential || null,
+          title: 'Αυτό το ' + name + ' ανοίγει ήδη άλλον λογαριασμό εδώ',
+          text: 'Μάλλον τον φτιάξατε κι εσείς, σε άλλη επίσκεψη. Μπορείτε να ενώσετε τους δύο λογαριασμούς σε αυτόν: η αίτηση μέλους και οι τρόποι σύνδεσης του άλλου μεταφέρονται εδώ, και ο άλλος διαγράφεται.' };
+        refocus = '[data-merge-conflict]';
+        render();
+        return;
+      }
+      if (msg) { msg.className = 'form-error'; msg.textContent = A.friendly(err); }
+    });
+  }
+  function openPasswordForm() {
+    pwOpen = true; refocus = '#pw-new'; render();
+    var f = app.querySelector('[data-pw-form]');
+    if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' });
+  }
+  /* add e-mail + password to an account that signs in some other way */
+  function setPassword(f) {
+    var msg = f.querySelector('[data-pw-msg]'), btn = f.querySelector('[type=submit]');
+    var a = f.elements['pw-new'].value, b = f.elements['pw-new2'].value;
+    msg.className = 'form-error';
+    if (a.length < 8) { msg.textContent = 'Ο κωδικός χρειάζεται τουλάχιστον 8 χαρακτήρες.'; f.elements['pw-new'].focus(); return; }
+    if (a !== b) { msg.textContent = 'Οι δύο κωδικοί δεν είναι ίδιοι.'; f.elements['pw-new2'].focus(); return; }
+    btn.disabled = true; msg.textContent = '';
+    var link = function () { return user.linkWithCredential(firebase.auth.EmailAuthProvider.credential(user.email, a)); };
+    link().catch(function (err) {
+      // Firebase wants a recent sign-in before adding a password: prove it, then once more
+      if (err && err.code === 'auth/requires-recent-login') return A.reauth(user).then(link);
+      throw err;
+    }).then(function () {
+      user = firebase.auth().currentUser;
+      return A.providersAsync(user).then(function (l) {
+        linked = l; pwOpen = false; pwBox = null; refocus = '#methods h2'; render();
+        A.flash('Ορίστηκε κωδικός. Μπορείτε πλέον να μπαίνετε και με το ' + user.email + ' και αυτόν τον κωδικό.');
+      });
+    }, function (err) {
+      btn.disabled = false;
+      if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) { msg.textContent = 'Ακυρώθηκε.'; return; }
+      if (err && TAKEN.indexOf(err.code) !== -1) {
+        pwOpen = false; pwBox = null;
+        conflict = { provider: 'password', title: 'Υπάρχει ήδη άλλος λογαριασμός με το ' + user.email,
+          text: 'Μάλλον τον φτιάξατε κι εσείς με e-mail και κωδικό. Μπορείτε να ενώσετε τους δύο λογαριασμούς: πατήστε το κουμπί και γράψτε τον κωδικό ΕΚΕΙΝΟΥ του λογαριασμού.' };
+        refocus = '[data-merge-conflict]'; render(); return;
+      }
+      msg.textContent = A.friendly(err);
+    });
+  }
+  /* sign in to the other account (auth.js keeps this page's session as it is),
+     then the server merges it into this one */
+  function runMerge(how, btn, msg) {
+    if (btn) btn.disabled = true;
+    if (msg) { msg.className = 'form-ok'; msg.textContent = 'Ένωση λογαριασμών…'; }
+    A.mergeWith(how).then(function (report) {
+      user = firebase.auth().currentUser;
+      conflict = null; mergeOpen = false;
+      return A.providersAsync(user).then(function (l) {
+        linked = l; refocus = '#methods h2'; render();
+        A.flash(A.mergeSummary(report));
+      });
+    }, function (err) {
+      if (btn) { btn.disabled = false; try { btn.focus(); } catch (e) {} }
+      if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')) { if (msg) msg.textContent = ''; return; }
+      if (msg) { msg.className = 'form-error'; msg.textContent = A.friendly(err); }
     });
   }
 

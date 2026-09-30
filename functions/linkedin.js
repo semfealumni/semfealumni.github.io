@@ -28,6 +28,11 @@
  *      real owner's account. The person is asked to sign in the usual way
  *      and link LinkedIn from their account page instead;
  *   3. else a new account.
+ * Connecting LinkedIn from the account page (an ID token comes with the code)
+ * links it to that account; when this LinkedIn account already signs in to a
+ * DIFFERENT account, the answer is 409 credential-already-in-use, unless the
+ * person asked to merge the two (body.merge), in which case accounts.js
+ * merges that account into this one.
  * linkedinLinks/ is written only here (Admin SDK); firestore.rules denies it
  * to every browser. */
 'use strict';
@@ -78,18 +83,24 @@ async function getUserOrNull(auth, fn) {
 }
 
 /* Decide which Firebase uid this LinkedIn member signs in as. */
-async function resolveUser({ auth, db, now, profile, linkToUid }) {
+async function resolveUser({ auth, db, now, profile, linkToUid, merge }) {
   const ref = db.collection(LINKS).doc(String(profile.sub));
   const snap = await ref.get();
   const mapped = snap.exists ? (snap.data() || {}).uid : null;
   const remember = uid => ref.set({ uid, updatedAt: now() }, { merge: true });
 
   if (linkToUid) {                                         // "connect LinkedIn" from the account page
+    let report = null;
     if (mapped && mapped !== linkToUid && await getUserOrNull(auth, () => auth.getUser(mapped))) {
-      throw new HttpError(409, 'credential-already-in-use');
+      // this LinkedIn account already signs in to another account. With
+      // merge (the person asked for it, accounts.js), that account is merged
+      // into this one: signing in with LinkedIn just now proves the person
+      // can get into it anyway.
+      if (!merge) throw new HttpError(409, 'credential-already-in-use');
+      report = await merge(linkToUid, mapped);
     }
     await remember(linkToUid);
-    return { uid: linkToUid, isNew: false };
+    return { uid: linkToUid, isNew: false, merged: report };
   }
   if (mapped) {
     const u = await getUserOrNull(auth, () => auth.getUser(mapped));
@@ -165,10 +176,11 @@ async function handle(req, res, deps, cfg) {
     }
 
     const profile = cleanProfile(await fetchProfile({ fetch: deps.fetch, clientId: cfg.clientId, clientSecret: cfg.clientSecret, code, redirectUri }));
-    const who = await resolveUser({ auth: deps.auth, db: deps.db, now: deps.now, profile, linkToUid });
+    const merge = linkToUid && body.merge === true && deps.merge ? (keep, drop) => deps.merge(keep, drop) : null;
+    const who = await resolveUser({ auth: deps.auth, db: deps.db, now: deps.now, profile, linkToUid, merge });
     await touchUser({ auth: deps.auth, uid: who.uid, profile });
     const token = await deps.auth.createCustomToken(who.uid, { li: true });
-    return res.status(200).json({ token, isNew: who.isNew, linked: !!linkToUid });
+    return res.status(200).json({ token, isNew: who.isNew, linked: !!linkToUid, merged: who.merged || null });
   } catch (e) {
     const status = e instanceof HttpError ? e.status : 500;
     if (!(e instanceof HttpError) && deps.log) deps.log(e);

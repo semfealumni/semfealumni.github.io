@@ -152,6 +152,8 @@
       initializeApp: function (options, name) {
         rec('app.initializeApp', [options, name]);
         var app = { name: name || '[DEFAULT]', options: JSON.parse(JSON.stringify(options || {})) };
+        if (apps.some(function (x) { return x.name === app.name; })) throw errOf({ code: 'app/duplicate-app' });
+        app.auth = function () { return window.firebase.__appAuth ? window.firebase.__appAuth(app) : null; };
         apps.push(app);
         return app;
       },
@@ -459,6 +461,58 @@
     };
     return auth;
   }
+  /* A second, NAMED app (auth.js signs in to another account there, to merge
+     it): its own signed-in user, which never touches this page's session or
+     the saved state's currentUid. Calls are recorded as '<app name>.auth.*';
+     scripted ops are '<app name>.signInWithPopup' / '.signInWithCredential'
+     (resolve: { uid } picks the account). */
+  function findByProvider(pid, email) {
+    for (var k in state.accounts) {
+      var x = state.accounts[k];
+      if (x.providers.some(function (p) { return p.providerId === pid && (!email || String(p.email || x.email || '').toLowerCase() === String(email).toLowerCase()); })) return x;
+    }
+    return null;
+  }
+  function makeOtherAuth(name) {
+    var cur = null, P = name + '.';
+    function asUser(a) {
+      return { uid: a.uid, email: a.email || null,
+        getIdToken: function () { rec(P + 'user.getIdToken', [], { uid: a.uid }); return Promise.resolve('fake-other-token.' + a.uid); } };
+    }
+    function done(a) { if (!a) throw errOf({ code: 'auth/invalid-credential' }); cur = asUser(a); return { user: cur }; }
+    return {
+      get currentUser() { return cur; },
+      languageCode: null,
+      setPersistence: function (v) { rec(P + 'auth.setPersistence', [v]); return Promise.resolve(); },
+      signInWithPopup: function (provider) {
+        rec(P + 'auth.signInWithPopup', [provider], { userActivation: activation() });
+        var q = take(P + 'signInWithPopup', { provider: provider && provider.providerId });
+        return later((q && q.delayMs) || 10).then(function () {
+          if (q && q.reject) throw errOf(q.reject);
+          var id = (q && q.resolve) || {};
+          return done(id.uid ? state.accounts[id.uid] : findByProvider(provider.providerId, id.email));
+        });
+      },
+      signInWithCredential: function (cred) {
+        rec(P + 'auth.signInWithCredential', [cred]);
+        var q = take(P + 'signInWithCredential');
+        return later((q && q.delayMs) || 10).then(function () {
+          if (q && q.reject) throw errOf(q.reject);
+          var id = (q && q.resolve) || {};
+          return done(id.uid ? state.accounts[id.uid] : findByProvider(cred && cred.providerId, cred && cred.email));
+        });
+      },
+      signInWithEmailAndPassword: function (email, password) {
+        rec(P + 'auth.signInWithEmailAndPassword', [email, password]);
+        return later(10).then(function () {
+          var a = acctByEmail(email);
+          if (!a || !a.providers.some(function (p) { return p.providerId === 'password'; }) || a.password !== password) throw errOf({ code: 'auth/invalid-credential' });
+          return done(a);
+        });
+      },
+      signOut: function () { rec(P + 'auth.signOut', []); cur = null; return Promise.resolve(); }
+    };
+  }
   function installAuth() {
     if (!window.firebase) installApp();
     if (window.firebase.auth) return;
@@ -478,6 +532,11 @@
     fn.OAuthProvider = OAuthProvider;
     fn.EmailAuthProvider = EmailAuthProvider;
     fn.Auth = { Persistence: { LOCAL: 'local', SESSION: 'session', NONE: 'none' } };
+    window.firebase.__appAuth = function (app) {
+      if (app.name === '[DEFAULT]') return fn();
+      if (!app._auth) app._auth = makeOtherAuth(app.name);
+      return app._auth;
+    };
     window.firebase.auth = fn;
   }
 

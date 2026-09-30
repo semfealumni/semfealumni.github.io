@@ -23,7 +23,7 @@ as they are here; there is nothing to install to publish it.
     assets/js/auth.js          sign-in and registration (Firebase Authentication)
     assets/js/account.js       "Ο λογαριασμός μου": membership application, sign-in methods, delete account
     assets/js/members.js       "Περιοχή μελών": members-only directory
-    assets/js/admin.js         "Διαχείριση": approve applications, record dues, export CSV
+    assets/js/admin.js         "Διαχείριση": approve applications, record dues, every account, merge duplicates, export CSV
     assets/img, assets/docs    photos, logos and the PDFs
     firestore.rules            the database security rules (the real gatekeeper)
     firebase.json, .firebaserc, check-project.mjs   for deploying the rules from the command line
@@ -80,11 +80,16 @@ What members get once it is on:
 * **Membership application** on "Ο λογαριασμός μου", replacing the Google Form,
   with the application's status (pending, active, not approved) and the dues on record.
 * **Members area** with a directory of active members who chose to be listed.
-* **Several sign-in methods on one account**, and **self-service deletion**
-  of the account and all its data.
+* **Several sign-in methods on one account**: the account page asks members
+  to add the ways in they do not have yet, and a member with two accounts
+  (say one from Google, one from LinkedIn) can merge them into one.
+* **Self-service deletion** of the account and all its data.
 
 The board manages applications at `/admin/` (only the addresses in
 `ADMIN_EMAILS` in `config.js` **and** in `isAdmin()` in `firestore.rules`).
+The same page lists every account that has signed in, marks likely duplicates
+and merges two accounts of one person; that part runs in the `accounts` Cloud
+Function (`functions/accounts.js`, FIREBASE-SETUP.md Part E).
 
 ## Search engines
 
@@ -107,7 +112,7 @@ the LinkedIn app's redirect URL (FIREBASE-SETUP.md, Part D).
     node tools/smoke.mjs                  every page at 10 screen sizes, menu, dialog, gallery (Playwright)
     node tools/auth-flow.mjs              the sign-in, account, members and admin flows against a fake Firebase
     cd tools/rules-test && npm install && npm test   the Firestore rules against the real emulator (needs Java)
-    cd functions && npm install && npm test          the LinkedIn Cloud Function (offline, with fakes)
+    cd functions && npm test                         the Cloud Functions: LinkedIn sign-in, accounts list and merge (offline, with fakes)
 
 ## Hosting
 
@@ -122,4 +127,4 @@ Do **not** add a `.nojekyll` file: Jekyll is what keeps `_src/` off the web,
 and `_config.yml` keeps `tools/`, `functions/` and the Firebase files off it too.
 
 Every push runs `.github/workflows/checks.yml` (the offline checks and the
-LinkedIn function's tests); it only reads the files, it never deploys.
+Cloud Functions' tests); it only reads the files, it never deploys.

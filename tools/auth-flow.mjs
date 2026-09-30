@@ -647,7 +647,14 @@ await scenario('F2', 'account page: the application (validate, refused write, cr
     list([(await page.$$eval('#account-app .linked .row', rs => rs.map(r => r.textContent.trim()))).join(' / '), 'toast: ' + (await flashText(page))]));
   await queue(page, 'linkWithPopup', { reject: { code: 'auth/credential-already-in-use' } });
   await page.click('#account-app [data-link="linkedin"]');
-  t(await hasText(page.locator('#account-app [data-methods-msg]'), 'χρησιμοποιείται ήδη από άλλον λογαριασμό'), 'a LinkedIn already used elsewhere: the Greek message');
+  t(await hasText(page.locator('#account-app [data-clash]'), 'ανοίγει ήδη άλλον λογαριασμό εδώ') && await visible(page.locator('#account-app [data-merge-conflict]')),
+    'a LinkedIn already used elsewhere: the Greek notice, with an offer to merge the two accounts');
+  // LinkedIn through Firebase (oidc): merging signs in to the other account in a popup, never leaves for LinkedIn
+  const before2 = page.url();
+  await page.click('#account-app [data-merge-conflict]');
+  const mp = await waitCalls(page, 'semfe-merge.auth.signInWithPopup', 1);
+  t(mp[0] && mp[0].args[0].__provider === 'oidc.linkedin' && page.url() === before2,
+    '… «Ένωση» with LinkedIn through Firebase signs in to the other account in a popup (the page stays)');
 });
 
 await scenario('F3', 'account page: an e-mail + password account that has not confirmed its address', { cfg: 'oidc',
@@ -1318,6 +1325,238 @@ await scenario('K18', '?signin with a saved session and a slow SDK: a dialog the
   await page.keyboard.press('Escape');
   await sleep(2600);
   t(!(await dialogOpen(page)), 'the dialog does not come back by itself');
+});
+
+/* ================================================================================== */
+/* Sign-in methods, merging two accounts, the registered-users list, the menu        */
+/* ================================================================================== */
+const FN_ACC = 'https://europe-west1-demo-semfe.cloudfunctions.net/accounts';
+function accountsServer(env, handler) {
+  env.accCalls = [];
+  const prev = env.onExternal;
+  env.onExternal = async (route, url) => {
+    if (url !== FN_ACC) return prev ? prev(route, url) : false;
+    const req = route.request();
+    const cors = { 'access-control-allow-origin': ORIGIN, 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'POST' };
+    if (req.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: cors }); return true; }
+    let body = {}; try { body = JSON.parse(req.postData() || '{}'); } catch {}
+    env.accCalls.push({ body, auth: req.headers().authorization || '' });
+    const out = await handler(body, env.accCalls.length);
+    if (out === 'abort') { await route.abort(); return true; }
+    await route.fulfill({ status: out.status || 200, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify(out.json || {}) });
+    return true;
+  };
+}
+const ELENI = acct('u-eleni', { email: 'eleni@example.com', name: 'Ελένη Σταύρου', providers: ['password'], password: 'secret-pass-1' });
+const OTHER_G = acct('u-g2', { email: 'eleni.g@gmail.com', name: 'Eleni S', providers: ['google.com'] });
+const OTHER_P = acct('u-p2', { email: 'eleni.old@example.com', name: 'Ελένη Σ.', providers: ['password'], password: 'old-pass-9' });
+const REPORT = { kept: 'u-eleni', removed: 'u-g2', application: 'moved', moved: ['google'], notMoved: [{ method: 'password', why: 'password', email: 'x' }], linkedin: false };
+
+await scenario('M1', 'account page: one way in -> asked to add the others; setting a password', { cfg: 'shipped', seed: signedInSeed(mariaAcct()) }, async (page) => {
+  await page.goto(URL_('account/'));
+  const prompt = page.locator('#account-app .add-method');
+  const others = SHIPPED.filter(k => k !== 'google').map(k => NAME[k]).concat('e-mail και κωδικό');
+  t(await visible(prompt), 'a Google-only account is asked to add another way in');
+  t(await hasText(prompt, 'Μπαίνετε μόνο με Google') && await hasText(prompt, orList(others)), '… naming what it has and what it can add' + list([await text(prompt)]));
+  const pb = await page.$$eval('#account-app [data-prompt]', bs => bs.map(b => b.getAttribute('data-prompt')));
+  t(js(pb) === js(SHIPPED.filter(k => k !== 'google').concat('password')), '… with a button for each' + list(pb));
+  // the account menu learns the count from this page
+  await page.click('#acct-slot .acct-chip');
+  const menu = await page.$$eval('#acct-menu a, #acct-menu button', xs => xs.map(x => x.textContent.replace(/\s+/g, ' ').trim()));
+  t(['Ο λογαριασμός μου', 'Η αίτηση μέλους μου', 'Περιοχή μελών', 'Αποσύνδεση'].every(w => menu.some(m => m.indexOf(w) === 0)), 'the account menu lists the quick links' + list(menu, 8));
+  t(menu.some(m => /^Τρόποι σύνδεσης\s*Προσθήκη$/.test(m)), '… «Τρόποι σύνδεσης» says «Προσθήκη» while there is one way in' + list(menu, 8));
+  t(!menu.some(m => /Διαχείριση/.test(m)), '… and no «Διαχείριση» for a member');
+  await page.keyboard.press('Escape');
+  // set a password
+  await page.click('#account-app [data-prompt="password"]');
+  t(await visible(page.locator('#pw-new')) && await page.evaluate(() => document.activeElement.id) === 'pw-new', '«Ορισμός κωδικού» opens the password form, focused');
+  await page.fill('#pw-new', 'short'); await page.fill('#pw-new2', 'short');
+  await page.click('#account-app [data-pw-form] [type=submit]');
+  t(await hasText(page.locator('[data-pw-msg]'), 'τουλάχιστον 8'), 'a short password is refused');
+  await page.fill('#pw-new', 'long-enough-1'); await page.fill('#pw-new2', 'long-enough-2');
+  await page.click('#account-app [data-pw-form] [type=submit]');
+  t(await hasText(page.locator('[data-pw-msg]'), 'δεν είναι ίδιοι'), 'two different passwords are refused');
+  t((await calls(page, 'user.linkWithCredential')).length === 0, '… without calling Firebase');
+  await page.fill('#pw-new2', 'long-enough-1');
+  await page.click('#account-app [data-pw-form] [type=submit]');
+  const lk = await waitCalls(page, 'user.linkWithCredential', 1);
+  t(lk.length === 1 && lk[0].args[0].providerId === 'password' && lk[0].args[0].email === MARIA.email && lk[0].args[0].password === 'long-enough-1',
+    'it links an e-mail + password credential for the account\'s own address' + list(lk.map(x => js(x.args[0]))));
+  t(await waitFor(page, () => !!document.querySelector('#account-app [data-reset]')), '… «Ορισμός κωδικού» becomes «Αλλαγή κωδικού»');
+  t(await waitFor(page, () => /Ορίστηκε κωδικός/.test(document.body.textContent)), '… and a toast confirms it');
+  t(await hidden(prompt), 'with two ways in, the prompt goes');
+});
+
+await scenario('M2', 'account page: «Όχι τώρα» hides the prompt, also after a reload', { cfg: 'shipped', seed: signedInSeed(mariaAcct()) }, async (page) => {
+  await page.goto(URL_('account/'));
+  t(await visible(page.locator('#account-app .add-method')), 'the prompt is there');
+  await page.click('#account-app [data-prompt-hide]');
+  t(await hidden(page.locator('#account-app .add-method')), '«Όχι τώρα» hides it');
+  await page.reload();
+  await waitFor(page, () => !!document.querySelector('#methods'));
+  t(await page.locator('#account-app .add-method').count() === 0, '… and it stays hidden after a reload');
+});
+
+await scenario('M3', 'account page: connecting a Google that opens ANOTHER account -> merge the two', { cfg: 'shipped',
+  seed: Object.assign(signedInSeed(ELENI), { accounts: { 'u-eleni': ELENI, 'u-g2': OTHER_G } }) }, async (page, env) => {
+  accountsServer(env, body => body.action === 'mergeSelf' ? { json: { ok: true, report: REPORT } } : { status: 400, json: { error: 'bad-request' } });
+  await page.goto(URL_('account/'));
+  const cred = { providerId: 'google.com', signInMethod: 'google.com', email: 'eleni.g@gmail.com', idToken: 'g-id' };
+  await queue(page, 'linkWithPopup', { provider: 'google.com', reject: { code: 'auth/credential-already-in-use', credential: cred } });
+  await page.click('#account-app [data-link="google"]');
+  const clash = page.locator('#account-app [data-clash]');
+  t(await visible(clash) && await hasText(clash, 'Αυτό το Google ανοίγει ήδη άλλον λογαριασμό εδώ'), 'instead of a flat refusal, it says the Google opens another account here');
+  t(await page.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-merge-conflict')), '… focus on «Ένωση των δύο λογαριασμών»');
+  await page.click('#account-app [data-merge-conflict]');
+  t(await waitFor(page, () => /Οι δύο λογαριασμοί ενώθηκαν/.test(document.body.textContent)), 'after «Ένωση», a toast says the two were merged');
+  const sc = await calls(page, 'semfe-merge.auth.signInWithCredential');
+  t(sc.length === 1 && sc[0].args[0].idToken === 'g-id', 'it signs in to the other account with the SAVED Google credential, on a second app' + list(sc.map(x => js(x.args[0]))));
+  t(env.accCalls.length === 1 && env.accCalls[0].body.action === 'mergeSelf' && env.accCalls[0].body.otherIdToken === 'fake-other-token.u-g2' && /^Bearer fake-id-token\.u-eleni/.test(env.accCalls[0].auth),
+    'the server gets mergeSelf with THIS account\'s token and the other account\'s' + list(env.accCalls.map(c => js(c))));
+  t((await fbState(page)).currentUid === 'u-eleni', 'the page stays signed in as the kept account');
+  t((await calls(page, 'semfe-merge.auth.setPersistence')).some(c => c.args[0] === 'none'), 'the second app keeps nothing (persistence NONE)');
+  t((await calls(page, 'semfe-merge.auth.signOut')).length >= 1, '… and signs out of the other account afterwards');
+  t(await waitFor(page, () => /η αίτηση μέλους του άλλου λογαριασμού μεταφέρθηκε εδώ/i.test(document.body.textContent) && /Ο κωδικός του άλλου λογαριασμού δεν μεταφέρεται/.test(document.body.textContent)),
+    'the toast says what moved and what did not');
+  t(await page.locator('#account-app [data-clash]').count() === 0, 'the conflict box is gone');
+});
+
+await scenario('M4', 'account page: «Έχετε και δεύτερο λογαριασμό;» with e-mail + password', { cfg: 'shipped',
+  seed: Object.assign(signedInSeed(ELENI), { accounts: { 'u-eleni': ELENI, 'u-p2': OTHER_P } }) }, async (page, env) => {
+  accountsServer(env, () => ({ json: { ok: true, report: Object.assign({}, REPORT, { removed: 'u-p2', application: 'merged', moved: [] }) } }));
+  await page.goto(URL_('account/'));
+  await page.click('#account-app [data-merge-open]');
+  t(await visible(page.locator('#merge')) && await page.evaluate(() => document.activeElement === document.querySelector('#merge h3')), 'the merge box opens, focus on its heading');
+  const withBtns = await page.$$eval('#merge [data-merge-with]', bs => bs.map(b => b.getAttribute('data-merge-with')));
+  t(js(withBtns) === js(SHIPPED), '… it offers the other account\'s ways in' + list(withBtns));
+  await page.fill('#merge-email', 'eleni.old@example.com'); await page.fill('#merge-pass', 'wrong');
+  await page.click('#merge [data-merge-pw] [type=submit]');
+  t(await hasText(page.locator('[data-merge-msg]'), 'Λάθος e-mail ή κωδικός'), 'a wrong password for the other account is refused');
+  t(env.accCalls.length === 0, '… and the server is not asked');
+  await page.fill('#merge-email', 'eleni@example.com'); await page.fill('#merge-pass', 'secret-pass-1');
+  await page.click('#merge [data-merge-pw] [type=submit]');
+  t(await hasText(page.locator('[data-merge-msg]'), 'ίδιο λογαριασμό'), 'signing in to THIS account again is caught («ίδιο λογαριασμό»)');
+  t(env.accCalls.length === 0, '… and the server is not asked');
+  await page.fill('#merge-email', 'eleni.old@example.com'); await page.fill('#merge-pass', 'old-pass-9');
+  await page.click('#merge [data-merge-pw] [type=submit]');
+  t(await waitFor(page, () => /Οι δύο λογαριασμοί ενώθηκαν/.test(document.body.textContent) && /Οι δύο αιτήσεις μέλους έγιναν μία/.test(document.body.textContent)), 'the right one merges; the toast says the two applications became one');
+  t(env.accCalls.length === 1 && env.accCalls[0].body.otherIdToken === 'fake-other-token.u-p2', 'mergeSelf with the other account\'s token');
+  t(await page.locator('#merge').count() === 0, 'the merge box closes');
+});
+
+await scenario('M5', 'account page: the merge service not deployed yet -> a clear message, nothing breaks', { cfg: 'shipped',
+  seed: Object.assign(signedInSeed(ELENI), { accounts: { 'u-eleni': ELENI, 'u-p2': OTHER_P } }) }, async (page, env) => {
+  accountsServer(env, () => 'abort');
+  await page.goto(URL_('account/'));
+  await page.click('#account-app [data-merge-open]');
+  await page.fill('#merge-email', 'eleni.old@example.com'); await page.fill('#merge-pass', 'old-pass-9');
+  await page.click('#merge [data-merge-pw] [type=submit]');
+  t(await hasText(page.locator('[data-merge-msg]'), 'δεν είναι διαθέσιμη'), 'it says the service is not available right now');
+  t((await fbState(page)).currentUid === 'u-eleni' && !!(await fbState(page)).accounts['u-p2'], 'nothing changed: same session, the other account untouched');
+});
+
+const USERS = [
+  { uid: 'u-admin', email: ADMIN, emailVerified: true, name: 'Διαχειριστής', methods: ['google'], created: Date.now() - 90 * DAY, lastSeen: Date.now() - HOUR, application: null },
+  { uid: 'u-a', email: 'anna@gmail.com', emailVerified: true, name: 'Anna Z', methods: ['google'], created: Date.now() - 60 * DAY, lastSeen: Date.now() - 5 * DAY,
+    application: { status: 'active', firstName: 'Άννα', lastName: 'Ζαφειρίου', email: 'anna@example.com', gradYear: 2010, duesYears: [YEAR], createdAt: Date.now() - 50 * DAY } },
+  { uid: 'u-b', email: 'anna.z@work.gr', emailVerified: true, name: 'Άννα Ζαφειρίου', methods: ['linkedin'], created: Date.now() - 3 * DAY, lastSeen: Date.now() - 2 * DAY, application: null },
+  { uid: 'u-c', email: 'kostas@example.com', emailVerified: false, name: '', methods: ['password'], created: Date.now() - 1 * DAY, lastSeen: null, application: null }
+];
+await scenario('N1', 'admin page: every registered account, duplicates marked, merge two, delete one', { cfg: 'oidc', seed: ADMIN_SEED }, async (page, env) => {
+  let people = USERS.slice();
+  accountsServer(env, body => {
+    if (body.action === 'list') return { json: { ok: true, accounts: people } };
+    if (body.action === 'merge') { people = people.filter(u => u.uid !== body.drop); return { json: { ok: true, report: { application: 'kept', moved: ['linkedin'], notMoved: [] } } }; }
+    if (body.action === 'delete') { people = people.filter(u => u.uid !== body.uid); return { json: { ok: true } }; }
+    return { status: 400, json: { error: 'bad-request' } };
+  });
+  await page.goto(URL_('admin/'));
+  const rows = () => page.$$eval('#users tr[data-uid]', rs => rs.map(r => r.getAttribute('data-uid')));
+  t(await waitFor(page, () => document.querySelectorAll('#users tr[data-uid]').length === 4), 'all four accounts are listed, with or without an application');
+  t(js(await rows()) === js(['u-c', 'u-b', 'u-a', 'u-admin']), '… newest first' + list(await rows()));
+  t(env.accCalls[0].body.action === 'list' && /^Bearer fake-id-token\.u-admin/.test(env.accCalls[0].auth), 'the list comes from the accounts function, with the admin\'s token');
+  const dups = await page.$$eval('#users tr[data-uid]', rs => rs.filter(r => /Πιθανό διπλό/.test(r.textContent)).map(r => r.getAttribute('data-uid')));
+  t(js(dups.sort()) === js(['u-a', 'u-b']), 'the two «Άννα Ζαφειρίου» accounts are marked «Πιθανό διπλό» (the same name on the application and the sign-in)' + list(dups));
+  t(await hasText(page.locator('#users [data-ucount]'), '4 από 4 λογαριασμούς · 3 χωρίς αίτηση · 2 πιθανά διπλά'), 'the count line' + list([await text(page.locator('#users [data-ucount]'))]));
+  t(await page.locator('#users tr[data-uid="u-admin"] [data-udel]').count() === 0 && await hasText(page.locator('#users tr[data-uid="u-admin"]'), 'εσείς'), 'the admin\'s own row: «εσείς», no Delete');
+  t(await hasText(page.locator('#users tr[data-uid="u-a"]'), 'στην αίτηση: anna@example.com'), 'an application e-mail that differs from the sign-in address is shown too');
+  await page.click('#users [data-ufilter="noapp"]');
+  t(js(await rows()) === js(['u-c', 'u-b', 'u-admin']), '«Χωρίς αίτηση» lists the accounts that never applied' + list(await rows()));
+  await page.click('#users [data-ufilter="dup"]');
+  t(js(await rows()) === js(['u-a', 'u-b']), '«Πιθανά διπλά» lists the pair, side by side' + list(await rows()));
+  await page.click('#users [data-ufilter="all"]');
+  await page.fill('#usr-q', 'zafeir');
+  t((await rows()).length === 0, 'search by a Latin spelling finds nothing (names are matched as written)');
+  await page.fill('#usr-q', 'ζαφειριου');
+  t(js((await rows()).sort()) === js(['u-a', 'u-b']), 'search ignores accents and case' + list(await rows()));
+  await page.fill('#usr-q', '');
+  t(await page.$eval('#users [data-umerge]', b => b.disabled), '«Ένωση επιλεγμένων» is off until two are ticked');
+  await page.check('#users [data-pick="u-c"]'); await page.check('#users [data-pick="u-a"]'); await page.check('#users [data-pick="u-b"]');
+  const picked = await page.$$eval('#users [data-pick]:checked', cs => cs.map(c => c.getAttribute('data-pick')));
+  t(js(picked.sort()) === js(['u-a', 'u-b']), 'a third tick drops the oldest one: two at a time' + list(picked));
+  t(!(await page.$eval('#users [data-umerge]', b => b.disabled)) && await hasText(page.locator('#users [data-umerge]'), '(2)'), '… and «Ένωση επιλεγμένων (2)» is on');
+  await page.click('#users [data-umerge]');
+  t(await visible(page.locator('#umerge')), 'the merge box opens');
+  t(await page.$eval('#umerge input[name="keep"]:checked', i => i.value) === 'u-a', '… keeping, by default, the account with the active application');
+  t(await hasText(page.locator('#umerge'), 'αίτηση: Ενεργό μέλος, συνδρομές ' + YEAR) && await hasText(page.locator('#umerge'), 'χωρίς αίτηση'), '… each described (application, dues)');
+  env.dialogs.length = 0;
+  await page.click('#umerge [data-umerge-go]');
+  t(env.dialogs.length === 1 && /μένει ο λογαριασμός «Άννα Ζαφειρίου» \(anna@gmail\.com\).*διαγράφεται ο «Άννα Ζαφειρίου» \(anna\.z@work\.gr\)/s.test(env.dialogs[0].message), 'a confirmation names which stays and which goes' + list(env.dialogs.map(d => d.message)));
+  t(await waitFor(page, () => document.querySelectorAll('#users tr[data-uid]').length === 3), 'after the merge the list is read again: three accounts');
+  const mc = env.accCalls.filter(c => c.body.action === 'merge');
+  t(mc.length === 1 && mc[0].body.keep === 'u-a' && mc[0].body.drop === 'u-b', 'the server was asked to keep u-a and remove u-b' + list(mc.map(c => js(c.body))));
+  t(await hasText(page.locator('#users [data-umsg]'), 'Ενώθηκαν') && await hasText(page.locator('#users [data-umsg]'), 'Νέοι τρόποι σύνδεσης: LinkedIn'), 'a note says what happened');
+  env.dialogs.length = 0;
+  await page.click('#users tr[data-uid="u-c"] [data-udel]');
+  t(env.dialogs.length === 1 && /Οριστική διαγραφή του λογαριασμού «\(χωρίς όνομα\)» \(kostas@example\.com\)/.test(env.dialogs[0].message), 'Delete asks first, naming the account');
+  t(await waitFor(page, () => document.querySelectorAll('#users tr[data-uid]').length === 2), '… and then removes it');
+  t(env.accCalls.some(c => c.body.action === 'delete' && c.body.uid === 'u-c'), 'delete {uid: u-c} was sent');
+  // the menu learns the pending count from this page
+  await page.click('#acct-slot .acct-chip');
+  const adm = await page.$$eval('#acct-menu a[href$="admin/"]', as => as.map(a => a.textContent.replace(/\s+/g, ' ').trim()));
+  t(adm.length === 1 && /^Διαχείριση\s*2$/.test(adm[0]), 'the admin\'s menu: «Διαχείριση» with the 2 pending applications' + list(adm));
+});
+
+await scenario('N2', 'admin page: the accounts function not deployed yet -> instructions, the applications still work', { cfg: 'oidc', seed: ADMIN_SEED }, async (page, env) => {
+  accountsServer(env, () => 'abort');
+  await page.goto(URL_('admin/'));
+  t(await waitFor(page, () => document.querySelectorAll('#admin-app tr[data-id]').length === 2), 'the applications load as before');
+  t(await hasText(page.locator('#users'), 'Η λίστα χρηστών δεν είναι διαθέσιμη ακόμα') && await hasText(page.locator('#users'), 'firebase deploy --only functions --project semfe-alumni'), 'the users list says what to deploy');
+  t(await page.$eval('#users [data-umerge]', b => b.disabled), 'merging is off');
+});
+
+await scenario('L2', 'LinkedIn: connecting one that opens another account -> offer, then merge', { cfg: 'function', seed: signedInSeed(mariaAcct()) }, async (page, env) => {
+  let authUrls = [], fnBodies = [];
+  env.onExternal = async (route, url) => {
+    if (url.startsWith('https://www.linkedin.com/oauth/v2/authorization')) {
+      const u = new URL(url); authUrls.push(u);
+      const back = u.searchParams.get('redirect_uri') + '?code=li-code-' + authUrls.length + '&state=' + encodeURIComponent(u.searchParams.get('state'));
+      await route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>LinkedIn</title><script>location.replace(' + JSON.stringify(back) + ')</script>' });
+      return true;
+    }
+    if (url === FN_URL) {
+      const req = route.request();
+      const cors = { 'access-control-allow-origin': ORIGIN, 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'POST' };
+      if (req.method() === 'OPTIONS') { await route.fulfill({ status: 204, headers: cors }); return true; }
+      const b = JSON.parse(req.postData() || '{}'); fnBodies.push({ b, auth: req.headers().authorization || '' });
+      if (!b.merge) { await route.fulfill({ status: 409, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify({ error: 'credential-already-in-use' }) }); return true; }
+      await route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'application/json' }, cors),
+        body: JSON.stringify({ token: 'tok-merged', isNew: false, linked: true, merged: { application: 'moved', moved: ['linkedin'], notMoved: [] } }) });
+      return true;
+    }
+    return false;
+  };
+  await page.goto(URL_('account/'));
+  await queue(page, 'signInWithCustomToken', { resolve: { uid: MARIA.uid } });
+  await Promise.all([page.waitForURL(u => u.pathname === SUB + 'auth/linkedin/', { timeout: 10000 }).catch(() => {}), page.click('#account-app [data-link="linkedin"]')]);
+  const offer = page.locator('#li-app [data-li-merge]');
+  t(await visible(offer), 'LinkedIn opens another account: the return page offers «Ένωση των δύο λογαριασμών»');
+  t(fnBodies.length === 1 && !fnBodies[0].b.merge && /^Bearer /.test(fnBodies[0].auth), '… after a normal connect attempt (no merge asked)');
+  await Promise.all([page.waitForURL(u => u.pathname === SUB + 'account/', { timeout: 10000 }).catch(() => {}), offer.click()]);
+  t(authUrls.length === 2, 'the offer goes back to LinkedIn once more');
+  t(fnBodies.length === 2 && fnBodies[1].b.merge === true && /^Bearer /.test(fnBodies[1].auth), '… and the function is asked, with the account\'s token, to MERGE' + list(fnBodies.map(x => js(x.b))));
+  t(new URL(page.url()).hash === '#methods', 'it lands on account/#methods');
+  t(await waitFor(page, () => /Οι δύο λογαριασμοί ενώθηκαν/.test(document.body.textContent)), 'a toast says the two accounts were merged');
 });
 
 await browser.close();

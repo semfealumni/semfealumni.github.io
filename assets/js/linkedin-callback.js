@@ -35,16 +35,28 @@
   if (!q.code || !saved || !q.state || saved.state !== q.state || Date.now() - saved.t > 20 * 60 * 1000) {
     return show('Ο σύνδεσμος σύνδεσης δεν ισχύει', 'Ίσως έληξε ή ανοίχτηκε σε άλλη καρτέλα. Πατήστε ξανά «Συνέχεια με LinkedIn».');
   }
+  var fromAccount = saved.mode === 'link' || saved.mode === 'merge';
   A.linkedinComplete(q.code, saved.mode).then(function (r) {
     // a sign-in method that was waiting to be linked (the dialog asked them to sign in the
     // first way, which was LinkedIn): it cannot survive the trip, so show where to finish it
-    var waiting = saved.mode !== 'link' && saved.waiting && !(r && r.isNew) ? saved.waiting : '';
-    var dest = saved.mode === 'link' || waiting ? A.root + 'account/' : (r && r.isNew ? A.root + 'account/#apply' : A.safeReturn(saved.returnTo));
-    var note = saved.mode === 'link' ? 'Το LinkedIn συνδέθηκε με τον λογαριασμό σας.'
+    var waiting = !fromAccount && saved.waiting && !(r && r.isNew) ? saved.waiting : '';
+    var dest = fromAccount ? A.root + 'account/#methods' : waiting ? A.root + 'account/' : (r && r.isNew ? A.root + 'account/#apply' : A.safeReturn(saved.returnTo));
+    var note = r && r.merged ? A.mergeSummary(r.merged)
+      : fromAccount ? 'Το LinkedIn συνδέθηκε με τον λογαριασμό σας.'
       : waiting ? 'Συνδεθήκατε με LinkedIn. Για να συνδέσετε και το ' + waiting + ', πατήστε «Σύνδεση» δίπλα του, στους «Τρόπους σύνδεσης».' : '';
     if (note) { try { sessionStorage.setItem('semfe:flash', note); } catch (e) {} }
     location.replace(dest);
   }, function (e) {
+    // connecting LinkedIn, which already opens ANOTHER account here: offer to merge the two
+    if (e && e.code === 'semfe/credential-already-in-use' && saved.mode === 'link') {
+      box.innerHTML = '<div class="notice warn"><strong>Αυτό το LinkedIn ανοίγει ήδη άλλον λογαριασμό εδώ</strong>' +
+        '<p>Μάλλον τον φτιάξατε κι εσείς, σε άλλη επίσκεψη. Μπορείτε να ενώσετε τους δύο λογαριασμούς σε αυτόν με τον οποίο είστε συνδεδεμένος/η: ' +
+        'η αίτηση μέλους και οι τρόποι σύνδεσης του άλλου μεταφέρονται εδώ, και ο άλλος διαγράφεται. Θα σας ζητηθεί ξανά το LinkedIn.</p></div>' +
+        '<div class="section-foot" style="margin-top:8px"><button type="button" class="btn btn-dark" data-li-merge>Ένωση των δύο λογαριασμών</button>' +
+        '<a class="btn btn-outline" href="' + A.root + 'account/#methods">Όχι, πίσω στον λογαριασμό μου</a></div>';
+      box.querySelector('[data-li-merge]').addEventListener('click', function () { A.linkedinStart('merge'); });
+      return;
+    }
     show('Η σύνδεση με LinkedIn δεν ολοκληρώθηκε', A.friendly(e));
   });
 })();

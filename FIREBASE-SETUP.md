@@ -381,6 +381,44 @@ Try this only if you prefer not to deploy the function. If it fails with
 
 ---
 
+## Part E. Λίστα χρηστών και ένωση λογαριασμών (the users list and merging accounts)
+
+The Διαχείριση page lists **every account that has signed in**, not only
+the ones that sent an application, and marks likely duplicates (the same
+name, or the same e-mail under two accounts). Two accounts of one person, for
+example one made with Google and one with LinkedIn, can be **merged**: the
+application, the directory card and the ways to sign in move to the account
+you keep, and the other one is deleted. Members can do the same themselves
+from **Ο λογαριασμός μου > Τρόποι σύνδεσης**, after signing in to both.
+
+Browsers cannot see other people's accounts, so this runs in a second Cloud
+Function, `accounts`, next to the LinkedIn one. It needs no new setting and
+no new permission (it uses the same service account as the LinkedIn
+function). To switch it on, run once from the repository folder:
+
+    cd functions
+    npm install
+    cd ..
+    firebase deploy --only functions --project semfe-alumni
+
+The CLI keeps your earlier answers (`functions/.env.semfe-alumni`), so it asks
+nothing new. Until this is done, the Διαχείριση page shows the applications as
+before, with a note saying the users list needs this step, and the merge
+buttons on the account page say the service is not ready yet.
+
+How a merge decides what to keep:
+* **The account you keep** keeps its sign-in e-mail. If it has none, it takes
+  the other account's.
+* **Applications**: an empty field is filled from the other one. If both were
+  reviewed, the stronger status wins (active over pending over rejected), the
+  dues years are added together and the admin notes are joined.
+* **Ways to sign in** (Google, LinkedIn, e-mail and password) all move over.
+* Every merge is recorded in `accountMerges/` (visible only in the Firebase
+  console) with who did it and when.
+* An admin cannot merge away or delete their own account from the list.
+
+---
+
 ## Checking it all works
 
 1. `node tools/check.mjs` passes.
@@ -412,7 +450,7 @@ Everything above can be done in the web consoles except deploying the LinkedIn
 function. From the repository folder:
 
     firebase deploy --only firestore:rules --project semfe-alumni    # publish firestore.rules
-    firebase deploy --only functions --project semfe-alumni          # deploy the LinkedIn function
+    firebase deploy --only functions --project semfe-alumni          # deploy the LinkedIn and accounts functions
     node check-project.mjs                                           # shows which project this folder deploys to
 
 Always name the project with `--project`. The CLI can remember a different
@@ -430,6 +468,9 @@ deploy and refuses when the target is not the project in `.firebaserc`.
                          opted in; readable only by active members and admins.
     linkedinLinks/{sub}  which account a LinkedIn profile signs in to. Written
                          only by the Cloud Function; no browser can read it.
+    accountMerges/{id}   a note of each merge of two accounts (which, by whom,
+                         when). Written only by the Cloud Function; no browser
+                         can read it.
 
 Nothing else is stored. The privacy policy (`/privacy/`) says the same in Greek;
 if you change what the site collects, update it too.
