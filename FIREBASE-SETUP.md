@@ -313,10 +313,14 @@ before anything costs money.
    * Google Cloud console (https://console.cloud.google.com), pick the project.
    * **APIs & Services > Library** > search **"IAM Service Account Credentials
      API"** > **Enable**.
-   * **IAM & Admin > IAM** > find the account named
+   * **IAM & Admin > IAM** (not "Service Accounts") > find the account named
      `<project-number>-compute@developer.gserviceaccount.com` ("Default compute
-     service account") > pencil > **Add another role** > **Service Account Token
-     Creator** > **Save**.
+     service account"; for this project `478387432992-compute@…`) > pencil >
+     **Add another role** > **Service Account Token Creator** > **Save**.
+
+   That account does not exist until step 4 has deployed the function (the
+   first deploy creates it). If it is missing, finish step 4 first; the API
+   above can be enabled at any time.
 
    Without this, LinkedIn sign-in fails with a message about
    `iam.serviceAccounts.signBlob`.
