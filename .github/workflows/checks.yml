@@ -1,0 +1,22 @@
+# Read-only checks on every push and pull request. Nothing here deploys:
+# GitHub Pages publishes main by itself, and Firebase is deployed by hand
+# (see FIREBASE-SETUP.md).
+name: checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # pages match _src/, links resolve, share card, admin list in sync, deploy guards
+      - run: node tools/check.mjs
+      # the LinkedIn sign-in function, against fakes (no install needed)
+      - run: node test.js
+        working-directory: functions
