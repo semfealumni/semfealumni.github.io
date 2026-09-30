@@ -48,7 +48,6 @@ if (!pw) { console.error('playwright is not installed: npm install playwright');
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const SUB = '/semfealumni/';
 const read = f => readFileSync(path.join(ROOT, f), 'utf8');
 const ARGS = process.argv.slice(2);
 const ONLY = (ARGS.find(a => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
@@ -58,6 +57,7 @@ const HEADED = ARGS.includes('--headed');
 const FAKE = read('tools/firebase-fake.js');
 const CONFIG_SRC = read('assets/js/config.js');
 const C = new Function('window', CONFIG_SRC + '; return window.SEMFE;')({});
+const SUB = new URL(C.siteUrl).pathname.replace(/\/?$/, '/');   // '/semfealumni/' today, '/' at a domain's root
 const SDK = C.FIREBASE_SDK || '12.19.0';
 const ADMIN = String((C.ADMIN_EMAILS || [])[0] || '').toLowerCase();
 const YEAR = new Date().getFullYear();
@@ -158,7 +158,7 @@ function dirProblems(d) {
   return p;
 }
 
-/* ---- the server: GitHub Pages under /semfealumni/ ----------------------------- */
+/* ---- the server: GitHub Pages under the site's path (SUB) ---------------------- */
 const PY = String.raw`
 import http.server, sys
 root = sys.argv[1]
@@ -176,10 +176,10 @@ print(srv.server_address[1], flush=True)
 srv.serve_forever()
 `;
 const TMP = mkdtempSync(path.join(os.tmpdir(), 'semfe-authflow-'));
-const LINK = path.join(TMP, 'semfealumni');
-symlinkSync(ROOT, LINK, 'dir');
-const srv = spawn('python3', ['-c', PY, TMP], { stdio: ['ignore', 'pipe', 'inherit'] });
-const cleanup = () => { try { srv.kill(); } catch {} try { unlinkSync(LINK); rmdirSync(TMP); } catch {} };
+const LINK = SUB === '/' ? null : path.join(TMP, SUB.replace(/^\/|\/$/g, ''));
+if (LINK) symlinkSync(ROOT, LINK, 'dir');
+const srv = spawn('python3', ['-c', PY, LINK ? TMP : ROOT], { stdio: ['ignore', 'pipe', 'inherit'] });
+const cleanup = () => { try { srv.kill(); } catch {} try { if (LINK) unlinkSync(LINK); } catch {} try { rmdirSync(TMP); } catch {} };
 process.on('exit', cleanup);
 process.on('SIGINT', () => process.exit(130));
 const PORT = await new Promise((resolve, reject) => {

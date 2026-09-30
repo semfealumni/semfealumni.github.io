@@ -108,13 +108,14 @@ carries `noindex` so the two copies do not compete in search results. When this
 becomes the official site, set `INDEXABLE = true` in `tools/build.mjs` and run
 the build.
 
-## Moving to semfealumni.gr later
+## Moving to semfealumni.gr
 
-All links are relative, so the files work at any address. Change `siteUrl` in
-`assets/js/config.js`, add a `CNAME` file with the domain, run
-`node tools/build.mjs` and `node tools/make-share-images.mjs`, point the DNS at
-GitHub Pages, and add the new domain to Firebase's authorized domains and to
-the LinkedIn app's redirect URL (FIREBASE-SETUP.md, Part D).
+Everything is ready for a one-session move: see **`MIGRATION.md`**. In short,
+the address lives in one setting (`siteUrl` in `assets/js/config.js`), and
+`node tools/migrate.mjs` plans the move (`--plan`), rehearses it on a copy
+(`--rehearse`), checks the outside services (`--prep-check`), does it
+(`--apply`) and verifies the live result (`--verify`). The old site's
+addresses keep working through small forwarding pages.
 
 ## Tests
 

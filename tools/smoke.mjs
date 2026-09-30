@@ -47,12 +47,14 @@ if (!pw) { console.error('playwright is not installed: npm install playwright');
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
-const SUB = '/semfealumni/';
 const read = f => readFileSync(path.join(ROOT, f), 'utf8');
 
 /* ---- the site's own settings --------------------------------------------- */
 const CONFIG_SRC = read('assets/js/config.js');
 const C = new Function('window', CONFIG_SRC + '; return window.SEMFE;')({});
+// the site's own path, from siteUrl: '/semfealumni/' today, '/' at the root of
+// a domain (tools/migrate.mjs --rehearse runs this whole suite that way)
+const SUB = new URL(C.siteUrl).pathname.replace(/\/?$/, '/');
 const isPaste = v => String(v || '').indexOf('PASTE_') !== -1;
 const CONFIGURED = !isPaste(C.FIREBASE.apiKey) && !isPaste(C.FIREBASE.projectId);
 /* force the unconfigured mode whatever config.js holds */
@@ -96,9 +98,8 @@ const LAYOUT_PAGES = [
 /* ---- the server ------------------------------------------------------------ */
 const PY = String.raw`
 import http.server, os, sys, urllib.parse
-root, excl = sys.argv[1], [e for e in sys.argv[2].split('|') if e]
-BASE = '/semfealumni/'
-PAGE404 = os.path.join(root, 'semfealumni', '404.html')
+root, excl, BASE = sys.argv[1], [e for e in sys.argv[2].split('|') if e], sys.argv[3]
+PAGE404 = os.path.join(root, BASE.strip('/'), '404.html')
 class H(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **k): super().__init__(*a, directory=root, **k)
     def log_message(self, *a): pass
@@ -135,10 +136,12 @@ print(srv.server_address[1], flush=True)
 srv.serve_forever()
 `;
 const TMP = mkdtempSync(path.join(os.tmpdir(), 'semfe-smoke-'));
-const LINK = path.join(TMP, 'semfealumni');
-symlinkSync(ROOT, LINK, 'dir');
-const srv = spawn('python3', ['-c', PY, TMP, EXCLUDE.join('|')], { stdio: ['ignore', 'pipe', 'inherit'] });
-const cleanup = () => { try { srv.kill(); } catch {} try { unlinkSync(LINK); rmdirSync(TMP); } catch {} };
+// under a sub-path the site is a folder of a bigger host (a symlink in a temp
+// folder); at the root of a domain it is served directly
+const LINK = SUB === '/' ? null : path.join(TMP, SUB.replace(/^\/|\/$/g, ''));
+if (LINK) symlinkSync(ROOT, LINK, 'dir');
+const srv = spawn('python3', ['-c', PY, LINK ? TMP : ROOT, EXCLUDE.join('|'), SUB], { stdio: ['ignore', 'pipe', 'inherit'] });
+const cleanup = () => { try { srv.kill(); } catch {} try { if (LINK) unlinkSync(LINK); } catch {} try { rmdirSync(TMP); } catch {} };
 process.on('exit', cleanup);
 const PORT = await new Promise((resolve, reject) => {
   let buf = '';
@@ -841,6 +844,29 @@ try {
         `"${label}" shows ${r.shown.length} of ${cats.length} cards (expected ${want.length}) and is the one pressed button`);
     }
     if (log.errors.length) t(false, 'blog: script errors' + list(log.errors));
+    await ctx.close();
+  }
+  // the earlier site's addresses (LEGACY in build.mjs, the script in 404.html) keep working
+  {
+    const { ctx, page, log } = await open(SUB + 'blog/category/' + encodeURIComponent('εκδηλώσεις') + '/');
+    await page.waitForURL(u => u.pathname === SUB + 'blog/', { timeout: 5000 }).catch(() => {});
+    const r = await page.evaluate(() => ({ path: location.pathname, pressed: [...document.querySelectorAll('[data-post-filter] button')].filter(x => x.getAttribute('aria-pressed') === 'true').map(x => x.getAttribute('data-cat')),
+      shown: [...document.querySelectorAll('#post-list .post-card')].filter(c => c.getBoundingClientRect().height > 0).map(c => c.getAttribute('data-cat')) }));
+    t(r.path === SUB + 'blog/' && r.pressed.length === 1 && r.pressed[0] === 'Εκδηλώσεις' && r.shown.length > 0 && r.shown.every(c => c === 'Εκδηλώσεις'),
+      'the old category address blog/category/εκδηλώσεις/ lands on the announcements, filtered to Εκδηλώσεις');
+    await page.goto(ORIGIN + SUB + 'blog/archive/2025/');
+    await page.waitForURL(u => u.pathname === SUB + 'blog/', { timeout: 5000 }).catch(() => {});
+    t(new URL(page.url()).pathname === SUB + 'blog/', 'the old year archive blog/archive/2025/ lands on the announcements');
+    // a PDF is downloaded rather than shown in a headless browser, so watch for the request itself
+    const pdfReq = page.waitForRequest(r => new URL(r.url()).pathname === SUB + 'assets/docs/foundation/katastatiko.pdf', { timeout: 5000 }).then(() => true, () => false);
+    await page.goto(ORIGIN + SUB + 'assets/documents/foundation/katastatiko.pdf').catch(() => {});
+    t(await pdfReq, 'the old PDF address assets/documents/… is forwarded to assets/docs/…');
+    await page.goto(ORIGIN + SUB + 'assets/pictures/history/16.jpg').catch(() => {});
+    await page.waitForURL(u => u.pathname === SUB + 'fotothiki/', { timeout: 5000 }).catch(() => {});
+    t(new URL(page.url()).pathname === SUB + 'fotothiki/', 'an old photo address lands on the Φωτοθήκη');
+    // the old addresses themselves answer 404 (that is how the forwarding script gets to run)
+    const unexpected = log.errors.filter(e => !/status of 404/.test(e) || !/\/(assets\/documents|assets\/pictures)\//.test(e));
+    if (unexpected.length) t(false, 'old addresses: script errors' + list(unexpected));
     await ctx.close();
   }
   {

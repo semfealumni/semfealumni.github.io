@@ -133,6 +133,11 @@
         if (count) count.textContent = shown + (shown === 1 ? ' ανακοίνωση' : ' ανακοινώσεις');
       });
     });
+    // blog/?cat=Εκδηλώσεις opens on that category (the old site's category
+    // pages forward here, see LEGACY in tools/build.mjs)
+    var want = null;
+    try { want = new URLSearchParams(location.search).get('cat'); } catch (e) {}
+    if (want) buttons.forEach(function (b) { if (b.getAttribute('data-cat') === want) b.click(); });
   }
 
   /* ---- support page: apply online once sign-in is switched on ---- */

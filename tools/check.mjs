@@ -42,7 +42,7 @@ ok(`${pages.length} served pages`);
 
 /* 2. every relative link and asset exists */
 const SITE_PATH = new URL(C.siteUrl).pathname;            // "/semfealumni/"
-let links = 0;
+let links = 0, forwards = 0;
 for (const p of pages) {
   const html = read(p);
   if (/\{\{[a-z:-]+\}\}|<!--\/?if:/.test(html)) fail(`${p}: unfilled placeholder ${html.match(/\{\{[a-z:-]+\}\}|<!--\/?if:[a-z]*-->/)[0]}`);
@@ -62,6 +62,17 @@ for (const p of pages) {
   }
   for (const m of html.matchAll(/<img\b[^>]*>/g)) if (!/\balt="/.test(m[0])) fail(`${p}: <img> without alt: ${m[0].slice(0, 80)}`);
   if (!/<meta name="viewport" content="width=device-width, initial-scale=1">/.test(html)) fail(`${p}: viewport tag must be exactly width=device-width, initial-scale=1`);
+  // a forwarding page for an address of the earlier site (LEGACY in build.mjs):
+  // no share card of its own, but it must stay out of search results, name its
+  // target as canonical, and the target must exist (checked with the links above)
+  const refresh = html.match(/<meta http-equiv="refresh" content="0; url=([^"]+)">/);
+  if (refresh) {
+    forwards++;
+    if (!/<meta name="robots" content="noindex">/.test(html)) fail(`${p}: a forwarding page must be noindex`);
+    if (!/<link rel="canonical" href="https:\/\/[^"]+">/.test(html)) fail(`${p}: a forwarding page must name its target as canonical`);
+    if (!html.includes('href="' + refresh[1] + '"')) fail(`${p}: the forwarding page's link must match its refresh target`);
+    continue;
+  }
   const og = [...html.matchAll(/<meta property="og:image" content="([^"]+)"/g)];
   if (og.length !== 1) fail(`${p}: expected exactly one og:image, found ${og.length}`);
   if (/<meta name="og:/.test(html)) fail(`${p}: og:* written with name=`);
@@ -70,6 +81,7 @@ for (const p of pages) {
   if (!/<meta name="description" content="[^"]{20,}">/.test(html)) fail(`${p}: missing or short description`);
 }
 ok(`${links} internal links and images resolve`);
+ok(`${forwards} forwarding page(s) for the earlier site's addresses, each noindex with a canonical target`);
 
 /* 3. the share pictures match what the pages declare */
 function jpegSize(b) {

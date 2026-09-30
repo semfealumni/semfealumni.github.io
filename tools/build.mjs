@@ -25,7 +25,7 @@
  * Every link the site writes is RELATIVE, so the same files work at
  * stouras.com/semfealumni/ today and at the root of semfealumni.gr later.
  * Only the canonical / og:url tags use SITE_URL. */
-import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -395,6 +395,50 @@ for (const page of all) {
   out.push([file, render(page)]);
 }
 
+/* The association's earlier site (MkDocs, at semfealumni.gr until this one
+   replaces it) had a few addresses this one does not: a page per year of
+   announcements and one per category. Each gets a small page that forwards to
+   the announcements (on the category's filter), so links and bookmarks keep
+   working after the move. Files that moved (the PDFs, the logo, the photos)
+   are forwarded by the script in _src/pages/404.html. */
+const LEGACY = [];
+for (const y of [...new Set(posts.map(p => String(p.meta.date).slice(0, 4)))].sort()) LEGACY.push(['blog/archive/' + y + '/', 'blog/']);
+for (const c of [...new Set(posts.map(p => p.meta.category).filter(Boolean))].sort()) LEGACY.push(['blog/category/' + c.toLowerCase() + '/', 'blog/?cat=' + encodeURIComponent(c)]);
+for (const [from, to] of LEGACY) {
+  const file = from + 'index.html';
+  if (seen.has(file)) throw new Error(`the forwarding page ${file} would replace a real page`);
+  seen.add(file);
+  const back = rootFor(from), target = back + to, abs = SITE_URL + to;
+  out.push([file, `<!doctype html>
+<html lang="el">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ανακοινώσεις · ${esc(C.siteName)}</title>
+  <meta name="robots" content="noindex">
+  <link rel="canonical" href="${esc(abs)}">
+  <meta http-equiv="refresh" content="0; url=${esc(target)}">
+</head>
+<body>
+  <p>Η σελίδα μεταφέρθηκε: <a href="${esc(target)}">Ανακοινώσεις</a>.</p>
+</body>
+</html>
+`]);
+}
+
+/* At the root of its own domain (semfealumni.gr) GitHub Pages needs a CNAME
+   file naming it, and robots.txt is read from there. Under a sub-path
+   (stouras.com/semfealumni/) neither may exist: a CNAME would move the site. */
+const ROOTED = new URL(SITE_URL).pathname === '/';
+const HOST = new URL(SITE_URL).hostname;
+const DROP = [];
+if (ROOTED) {
+  out.push(['CNAME', HOST + '\n']);
+  out.push(['robots.txt', 'User-agent: *\nAllow: /\n\nSitemap: ' + SITE_URL + 'sitemap.xml\n']);
+} else {
+  for (const f of ['CNAME', 'robots.txt']) if (existsSync(path.join(ROOT, f))) DROP.push(f);
+}
+
 /* sitemap.xml: every indexable page */
 out.push(['sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -411,6 +455,11 @@ for (const [file, html] of out) {
   if (CHECK) { console.log(`out of date: ${file}`); continue; }
   mkdirSync(path.dirname(full), { recursive: true });
   writeFileSync(full, html);
+}
+for (const f of DROP) {
+  changed++;
+  if (CHECK) { console.log(`should not exist while the site is at ${SITE_URL}: ${f}`); continue; }
+  unlinkSync(path.join(ROOT, f));
 }
 if (CHECK) {
   if (changed) { console.log(`${changed} page(s) differ from _src/. Run: node tools/build.mjs`); process.exit(1); }

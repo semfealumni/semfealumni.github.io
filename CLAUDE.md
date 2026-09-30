@@ -13,6 +13,14 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
 * Header, footer, menu and page heads come from `tools/build.mjs`.
 * Every page is `noindex` (`INDEXABLE = false` in `tools/build.mjs`) while
   semfealumni.gr is the official site. Flip it only when asked.
+* **The move to semfealumni.gr** is prepared: `MIGRATION.md` and
+  `tools/migrate.mjs` (`--plan`, `--rehearse`, `--prep-check`, `--apply`,
+  `--verify`). Never hard-code the address: everything reads `siteUrl`, and
+  the test suites serve the site at its path (`/semfealumni/` now, `/` after
+  the move). The build writes `CNAME` and `robots.txt` ONLY when `siteUrl` is
+  the root of a domain; a `CNAME` here while the site is a preview would move
+  it. Old addresses of the association's earlier site are kept alive by
+  `LEGACY` in `tools/build.mjs` and the script in `_src/pages/404.html`.
 * Do **not** add a `.nojekyll` file: Jekyll keeps `_src/` off the web and
   `_config.yml` excludes the maintenance files.
 
