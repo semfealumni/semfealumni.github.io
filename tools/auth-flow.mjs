@@ -1004,7 +1004,7 @@ await scenario('L1', 'the shipped providers: no Facebook anywhere, every list of
   t(await waitFor(page, w => ((document.querySelector('.modal [data-status]') || {}).textContent || '').includes(w), want), 'a wrong password names only the shipped buttons' + list([await status(page)]));
   await page.goto(URL_('account/'));
   const acctText = await text(page.locator('#account-app'));
-  t(!!acctText && acctText.includes('Συνδεθείτε με ' + (social ? social + ' ή με ' : '') + 'e-mail και κωδικό.'), 'the account page names the same ways in' + list([acctText && acctText.slice(0, 260)]));
+  t(!!acctText && acctText.includes('Συνδεθείτε με ' + orList(SHIPPED.map(k => NAME[k]).concat('e-mail και κωδικό')) + '.'), 'the account page names the same ways in' + list([acctText && acctText.slice(0, 260)]));
   // the static pages: the build keeps a one-letter word with the next one, hence the no-break space after ή
   const nb = s => s.replace(/ ή /g, ' ή ');
   const all = nb(orList(SHIPPED.map(k => NAME[k]).concat('e-mail')));

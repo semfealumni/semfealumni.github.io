@@ -76,7 +76,7 @@
   function renderSignedOut() {
     html('<div class="acct-grid"><div class="panel"><h2>Συνδεθείτε ή δημιουργήστε λογαριασμό</h2>' +
       '<p>Με τον λογαριασμό σας κάνετε την <strong>αίτηση μέλους</strong>, βλέπετε την κατάσταση της εγγραφής και της συνδρομής σας και μπαίνετε στην <strong>περιοχή μελών</strong>.</p>' +
-      '<p>Συνδεθείτε με ' + (A.methodsText() ? '<strong>' + esc(A.methodsText()) + '</strong> ή με ' : '') + '<strong>e-mail και κωδικό</strong>.</p>' +
+      '<p>Συνδεθείτε με <strong>' + esc(A.methodsText('e-mail και κωδικό')) + '</strong>.</p>' +
       '<div class="section-foot" style="margin-top:8px"><button type="button" class="btn btn-primary" data-open="register">Νέος λογαριασμός</button><button type="button" class="btn btn-outline" data-open="signin">Έχω ήδη λογαριασμό</button></div></div>' +
       '<div class="panel"><h2 style="font-size:1.1rem">Γιατί λογαριασμός;</h2><ul class="checklist">' +
       '<li>Αίτηση μέλους χωρίς χαρτιά, σε δύο λεπτά</li><li>Βλέπετε πότε ενεργοποιείται η ιδιότητά σας</li>' +

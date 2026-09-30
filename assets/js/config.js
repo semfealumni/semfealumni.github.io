@@ -61,8 +61,8 @@ window.SEMFE = {
                         has a known bug with LinkedIn (see the guide). */
   LINKEDIN: {
     mode: 'function',
-    clientId: 'PASTE_LINKEDIN_CLIENT_ID',
-    functionUrl: 'PASTE_FUNCTION_URL',
+    clientId: '77fnj59vqhvj3b',
+    functionUrl: 'https://linkedinsignin-s73s2jpqrq-ew.a.run.app',
     providerId: 'oidc.linkedin'
   },
 
