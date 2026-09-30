@@ -2,7 +2,8 @@
  *
  * A signed-in member writes a message, with up to 5 screenshots if they like,
  * and gets a ticket number (SEMFE-YYMMDD-XXXX), which is also the id of the
- * document in feedback/. Everything after that happens elsewhere:
+ * document in feedback/ (the screenshots are feedback/<ticket>/shots/1..5).
+ * Everything after that happens elsewhere:
  *   - functions/feedback.js e-mails the admins a copy (screenshots attached)
  *     and the sender a confirmation with the ticket number;
  *   - an admin closes the ticket from the admin page, or a file in
@@ -96,7 +97,7 @@
         '<p>Ο αριθμός του μηνύματός σας:</p><p class="fb-ticket"><code>' + esc(sent.ticket) + '</code>' +
         '<button type="button" class="btn btn-outline btn-sm" data-copy-ticket>Αντιγραφή</button></p>' +
         '<p>' + (sent.mailed
-          ? 'Σας στείλαμε επιβεβαίωση στο <strong>' + esc(sent.email) + '</strong>. Όταν το εξετάσουμε, θα σας γράψουμε στο ίδιο e-mail τι κάναμε.'
+          ? 'Θα λάβετε επιβεβαίωση με αυτόν τον αριθμό στο <strong>' + esc(sent.email) + '</strong>, και όταν το εξετάσουμε, θα σας γράψουμε στο ίδιο e-mail τι κάναμε.'
           : 'Θα βλέπετε εδώ, στα «Τα μηνύματά μου», πότε το εξετάσαμε και τι κάναμε.' + (sent.email ? ' (Για να λαμβάνετε και e-mail, επιβεβαιώστε το ' + esc(sent.email) + ' από τη σελίδα «Ο λογαριασμός μου».)' : '')) + '</p>' +
         '<p class="section-foot" style="margin-top:16px"><button type="button" class="btn btn-dark" data-new>Νέο μήνυμα</button></p></section>';
       q('[data-new]').addEventListener('click', function () { sent = null; paintMain(); var m = q('#fb-message'); if (m) m.focus(); });
@@ -140,11 +141,6 @@
     });
     q('#fb-page').addEventListener('input', function (e) { draft.page = e.target.value; });
     q('[data-files]').addEventListener('change', function (e) { addFiles(e.target.files); e.target.value = ''; });
-    form.addEventListener('paste', function (e) {
-      var items = (e.clipboardData && e.clipboardData.items) || [], files = [];
-      for (var i = 0; i < items.length; i++) if (items[i].kind === 'file' && /^image\//.test(items[i].type)) files.push(items[i].getAsFile());
-      if (files.length) { e.preventDefault(); addFiles(files); }
-    });
     var drop = q('[data-drop]');
     ['dragenter', 'dragover'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
     ['dragleave', 'drop'].forEach(function (t) { drop.addEventListener(t, function () { drop.classList.remove('over'); }); });
@@ -159,6 +155,23 @@
   }
 
   /* ---- screenshots: shrunk to JPEG in the browser, kept as data URLs ------ */
+  // a pasted image counts wherever the focus is (clicking the drop zone
+  // leaves it on the page), and a file dropped next to the zone must not make
+  // the browser leave the page and lose the message
+  document.addEventListener('paste', function (e) {
+    if (!q('[data-fb-form]')) return;
+    var items = (e.clipboardData && e.clipboardData.items) || [], files = [];
+    for (var i = 0; i < items.length; i++) if (items[i].kind === 'file' && /^image\//.test(items[i].type)) files.push(items[i].getAsFile());
+    if (files.length) { e.preventDefault(); addFiles(files); }
+  });
+  ['dragover', 'drop'].forEach(function (t) {
+    document.addEventListener(t, function (e) {
+      if (e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') !== -1) e.preventDefault();
+    });
+  });
+  // one image at a time, so a tall one cut into several pieces takes the
+  // room that is really left
+  var queue = Promise.resolve();
   function addFiles(list) {
     var msg = q('[data-shots-msg]');
     var files = Array.prototype.slice.call(list || []).filter(function (f) { return f && /^image\//.test(f.type || ''); });
@@ -169,17 +182,25 @@
     if (files.length > room && msg) msg.textContent = 'Κρατήθηκαν οι πρώτες ' + room + ': έως ' + MAX_SHOTS + ' εικόνες ανά μήνυμα.';
     files.slice(0, room).forEach(function (f) {
       working++; paintShots();
-      shrink(f).then(function (url) {
-        working--;
-        shots.push({ url: url, name: String(f.name || 'εικόνα').slice(0, 80) });
-        paintShots();
-      }, function () {
-        working--; paintShots();
-        var m = q('[data-shots-msg]'); if (m) m.textContent = 'Δεν ήταν δυνατή η ανάγνωση της εικόνας «' + (f.name || '') + '».';
+      queue = queue.then(function () {
+        var left = MAX_SHOTS - shots.length - (working - 1);
+        return shrink(f, Math.max(1, left)).then(function (urls) {
+          working--;
+          var name = String(f.name || 'εικόνα').slice(0, 80);
+          urls.forEach(function (url, i) { shots.push({ url: url, name: urls.length > 1 ? name + ' (' + (i + 1) + '/' + urls.length + ')' : name }); });
+          paintShots();
+        }, function () {
+          working--; paintShots();
+          var m = q('[data-shots-msg]'); if (m) m.textContent = 'Δεν ήταν δυνατή η ανάγνωση της εικόνας «' + (f.name || '') + '».';
+        });
       });
     });
   }
-  function shrink(file) {
+  /* a JPEG of at most SHOT_BUDGET characters per piece. A very tall image (a
+     phone's "long screenshot") is cut into pieces about twice as tall as they
+     are wide, up to `pieces`, so each stays readable; shrinking it whole
+     would leave a strip a few pixels wide. */
+  function shrink(file, pieces) {
     return new Promise(function (resolve, reject) {
       var rd = new FileReader();
       rd.onerror = reject;
@@ -187,26 +208,36 @@
         var img = new Image();
         img.onerror = reject;
         img.onload = function () {
-          var scale = Math.min(1, 1600 / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
-          var quality = 0.82, url = '';
-          for (var round = 0; round < 12; round++) {
-            var c = document.createElement('canvas');
-            c.width = Math.max(1, Math.round(img.naturalWidth * scale));
-            c.height = Math.max(1, Math.round(img.naturalHeight * scale));
-            var g = c.getContext('2d');
-            g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);      // transparent PNG areas become white, not black
-            g.drawImage(img, 0, 0, c.width, c.height);
-            url = c.toDataURL('image/jpeg', quality);
-            if (url.length <= SHOT_BUDGET) break;
-            if (quality > 0.55) quality -= 0.12; else scale *= 0.8;
+          var W = img.naturalWidth || 1, H = img.naturalHeight || 1;
+          var n = H > W * 2.5 ? Math.min(pieces, Math.ceil(H / (W * 2))) : 1;
+          var step = Math.ceil(H / n), out = [];
+          for (var k = 0; k < n; k++) {
+            var y = k * step, h = Math.min(step, H - y);
+            var url = piece(img, y, W, h);
+            if (!url) return reject(new Error('too big'));
+            out.push(url);
           }
-          if (!/^data:image\/jpeg;base64,/.test(url) || url.length > SHOT_BUDGET) return reject(new Error('too big'));
-          resolve(url);
+          resolve(out);
         };
         img.src = rd.result;
       };
       rd.readAsDataURL(file);
     });
+  }
+  function piece(img, y, W, h) {
+    var scale = Math.min(1, 1400 / W, 2800 / h), quality = 0.82, url = '';
+    for (var round = 0; round < 14; round++) {
+      var c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(W * scale));
+      c.height = Math.max(1, Math.round(h * scale));
+      var g = c.getContext('2d');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);      // transparent PNG areas become white, not black
+      g.drawImage(img, 0, y, W, h, 0, 0, c.width, c.height);
+      url = c.toDataURL('image/jpeg', quality);
+      if (url.length <= SHOT_BUDGET) break;
+      if (quality > 0.55) quality -= 0.12; else scale *= 0.8;
+    }
+    return /^data:image\/jpeg;base64,/.test(url) && url.length <= SHOT_BUDGET ? url : null;
   }
   function paintShots() {
     var box = q('[data-thumbs]');
@@ -253,13 +284,18 @@
       var base = {
         uid: u.uid, email: c.email || '', emailVerified: c.email_verified === true,
         name: String(A.displayName(u) || '').slice(0, 120), kind: draft.kind, message: text.slice(0, MAX_MSG),
-        page: page.slice(0, 500), screenshots: shots.map(function (s) { return s.url; }),
+        page: page.slice(0, 500), shots: shots.length,
         ua: String(navigator.userAgent || '').slice(0, 400), status: 'open',
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       };
+      var urls = shots.map(function (s) { return s.url; });
       var attempt = function (left) {
-        var t = ticketNumber(), data = Object.assign({ ticket: t }, base);
-        return db.collection('feedback').doc(t).set(data).then(function () { return data; }, function (e) {
+        // the ticket and its screenshots (feedback/<ticket>/shots/1..5) land
+        // together or not at all; the rules allow the pictures only in this batch
+        var t = ticketNumber(), data = Object.assign({ ticket: t }, base), ref = db.collection('feedback').doc(t), b = db.batch();
+        b.set(ref, data);
+        urls.forEach(function (u, i) { b.set(ref.collection('shots').doc(String(i + 1)), { url: u }); });
+        return b.commit().then(function () { return data; }, function (e) {
           // the number is already taken (a write to someone else's ticket is refused): draw another
           if (left > 0 && e && e.code === 'permission-denied') return attempt(left - 1);
           throw e;
@@ -302,7 +338,7 @@
       var closed = m.status === 'closed', text = String(m.message || '');
       return '<li class="fb-item"><div class="fb-item-head"><code>' + esc(m.ticket) + '</code>' +
         '<span class="badge ' + (closed ? 'ok">Ολοκληρώθηκε' : 'warn">Σε εξέταση') + '</span></div>' +
-        '<p class="muted fb-meta">' + esc([when(m.createdAt) || 'Μόλις τώρα', KIND_NAME[m.kind] || '', (m.screenshots || []).length ? (m.screenshots.length + ' εικ.') : ''].filter(Boolean).join(' · ')) + '</p>' +
+        '<p class="muted fb-meta">' + esc([when(m.createdAt) || 'Μόλις τώρα', KIND_NAME[m.kind] || '', m.shots ? (m.shots + ' εικ.') : ''].filter(Boolean).join(' · ')) + '</p>' +
         '<p class="fb-text">' + esc(text.length > 280 ? text.slice(0, 280) + '…' : text) + '</p>' +
         (closed && m.resolution ? '<div class="fb-answer"><strong>Η απάντησή μας' + (m.resolvedAt ? ' (' + esc(when(m.resolvedAt)) + ')' : '') + '</strong><p>' + esc(m.resolution) + '</p>' +
           (m.resolutionUrl && /^https:\/\//.test(m.resolutionUrl) ? '<p><a href="' + esc(m.resolutionUrl) + '">Δείτε το</a></p>' : '') + '</div>' : '') +

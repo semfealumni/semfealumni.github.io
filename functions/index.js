@@ -121,16 +121,24 @@ function feedbackDeps(ref) {
     // "claim" a field in a transaction, so a retried or duplicated event never
     // mails twice: a sentinel (mailedAt) only when the field is still empty,
     // a string (the answer's hash) only when it differs from what is there
-    claim: (field, value) => getFirestore().runTransaction(async tx => {
+    claim: (field, value, stillTrue) => getFirestore().runTransaction(async tx => {
       const snap = await tx.get(ref);
       if (!snap.exists) return false;
       const cur = snap.get(field);
       if (typeof value === 'string' ? cur === value : cur != null) return false;
+      if (stillTrue && !stillTrue(snap.data())) return false;
       tx.update(ref, { [field]: value });
       return true;
     }),
     update: patch => ref.update(patch),
-    send: msg => mailer().sendMail(msg)
+    shots: async () => {
+      const qs = await ref.collection('shots').get();
+      return qs.docs.sort((a, b) => +a.id - +b.id).map(d => d.get('url')).filter(u => typeof u === 'string');
+    },
+    // e-mail can be left off: SMTP_USER set to "none" (no @) records that on
+    // the ticket instead of trying to log in with a placeholder
+    send: msg => /@/.test(SMTP_USER.value()) ? mailer().sendMail(msg)
+      : Promise.reject(Object.assign(new Error('e-mail is not set up yet (SMTP_USER, FEEDBACK-SETUP.md step 2)'), { code: 'MAIL_OFF' }))
   };
 }
 const FB_OPTS = { document: 'feedback/{ticket}', region: 'europe-west1', secrets: [SMTP_USER, SMTP_PASS], retry: false, maxInstances: 3, timeoutSeconds: 60, memory: '256MiB' };

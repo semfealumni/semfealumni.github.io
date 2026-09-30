@@ -96,7 +96,15 @@ async function lockAccount(db, uid, clock) {
     if (!exists) throw e;
     const s = await ref.get();
     const at = s.exists ? (s.data() || {}).at : null;
-    if (typeof at === 'number' && clock() - at > LOCK_STALE_MS) { await ref.set({ at: clock() }); return ref; }
+    if (typeof at === 'number' && clock() - at > LOCK_STALE_MS) {
+      // a crashed run's lock: take it over, but only one of two racing merges
+      // may (the delete requires the lock unchanged, the create requires it gone)
+      try {
+        await ref.delete(s.updateTime ? { lastUpdateTime: s.updateTime } : undefined);
+        await ref.create({ at: clock() });
+        return ref;
+      } catch (e2) { /* someone else took it: busy */ }
+    }
     throw new HttpError(409, 'merge-busy');
   }
 }
@@ -157,13 +165,17 @@ async function mergeAccounts({ auth, db, now, clock, keepUid, dropUid, by }) {
   if (!keepUid || !dropUid || typeof keepUid !== 'string' || typeof dropUid !== 'string') throw new HttpError(400, 'bad-request');
   if (keepUid === dropUid) throw new HttpError(400, 'same-account');
   clock = clock || Date.now;
-  const keep = await getAccount(auth, keepUid);
-  const drop = await getAccount(auth, dropUid);
-  if (isAdminUser(drop)) throw new HttpError(400, 'cannot-remove-admin');
+  // refuse early, before taking any lock
+  if (isAdminUser(await getAccount(auth, dropUid))) throw new HttpError(400, 'cannot-remove-admin');
+  await getAccount(auth, keepUid);
   // both accounts, always in the same order, so two merges crossing each other cannot both start
   const held = [];
   try {
     for (const uid of [keepUid, dropUid].sort()) held.push(await lockAccount(db, uid, clock));
+    // read both again now that they are ours: a merge that finished just
+    // before may have changed them (an e-mail taken over, a sign-in moved)
+    const keep = await getAccount(auth, keepUid), drop = await getAccount(auth, dropUid);
+    if (isAdminUser(drop)) throw new HttpError(400, 'cannot-remove-admin');
     return await mergeLocked({ auth, db, now, keep, drop, keepUid, dropUid, by });
   } finally {
     await Promise.all(held.map(r => r.delete().catch(() => {})));

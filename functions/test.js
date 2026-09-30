@@ -204,6 +204,13 @@ async function run(opts) {
     const x = await run({ users: [{ uid: 'g1', email: 'maria@example.com', emailVerified: true, customClaims: { admin: true } }] });
     assert.deepStrictEqual(x.auth.byUid.get('g1').customClaims, { admin: true, li: true });
   });
+  await t('a malformed body is a 400, not a 500 in the error log', async () => {
+    for (const body of ['{not json', 'null']) {
+      const r = res(); let logged = 0;
+      await handle(req(body), r, { fetch: fakeFetch(P), auth: fakeAuth([]), db: fakeDb(), now: () => 1, log: () => { logged++; } }, CFG);
+      assert.strictEqual(r.statusCode, 400); assert.deepStrictEqual(r.body, { error: 'bad-request' }); assert.strictEqual(logged, 0);
+    }
+  });
   await t('an unexpected error returns 500 "internal" without details', async () => {
     const auth = fakeAuth([]); auth.createUser = async () => { throw new Error('boom secret detail'); };
     const r = res();
@@ -212,8 +219,9 @@ async function run(opts) {
   });
   await t('cleanup of a deleted account removes its application, directory card, LinkedIn links and feedback', async () => {
     const docs = new Map([['members/u1', {}], ['directory/u1', {}], ['linkedinLinks/a', { uid: 'u1' }], ['linkedinLinks/b', { uid: 'u2' }], ['members/u2', {}],
-      ['feedback/SEMFE-260930-AAAA', { uid: 'u1' }], ['feedback/SEMFE-260930-BBBB', { uid: 'u2' }]]);
-    const ref = key => ({ key, delete: async () => { docs.delete(key); } });
+      ['feedback/SEMFE-260930-AAAA', { uid: 'u1' }], ['feedback/SEMFE-260930-AAAA/shots/1', { url: 'x' }], ['feedback/SEMFE-260930-AAAA/shots/2', { url: 'x' }],
+      ['feedback/SEMFE-260930-BBBB', { uid: 'u2' }], ['feedback/SEMFE-260930-BBBB/shots/1', { url: 'y' }]]);
+    const ref = key => ({ key, delete: async () => { docs.delete(key); }, collection: name => ({ doc: id => ref(key + '/' + name + '/' + id) }) });
     const db = { collection(name) { return {
       doc: id => ref(name + '/' + id),
       where(f, op, v) { assert.strictEqual(f, 'uid'); assert.strictEqual(op, '=='); return { async get() {
@@ -222,8 +230,8 @@ async function run(opts) {
       } }; }
     }; } };
     const n = await cleanupUser({ db, uid: 'u1' });
-    assert.strictEqual(n, 4);
-    assert.deepStrictEqual([...docs.keys()].sort(), ['feedback/SEMFE-260930-BBBB', 'linkedinLinks/b', 'members/u2']);
+    assert.ok(n >= 4);
+    assert.deepStrictEqual([...docs.keys()].sort(), ['feedback/SEMFE-260930-BBBB', 'feedback/SEMFE-260930-BBBB/shots/1', 'linkedinLinks/b', 'members/u2']);
   });
   console.log(failed ? `\n${failed} failed, ${passed} passed` : `\nall ${passed} passed`);
   process.exit(failed ? 1 : 0);

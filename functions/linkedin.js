@@ -155,7 +155,10 @@ async function handle(req, res, deps, cfg) {
     if (req.method !== 'POST') throw new HttpError(405, 'method-not-allowed');
     if (!originOk) throw new HttpError(403, 'origin-not-allowed');
     if (!cfg.clientId || !cfg.clientSecret) throw new HttpError(500, 'not-configured');
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    let body;
+    try { body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {}); }
+    catch (e) { throw new HttpError(400, 'bad-request'); }
+    if (!body || typeof body !== 'object') throw new HttpError(400, 'bad-request');
     const code = body.code, redirectUri = body.redirectUri;
     if (typeof code !== 'string' || !code || code.length > 2000) throw new HttpError(400, 'bad-request');
     if (cfg.redirectUris.indexOf(redirectUri) === -1) throw new HttpError(400, 'redirect-not-allowed');
@@ -201,7 +204,11 @@ async function cleanupUser({ db, uid }) {
   // merge moves them to the kept account first, so none are lost there)
   for (const col of [LINKS, 'feedback']) {
     const hits = await db.collection(col).where('uid', '==', uid).get();
-    hits.forEach(d => refs.push(d.ref));
+    hits.forEach(d => {
+      refs.push(d.ref);
+      // a ticket's screenshots live beside it (feedback/<ticket>/shots/1..5)
+      if (col === 'feedback') for (let i = 1; i <= 5; i++) refs.push(d.ref.collection('shots').doc(String(i)));
+    });
   }
   await Promise.all(refs.map(r => r.delete()));
   return refs.length;

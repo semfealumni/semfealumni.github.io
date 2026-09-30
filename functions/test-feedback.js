@@ -15,7 +15,7 @@ const JPEG = 'data:image/jpeg;base64,' + Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1,
 const DOC = (o) => Object.assign({
   ticket: 'SEMFE-260930-AB23', uid: 'u1', email: 'maria@gmail.com', emailVerified: true, name: 'Μαρία',
   kind: 'problem', message: 'Το κουμπί <b>Αποστολή</b> δεν κάνει τίποτα.\nΣτο κινητό.', page: 'https://www.stouras.com/semfealumni/account/',
-  screenshots: [JPEG], ua: 'UA', status: 'open', createdAt: 'T'
+  shots: 1, ua: 'UA', status: 'open', createdAt: 'T'
 }, o || {});
 /* a document store with one feedback doc, and a mailbox */
 function world(doc, opts) {
@@ -23,11 +23,13 @@ function world(doc, opts) {
   const state = { doc: Object.assign({}, doc) }, sent = [], updates = [];
   const deps = {
     now: () => 'NOW',
-    claim: async (field, value) => {
+    claim: async (field, value, stillTrue) => {
       const cur = state.doc[field];
       if (typeof value === 'string' ? cur === value : cur != null) return false;
+      if (stillTrue && !stillTrue(state.doc)) return false;
       state.doc[field] = value; return true;
     },
+    shots: async () => opts.shots || [JPEG],
     update: async p => { updates.push(p); Object.assign(state.doc, p); },
     send: async m => { if (opts.fail && opts.fail(m)) { const e = new Error('Invalid login'); e.code = 'EAUTH'; throw e; } sent.push(m); }
   };
@@ -90,8 +92,34 @@ function world(doc, opts) {
     assert.strictEqual(w.sent.length, 1, 'the admin copy still went');
   });
   await t('screenshots: only real JPEG data URLs are attached', async () => {
-    const a = fb.attachmentsOf(DOC({ screenshots: [JPEG, 'data:text/html;base64,PHNjcmlwdD4=', 'https://evil.example/x.jpg', null] }));
+    const a = fb.attachmentsOf({ ticket: 'SEMFE-260930-AB23', screenshots: [JPEG, 'data:text/html;base64,PHNjcmlwdD4=', 'https://evil.example/x.jpg', null] });
     assert.strictEqual(a.length, 1);
+    const w = world(DOC({ shots: 3 }), { shots: [JPEG, 'data:text/html;base64,PHNjcmlwdD4=', JPEG] });
+    await fb.onCreated('SEMFE-260930-AB23', w.state.doc, w.deps, CFG);
+    assert.strictEqual(w.sent[0].attachments.length, 2, 'read from the shots beside the ticket');
+    assert.ok(w.sent[0].text.includes('Στιγμιότυπα: 2'));
+  });
+  await t('a ticket without screenshots never asks for them', async () => {
+    const w = world(DOC({ shots: 0 }));
+    let asked = false; w.deps.shots = async () => { asked = true; return []; };
+    await fb.onCreated('SEMFE-260930-AB23', w.state.doc, w.deps, CFG);
+    assert.strictEqual(asked, false); assert.ok(!w.sent[0].attachments.length);
+  });
+  await t('an unconfirmed sender is not the Reply-To of the admin copy', async () => {
+    const w = world(DOC({ emailVerified: false }));
+    await fb.onCreated('SEMFE-260930-AB23', w.state.doc, w.deps, CFG);
+    assert.strictEqual(w.sent[0].replyTo, undefined);
+  });
+  await t('an old answer arriving after a newer one is not sent (events can come out of order)', async () => {
+    // the ticket was closed with A, then edited to B; B's event arrives first
+    const stored = DOC({ status: 'closed', resolution: 'Answer B' });
+    const w = world(stored);
+    assert.strictEqual(await fb.onUpdated('SEMFE-260930-AB23', null, Object.assign({}, stored), w.deps, CFG), 'sent');
+    const lateA = DOC({ status: 'closed', resolution: 'Answer A' });
+    assert.strictEqual(await fb.onUpdated('SEMFE-260930-AB23', null, lateA, w.deps, CFG), 'already', 'A is no longer what the ticket says');
+    // and the function's own bookkeeping write, fired again, does not resend B
+    assert.strictEqual(await fb.onUpdated('SEMFE-260930-AB23', null, Object.assign({}, w.state.doc), w.deps, CFG), 'already');
+    assert.deepStrictEqual(w.sent.map(m => m.text.includes('Answer B')), [true]);
   });
 
   await t('closing a ticket with an answer e-mails it to the sender, once', async () => {

@@ -965,7 +965,7 @@ await scenario('H2', 'admin page: tiles, approve, dues, reject, CSV, hostile val
   t(buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF, 'the CSV starts with a UTF-8 BOM (Excel reads the Greek correctly)');
   t(/^semfe-members-\d{4}-\d{2}-\d{2}\.csv$/.test(dl.suggestedFilename()), 'file name semfe-members-YYYY-MM-DD.csv' + list([dl.suggestedFilename()]));
   const lines = csv.replace(/^﻿/, '').split('\r\n');
-  t(lines[0].startsWith('"Όνομα","Επώνυμο","E-mail","Τηλέφωνο","Κατάσταση"'), 'Greek column headers' + list([lines[0].slice(0, 80)]));
+  t(lines[0].startsWith('"Όνομα";"Επώνυμο";"E-mail";"Τηλέφωνο";"Κατάσταση"'), 'Greek column headers, separated by ";" (what Excel expects in Greek settings)' + list([lines[0].slice(0, 80)]));
   t(lines.length === 4, 'a header and three rows, CRLF line ends' + list([lines.length]));
   t(csv.includes('"\'=HYPERLINK(""http://evil.example"",""x"")"'), 'a value starting with "=" is neutralised with a leading apostrophe (and quotes doubled)');
   t(csv.includes('"\'+cmd"') && csv.includes('"\'@SUM(1)"'), '… and so are values starting with "+" and "@"');
@@ -1562,12 +1562,28 @@ await scenario('L2', 'LinkedIn: connecting one that opens another account -> off
   t(await waitFor(page, () => /Οι δύο λογαριασμοί ενώθηκαν/.test(document.body.textContent)), 'a toast says the two accounts were merged');
 });
 
+await scenario('N3', 'admin page: approving with the keyboard never lands on the next applicant\'s «Έγκριση»', { cfg: 'oidc', seed: ADMIN_SEED }, async (page) => {
+  await page.goto(URL_('admin/'));
+  t(await waitFor(page, () => document.querySelectorAll('#admin-app tr[data-id]').length === 2), 'two pending applications');
+  const first = await page.$eval('#admin-app tr[data-id]', r => r.getAttribute('data-id'));
+  await page.focus('#admin-app tr[data-id="' + first + '"] [data-act="approve"]');
+  await page.keyboard.press('Enter');
+  t(await waitFor(page, id => !document.querySelector('#admin-app tr[data-id="' + id + '"]'), first), 'the approved one leaves the «Σε αναμονή» list');
+  const where = await page.evaluate(() => { const a = document.activeElement; return a ? (a.getAttribute('data-filter') !== null ? 'filter:' + a.getAttribute('data-filter') : a.getAttribute('data-act') || a.tagName) : null; });
+  t(where === 'filter:pending', 'the focus goes to the list\'s filter, not to the next row (' + where + ')');
+  const n = (await calls(page, 'fs.update')).length;
+  await page.keyboard.press('Enter');
+  await sleep(300);
+  t((await calls(page, 'fs.update')).length === n, 'so a second Enter approves nobody else');
+  t(await waitFor(page, () => document.querySelectorAll('#admin-app tr[data-id]').length === 1), '… the other application is still pending');
+});
+
 /* ======================= Q. the Σχόλια page and the admin inbox ======================= */
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
 const JPG_URL = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
 const TICKET_RE = /^SEMFE-\d{6}-[A-Z0-9]{4}$/;
 const fbDocOf = (uid, o) => Object.assign({ ticket: 'SEMFE-260101-AAAA', uid, email: 'x@example.com', emailVerified: true, name: 'Όνομα', kind: 'problem',
-  message: 'Κάτι δεν λειτουργεί.', page: '', screenshots: [], ua: 'UA', status: 'open', createdAt: ts(Date.now() - DAY) }, o);
+  message: 'Κάτι δεν λειτουργεί.', page: '', shots: 0, ua: 'UA', status: 'open', createdAt: ts(Date.now() - DAY) }, o);
 
 await scenario('Q1', 'Σχόλια page signed out: asks to sign in, points to Επικοινωνία', { cfg: 'oidc' }, async (page) => {
   await page.goto(URL_('feedback/'));
@@ -1586,7 +1602,7 @@ await scenario('Q2', 'Σχόλια page: a member sends a message with a screens
   t(await hasText(page.locator('#feedback-app .fb-mail'), 'Θα σας απαντήσουμε στο ' + MARIA.email), 'it says the answer goes to the account e-mail');
   await page.click('#feedback-app [data-send]');
   t(await hasText(page.locator('#feedback-app [data-fb-msg]'), 'Γράψτε πρώτα το μήνυμά σας') && (await page.getAttribute('#fb-message', 'aria-invalid')) === 'true', 'an empty message is refused, with a reason');
-  t((await calls(page, 'fs.set')).length === 0, '… and nothing is written');
+  t((await calls(page, 'fs.batch')).length === 0 && (await calls(page, 'fs.set')).length === 0, '… and nothing is written');
   await page.check('#feedback-app input[name=kind][value=idea]');
   await page.fill('#fb-message', 'Θα ήταν χρήσιμο <b>ένα</b> ημερολόγιο εκδηλώσεων.\nΚαι στο κινητό.');
   await page.setInputFiles('#feedback-app [data-files]', [{ name: 'one.png', mimeType: 'image/png', buffer: PNG }, { name: 'two.png', mimeType: 'image/png', buffer: PNG }]);
@@ -1604,26 +1620,75 @@ await scenario('Q2', 'Σχόλια page: a member sends a message with a screens
   await page.keyboard.press('Escape');
   t(await hidden(page.locator('.lightbox')), '… and Escape closes it');
   await page.click('#feedback-app [data-send]');
-  const sets = await waitCalls(page, 'fs.set', 1);
-  const w = sets[0] || { args: [] }, wpath = String(w.args[0] || ''), d = w.args[1] || {};
+  const batches = await waitCalls(page, 'fs.batch', 1);
+  const ops = (batches[0] || { args: [[]] }).args[0] || [];
+  const w = ops[0] || {}, wpath = String(w.path || ''), d = w.data || {};
   const tk = wpath.split('/')[1] || '';
-  t(wpath.startsWith('feedback/') && TICKET_RE.test(tk), 'written to feedback/<ticket> (' + wpath + ')');
+  t(w.op === 'set' && wpath.startsWith('feedback/') && TICKET_RE.test(tk), 'one batch: the ticket at feedback/<ticket> (' + wpath + ')');
+  const shotOps = ops.slice(1);
+  t(shotOps.length === 1 && shotOps[0].op === 'set' && shotOps[0].path === 'feedback/' + tk + '/shots/1' && js(Object.keys(shotOps[0].data)) === js(['url']),
+    '… and its screenshot beside it, at feedback/<ticket>/shots/1 (not inside the ticket: trigger events carry at most 512 KB)');
   t(d.ticket === tk && d.uid === MARIA.uid && d.email === MARIA.email && d.emailVerified === true && d.kind === 'idea' && d.status === 'open', 'as the member, with their sign-in e-mail, the kind, status open');
   t(js(Object.keys(d).sort()) === js(R.fbKeys.slice().sort()), 'exactly the fields firestore.rules fbKeys() allows' + list([js(Object.keys(d).sort())]));
   t(d.createdAt && d.createdAt.__fv === 'serverTimestamp', 'createdAt is the server time (the rules demand request.time)');
-  t(Array.isArray(d.screenshots) && d.screenshots.length === 1 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(d.screenshots[0]) && d.screenshots[0].length <= 170 * 1024,
-    'the screenshot is sent as a JPEG data URL under 170 KB');
+  const shotUrl = (shotOps[0] && shotOps[0].data && shotOps[0].data.url) || '';
+  t(d.shots === 1 && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(shotUrl) && shotUrl.length <= 170 * 1024,
+    'the ticket counts 1 screenshot, sent as a JPEG data URL under 170 KB');
   t(d.page === ORIGIN + SUB + 'account/' && d.message.startsWith('Θα ήταν χρήσιμο <b>ένα</b>'), 'the page and the message as typed');
   t((await calls(page, 'user.getIdTokenResult')).some(c => c.args[0] === true), 'the e-mail fields come from a fresh sign-in token (what the rules compare against)');
   t(await hasText(page.locator('#feedback-app .fb-thanks'), 'Ευχαριστούμε') && (await text(page.locator('#feedback-app .fb-ticket code'))) === tk, 'the thank-you panel shows the ticket number');
   if (process.env.SHOTS) await page.screenshot({ path: path.join(process.env.SHOTS, 'fb-thanks.png'), fullPage: true });
-  t(await hasText(page.locator('#feedback-app .fb-thanks'), 'Σας στείλαμε επιβεβαίωση στο ' + MARIA.email), '… and where the confirmation went');
+  t(await hasText(page.locator('#feedback-app .fb-thanks'), 'Θα λάβετε επιβεβαίωση με αυτόν τον αριθμό στο ' + MARIA.email), '… and where the confirmation will go');
   t(await page.evaluate(() => document.activeElement && document.activeElement.id === 'fb-thanks-h'), '… and takes the focus');
   t(await hasText(page.locator('#feedback-app [data-mine]'), tk) && await hasText(page.locator('#feedback-app [data-mine]'), 'Σε εξέταση'), '«Τα μηνύματά μου» lists it, «Σε εξέταση»');
   t((await calls(page, 'fs.list')).some(c => c.args[0] === 'feedback' && js(c.args[1]) === js({ where: [['uid', MARIA.uid]] })), 'the list asks only for the member\'s own (where uid ==, as the rules require)');
   t(!(await xssFired(page)), 'nothing typed runs as markup');
   await page.click('#feedback-app [data-new]');
   t(await visible(page.locator('#fb-message')) && (await page.inputValue('#fb-message')) === '' && (await page.locator('#feedback-app .fb-thumb').count()) === 0, '«Νέο μήνυμα»: an empty form again');
+});
+
+/* a plain PNG of w x h (grey stripes), made here so no image file is needed */
+function makePng(w, h) {
+  const zlib = require('node:zlib');
+  const raw = Buffer.alloc((w * 3 + 1) * h);
+  for (let y = 0; y < h; y++) { raw[y * (w * 3 + 1)] = 0; for (let x = 0; x < w * 3; x++) raw[y * (w * 3 + 1) + 1 + x] = (y >> 4) % 2 ? 60 : 200; }
+  const crcTable = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = b => { let c = 0xffffffff; for (const v of b) c = crcTable[(c ^ v) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const chunk = (type, data) => { const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const td = Buffer.concat([Buffer.from(type), data]); const c = Buffer.alloc(4); c.writeUInt32BE(crc(td)); return Buffer.concat([len, td, c]); };
+  const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(w, 0); ihdr.writeUInt32BE(h, 4); ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
+}
+await scenario('Q8', 'Σχόλια page: a tall "long screenshot" is cut into readable pieces; a paste anywhere on the page is taken', { cfg: 'oidc',
+  seed: signedInSeed(acct(MARIA.uid, { email: MARIA.email, name: MARIA.name })) }, async (page) => {
+  await page.goto(URL_('feedback/'));
+  await visible(page.locator('#fb-message'));
+  await page.setInputFiles('#feedback-app [data-files]', [{ name: 'long.png', mimeType: 'image/png', buffer: makePng(300, 1500) }]);
+  t(await waitFor(page, () => document.querySelectorAll('#feedback-app .fb-thumb').length === 3), 'a 300x1500 screenshot becomes 3 pieces, each about twice as tall as wide');
+  const alts = await page.$$eval('#feedback-app .fb-thumb img', ims => ims.map(i => i.alt));
+  t(alts.length === 3 && /\(1\/3\)/.test(alts[0]) && /\(3\/3\)/.test(alts[2]), 'named «long.png (1/3)» … «(3/3)»' + list(alts));
+  const dims = await page.$$eval('#feedback-app .fb-thumb img', ims => ims.map(i => [i.naturalWidth, i.naturalHeight]));
+  t(dims.every(([w, h]) => w === 300 && h <= 600), 'each piece keeps the full width (300 px), not a thin strip' + list(dims.map(d => d.join('x'))));
+  await page.setInputFiles('#feedback-app [data-files]', [{ name: 'long2.png', mimeType: 'image/png', buffer: makePng(300, 3000) }]);
+  t(await waitFor(page, () => document.querySelectorAll('#feedback-app .fb-thumb').length === 5), 'a second tall one takes only the 2 places left (5 in all)');
+  await page.click('#feedback-app [data-remove="4"]');
+  await page.click('#feedback-app [data-remove="3"]');
+  // clicking the drop zone leaves the focus on the page; a paste there still counts
+  await page.click('#feedback-app [data-drop] > p', { position: { x: 5, y: 5 } });
+  const png = makePng(40, 30).toString('base64');
+  await page.evaluate(b64 => {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const dt = new DataTransfer(); dt.items.add(new File([bytes], 'pasted.png', { type: 'image/png' }));
+    document.body.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  }, png);
+  t(await waitFor(page, () => [...document.querySelectorAll('#feedback-app .fb-thumb img')].some(i => /pasted\.png/.test(i.alt))), 'an image pasted with the focus outside the form is added');
+  // a file dropped next to the zone must not make the browser leave the page
+  const prevented = await page.evaluate(() => {
+    const dt = new DataTransfer(); dt.items.add(new File(['x'], 'a.png', { type: 'image/png' }));
+    const e = new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true });
+    document.querySelector('.site-footer').dispatchEvent(e);
+    return e.defaultPrevented;
+  });
+  t(prevented, 'a file dropped outside the zone is caught (the typed message is not lost)');
 });
 
 await scenario('Q3', 'Σχόλια page: the member\'s messages, with the answers; nobody else\'s', { cfg: 'oidc',
@@ -1646,17 +1711,20 @@ await scenario('Q4', 'Σχόλια page: an unconfirmed e-mail is told the answe
   seed: signedInSeed(acct('u-pw', { email: 'nikos@example.com', name: 'Νίκος', verified: false, providers: ['password'], password: 'pass-word-123' })) }, async (page) => {
   await page.goto(URL_('feedback/'));
   t(await hasText(page.locator('#feedback-app .fb-mail'), 'δεν έχει επιβεβαιωθεί'), 'the page says the answer will show only here');
-  await queue(page, 'fs.set', { reject: { code: 'permission-denied' } });
+  await queue(page, 'fs.batch', { reject: { code: 'permission-denied' } });
   await page.fill('#fb-message', 'Ένα μήνυμα');
   await page.click('#feedback-app [data-send]');
-  const sets = await waitCalls(page, 'fs.set', 2);
-  t(sets.length === 2 && sets[0].args[0] !== sets[1].args[0], 'a refused write (the number already taken) is retried once with a new number');
-  t(sets[1] && sets[1].args[1].emailVerified === false && sets[1].args[1].email === 'nikos@example.com', 'emailVerified: false, as the token says');
+  const bs = await waitCalls(page, 'fs.batch', 2);
+  const first = bs[0] && bs[0].args[0][0], second = bs[1] && bs[1].args[0][0];
+  t(bs.length === 2 && first && second && first.path !== second.path, 'a refused write (the number already taken) is retried once with a new number');
+  t(second && second.data.emailVerified === false && second.data.email === 'nikos@example.com', 'emailVerified: false, as the token says');
   t(await hasText(page.locator('#feedback-app .fb-thanks'), 'Θα βλέπετε εδώ'), 'the thank-you panel does not promise an e-mail');
 });
 
 const FB_ADMIN_SEED = signedInSeed(acct('u-admin', { email: ADMIN, name: 'Διαχειριστής' }), { docs: {
-  'feedback/SEMFE-260929-OPEN': fbDocOf('u-maria', { ticket: 'SEMFE-260929-OPEN', name: 'Μαρία ' + XSS, email: 'maria@example.com', page: 'https://www.stouras.com/semfealumni/account/', screenshots: [JPG_URL, JPG_URL], message: 'Το κουμπί δεν λειτουργεί.\n' + XSS, createdAt: ts(Date.now() - HOUR) }),
+  'feedback/SEMFE-260929-OPEN': fbDocOf('u-maria', { ticket: 'SEMFE-260929-OPEN', name: 'Μαρία ' + XSS, email: 'maria@example.com', page: 'https://www.stouras.com/semfealumni/account/', shots: 2, message: 'Το κουμπί δεν λειτουργεί.\n' + XSS, createdAt: ts(Date.now() - HOUR) }),
+  'feedback/SEMFE-260929-OPEN/shots/1': { url: JPG_URL },
+  'feedback/SEMFE-260929-OPEN/shots/2': { url: JPG_URL },
   'feedback/SEMFE-260928-UNVR': fbDocOf('u-x', { ticket: 'SEMFE-260928-UNVR', email: 'x@example.com', emailVerified: false, createdAt: ts(Date.now() - 2 * HOUR) }),
   'feedback/SEMFE-260901-DONE': fbDocOf('u-y', { ticket: 'SEMFE-260901-DONE', status: 'closed', resolution: 'Έγινε.', resolvedBy: 'repo', resolvedAt: ts(Date.now() - 5 * DAY), resolutionSentAt: ts(Date.now() - 5 * DAY), createdAt: ts(Date.now() - 9 * DAY) })
 } });
@@ -1669,7 +1737,8 @@ await scenario('Q5', 'admin page: the Σχόλια inbox, close with an answer, 
   t(js(tabs) === js(['Ανοιχτά (2)', 'Ολοκληρωμένα (1)', 'Όλα (3)']), 'tabs with counts' + list(tabs));
   const c = page.locator('#admin-feedback [data-t="SEMFE-260929-OPEN"]');
   t(await hasText(c, 'maria@example.com') && await c.locator('a[href="https://www.stouras.com/semfealumni/account/"]').count() === 1, 'the card shows the sender and the page');
-  t(await c.locator('.fb-thumb').count() === 2, 'its two screenshots');
+  t(await waitFor(page, () => document.querySelectorAll('#admin-feedback [data-t="SEMFE-260929-OPEN"] .fb-thumb').length === 2), 'its two screenshots, fetched from beside the ticket');
+  t(!(await calls(page, 'fs.list')).some(x => x.args[0] === 'feedback/SEMFE-260928-UNVR/shots'), '… and nothing is fetched for a ticket without any');
   t(!(await xssFired(page)), 'a name or message with markup does not run');
   if (process.env.SHOTS) await page.locator('#feedback').screenshot({ path: path.join(process.env.SHOTS, 'fb-inbox.png') });
   await c.locator('.fb-thumb').first().click();
@@ -1703,8 +1772,10 @@ await scenario('Q5', 'admin page: the Σχόλια inbox, close with an answer, 
   await page.click('#admin-feedback [data-view-tab="all"]');
   await page.locator('#admin-feedback [data-t="SEMFE-260928-UNVR"] [data-act="delete"]').click();
   t(env.dialogs.some(d => d.type === 'confirm' && /SEMFE-260928-UNVR/.test(d.message)), 'deleting asks first, naming the ticket');
-  const del = await waitCalls(page, 'fs.delete', 1);
-  t(del[0] && del[0].args[0] === 'feedback/SEMFE-260928-UNVR', '… then deletes it');
+  const delb = (await waitCalls(page, 'fs.batch', 1)).slice(-1)[0];
+  const dops = delb ? delb.args[0] : [];
+  t(dops.length === 6 && dops.every(o => o.op === 'delete') && dops[5].path === 'feedback/SEMFE-260928-UNVR' && dops[0].path === 'feedback/SEMFE-260928-UNVR/shots/1',
+    '… then deletes it, with its screenshots, in one batch');
   await page.click('#acct-slot .acct-chip');
   t(await hasText(page.locator('#acct-menu a[href$="admin/#feedback"]'), 'Σχόλια μελών'), 'the account menu has «Σχόλια μελών» for an admin');
   t(await hasText(page.locator('#acct-menu a[href$="feedback/"]'), 'Σχόλια και προβλήματα'), '… and «Σχόλια και προβλήματα»');

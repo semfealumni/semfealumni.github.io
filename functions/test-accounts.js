@@ -52,10 +52,10 @@ function fakeDb(seed) {
   let n = 0;
   const ref = key => ({
     key,
-    async get() { return { exists: docs.has(key), id: key.split('/')[1], data: () => docs.get(key) }; },
+    async get() { return { exists: docs.has(key), id: key.split('/')[1], data: () => docs.get(key), updateTime: docs.has(key) ? (docs.get(key).__ut || null) : null }; },
     async set(v, o) { docs.set(key, Object.assign({}, o && o.merge ? docs.get(key) : {}, v)); },
     async create(v) { if (docs.has(key)) { const e = new Error('6 ALREADY_EXISTS: Document already exists'); e.code = 6; throw e; } docs.set(key, v); },
-    async delete() { docs.delete(key); }
+    async delete(pre) { if (pre && pre.lastUpdateTime && docs.has(key) && (docs.get(key).__ut || null) !== pre.lastUpdateTime) { const e = new Error('9 FAILED_PRECONDITION'); e.code = 9; throw e; } docs.delete(key); }
   });
   return {
     docs,
@@ -264,6 +264,18 @@ const APP = (o) => Object.assign({
     await accounts.mergeAccounts({ auth, db, now: () => NOW, keepUid: 'k', dropUid: 'd' });
     assert.ok(!auth.byUid.has('d'), 'a stale lock does not block for ever');
     assert.ok(![...db.docs.keys()].some(k => k.startsWith('mergeLocks/')), 'no locks left behind');
+  });
+  await t('two merges taking over the same stale lock: only one of them runs', async () => {
+    const db = fakeDb({ 'mergeLocks/d': { at: Date.now() - 11 * 60 * 1000, __ut: 'v1' } });
+    const auth = fakeAuth([{ uid: 'k', email: 'k@x.gr', emailVerified: true }, { uid: 'd' }, { uid: 'k2', email: 'k2@x.gr', emailVerified: true }]);
+    // both see the stale lock; the takeover lets only one of them through
+    const results = await Promise.allSettled([
+      accounts.mergeAccounts({ auth, db, now: () => NOW, keepUid: 'k', dropUid: 'd' }),
+      accounts.mergeAccounts({ auth, db, now: () => NOW, keepUid: 'k2', dropUid: 'd' })
+    ]);
+    const ok = results.filter(r => r.status === 'fulfilled').length;
+    assert.strictEqual(ok, 1, 'exactly one merge ran: ' + JSON.stringify(results.map(r => r.status + ':' + (r.reason && r.reason.code))));
+    assert.ok(results.some(r => r.status === 'rejected' && /merge-busy|no-such-account/.test(r.reason.code)));
   });
   await t('LinkedIn is only claimed for KEEP when a LinkedIn link actually moved', async () => {
     const auth = fakeAuth([{ uid: 'k', email: 'k@x.gr', emailVerified: true }, { uid: 'd', customClaims: { li: true } }]);

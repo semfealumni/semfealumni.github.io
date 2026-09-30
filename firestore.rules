@@ -17,8 +17,9 @@ rules_version = '2';
 //                    only by the linkedinSignIn Cloud Function (Admin SDK,
 //                    which bypasses these rules); no browser may touch it.
 //   feedback/{ticket} a message from the Σχόλια page, its id the ticket number
-//                    the sender sees. The sender may create it and read it;
-//                    admins read, close, reopen and delete.
+//                    the sender sees, and its screenshots in shots/{1..5}.
+//                    The sender may create them and read them; admins read,
+//                    close, reopen and delete.
 //
 // Everything else is denied.
 //
@@ -159,20 +160,19 @@ service cloud.firestore {
     // (SEMFE-YYMMDD-XXXX). Any signed-in account may send one, as itself and
     // with its own sign-in e-mail (or none): the feedback function writes
     // only to that address, and only when the token says it is confirmed, so
-    // this cannot be used to send mail to someone else. Screenshots are JPEG
-    // data URLs (up to 5; the whole document must stay under Firestore's 1 MB).
+    // this cannot be used to send mail to someone else.
+    // The screenshots (JPEG data URLs, up to 5) are NOT in the ticket: each is
+    // its own document, feedback/{ticket}/shots/{1..5}, written in the SAME
+    // batch that creates the ticket (and never after). The ticket stays small,
+    // because the Cloud Function's trigger events carry at most 512 KB and an
+    // update event carries the ticket twice.
     // The feedback Cloud Function and the GitHub sync (Admin SDK, not bound by
-    // these rules) keep their own bookkeeping fields on the document.
+    // these rules) keep their own bookkeeping fields on the ticket.
     function fbKeys() {
       return ['ticket', 'uid', 'email', 'emailVerified', 'name', 'kind', 'message',
-              'page', 'screenshots', 'ua', 'status', 'createdAt'];
+              'page', 'shots', 'ua', 'status', 'createdAt'];
     }
     function fbShot(v) { return v is string && v.size() <= 400000 && v.matches('data:image/jpeg;base64,[A-Za-z0-9+/=]+'); }
-    function fbShots(l) {
-      return l is list && l.size() <= 5
-        && (l.size() < 1 || fbShot(l[0])) && (l.size() < 2 || fbShot(l[1])) && (l.size() < 3 || fbShot(l[2]))
-        && (l.size() < 4 || fbShot(l[3])) && (l.size() < 5 || fbShot(l[4]));
-    }
     function fbNew(d, ticket) {
       return d.keys().hasAll(fbKeys()) && d.keys().hasOnly(fbKeys())
         && d.ticket == ticket && d.uid == request.auth.uid
@@ -182,9 +182,10 @@ service cloud.firestore {
         && d.kind in ['problem', 'idea', 'other']
         && d.message is string && d.message.size() > 0 && d.message.size() <= 5000
         && str(d.page, 500) && str(d.ua, 400)
-        && fbShots(d.screenshots)
+        && d.shots is int && d.shots >= 0 && d.shots <= 5
         && d.status == 'open' && d.createdAt == request.time;
     }
+    function fbPath(ticket) { return /databases/$(database)/documents/feedback/$(ticket); }
     match /feedback/{ticket} {
       allow create: if signedIn()
         && request.auth.token.firebase.sign_in_provider != 'anonymous'
@@ -198,6 +199,20 @@ service cloud.firestore {
         && str(request.resource.data.get('resolution', ''), 5000)
         && str(request.resource.data.get('resolutionUrl', ''), 500);
       allow delete: if isAdmin();
+
+      match /shots/{n} {
+        // only in the batch that creates the ticket (it does not exist yet,
+        // and will once the batch lands), by its sender, numbered 1..shots
+        allow create: if signedIn()
+          && n in ['1', '2', '3', '4', '5']
+          && !exists(fbPath(ticket))
+          && getAfter(fbPath(ticket)).data.uid == request.auth.uid
+          && int(n) <= getAfter(fbPath(ticket)).data.shots
+          && request.resource.data.keys().hasOnly(['url'])
+          && fbShot(request.resource.data.url);
+        allow read: if isAdmin() || (signedIn() && get(fbPath(ticket)).data.uid == request.auth.uid);
+        allow delete: if isAdmin();
+      }
     }
 
     // ---- LinkedIn links: server only -------------------------------------

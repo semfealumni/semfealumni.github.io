@@ -747,41 +747,47 @@ describe('unauthenticated: denied everywhere', () => {
   });
 });
 
-/* ---- feedback: the payload assets/js/feedback.js send() writes, and what
-   assets/js/admin-feedback.js update() writes when an admin closes/reopens ---- */
+/* ---- feedback: the batch assets/js/feedback.js send() writes (the ticket and
+   its screenshots in feedback/<ticket>/shots/1..n), and what
+   assets/js/admin-feedback.js writes when an admin closes/reopens/deletes ---- */
 describe('feedback (the Σχόλια page)', () => {
   const T = 'SEMFE-260930-AB23';
   const JPG = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBD';
   const fbDoc = (who, o) => ({
     ticket: T, uid: who.uid, email: who.token.email || '', emailVerified: who.token.email_verified === true,
     name: 'Alice', kind: 'problem', message: 'Κάτι δεν λειτουργεί στη σελίδα.', page: 'https://www.stouras.com/semfealumni/account/',
-    screenshots: [JPG, JPG], ua: 'Mozilla/5.0', status: 'open', createdAt: ST(), ...(o || {})
+    shots: 0, ua: 'Mozilla/5.0', status: 'open', createdAt: ST(), ...(o || {})
   });
-  const put = (who, o, id) => dbAs(who).collection('feedback').doc(id || T).set(fbDoc(who, o));
+  // exactly what the page does: one batch, the ticket then its pictures
+  const send = (who, o, urls, id) => {
+    const db = dbAs(who), ref = db.collection('feedback').doc(id || (o && o.ticket) || T), b = db.batch();
+    b.set(ref, fbDoc(who, { shots: (urls || []).length, ...(o || {}) }));
+    (urls || []).forEach((u, i) => b.set(ref.collection('shots').doc(String(i + 1)), { url: u }));
+    return b.commit();
+  };
+  const put = (who, o, id) => send(who, o, [], id);
   const stored = (who, o) => ({ ...fbDoc(who, o), createdAt: PAST });
 
-  it('a signed-in member sends one, as themselves', async () => {
+  it('a signed-in member sends one, as themselves, with or without screenshots', async () => {
     await assertSucceeds(put(U.alice));
+    await assertSucceeds(send(U.bob, { ticket: 'SEMFE-260930-BBBB' }, [JPG, JPG, JPG, JPG, JPG]));
   });
   it('every sign-in method may send (no e-mail, unconfirmed e-mail, LinkedIn function)', async () => {
     let i = 0;
     for (const who of [U.pwUnverified, U.linkedinNoEmail, U.linkedinFn, U.linkedinFnNoEmail, U.facebook]) {
       const id = 'SEMFE-260930-AAA' + (i++);
-      await assertSucceeds(dbAs(who).collection('feedback').doc(id).set(fbDoc(who, { ticket: id })));
+      await assertSucceeds(send(who, { ticket: id }, [JPG]));
     }
   });
-  it('up to 5 screenshots, or none', async () => {
-    await assertSucceeds(put(U.alice, { screenshots: [] }));
-    await assertSucceeds(put(U.bob, { ticket: 'SEMFE-260930-BBBB', screenshots: [JPG, JPG, JPG, JPG, JPG] }, 'SEMFE-260930-BBBB'));
-    // the page's own ceiling: 5 screenshots of 170 KB each (feedback.js SHOT_BUDGET)
+  it("the page's own ceiling: 5 screenshots of 170 KB each and a 5000-character message", async () => {
     const big = 'data:image/jpeg;base64,' + 'A'.repeat(170 * 1024 - 23);
-    await assertSucceeds(put(U.bob, { ticket: 'SEMFE-260930-CCCC', screenshots: [big, big, big, big, big], message: 'x'.repeat(5000) }, 'SEMFE-260930-CCCC'));
+    await assertSucceeds(send(U.bob, { ticket: 'SEMFE-260930-CCCC', message: 'x'.repeat(5000) }, [big, big, big, big, big]));
   });
   it('refused: signed out, or an anonymous sign-in', async () => {
     await assertFails(dbAs(null).collection('feedback').doc(T).set(fbDoc(U.alice)));
     await assertFails(put(U.anonymous));
   });
-  it('refused: in someone else\'s name, or with an e-mail that is not the sign-in one, or a false "confirmed"', async () => {
+  it("refused: in someone else's name, or with an e-mail that is not the sign-in one, or a false \"confirmed\"", async () => {
     await assertFails(put(U.alice, { uid: 'bob' }));
     await assertFails(put(U.alice, { email: 'victim@example.com' }));
     await assertFails(put(U.pwUnverified, { emailVerified: true }));
@@ -792,28 +798,61 @@ describe('feedback (the Σχόλια page)', () => {
     await assertFails(put(U.alice, { ticket: 'hello' }, 'hello'));
     await assertFails(put(U.alice, { ticket: 'SEMFE-2609-AB23' }, 'SEMFE-2609-AB23'));
   });
-  it('refused: missing or extra fields, a closed status, a client clock, a bad kind', async () => {
+  it('refused: missing or extra fields, the pictures inside the ticket, a closed status, a client clock, a bad kind', async () => {
     const d = fbDoc(U.alice); delete d.ua;
     await assertFails(dbAs(U.alice).collection('feedback').doc(T).set(d));
     await assertFails(put(U.alice, { admin: true }));
+    await assertFails(put(U.alice, { screenshots: [JPG] }));
     await assertFails(put(U.alice, { status: 'closed' }));
     await assertFails(put(U.alice, { resolution: 'fixed' }));
     await assertFails(put(U.alice, { createdAt: PAST }));
     await assertFails(put(U.alice, { kind: 'spam' }));
+    await assertFails(put(U.alice, { shots: 6 }));
+    await assertFails(put(U.alice, { shots: '2' }));
   });
-  it('refused: an empty or too long message, 6 screenshots, a screenshot that is not a JPEG data URL', async () => {
+  it('refused: an empty or too long message', async () => {
     await assertFails(put(U.alice, { message: '' }));
     await assertFails(put(U.alice, { message: 'x'.repeat(5001) }));
-    await assertFails(put(U.alice, { screenshots: [JPG, JPG, JPG, JPG, JPG, JPG] }));
-    await assertFails(put(U.alice, { screenshots: ['https://evil.example/x.jpg'] }));
-    await assertFails(put(U.alice, { screenshots: ['data:text/html;base64,PHNjcmlwdD4='] }));
-    await assertFails(put(U.alice, { screenshots: [JPG, 'data:image/svg+xml;base64,PHN2Zz4='] }));
   });
-  it('the sender reads their own (one, and the list the page asks for); another member cannot', async () => {
-    await seed('feedback/' + T, stored(U.alice));
+  it('screenshots: only JPEG data URLs, only as many as the ticket says, only numbered 1..5', async () => {
+    await assertFails(send(U.alice, {}, ['https://evil.example/x.jpg']));
+    await assertFails(send(U.alice, {}, ['data:text/html;base64,PHNjcmlwdD4=']));
+    await assertFails(send(U.alice, {}, [JPG, 'data:image/svg+xml;base64,PHN2Zz4=']));
+    // more pictures than the ticket declares
+    const db = dbAs(U.alice), ref = db.collection('feedback').doc(T), b = db.batch();
+    b.set(ref, fbDoc(U.alice, { shots: 1 }));
+    b.set(ref.collection('shots').doc('1'), { url: JPG });
+    b.set(ref.collection('shots').doc('2'), { url: JPG });
+    await assertFails(b.commit());
+    const b2 = db.batch();
+    b2.set(ref, fbDoc(U.alice, { shots: 1 }));
+    b2.set(ref.collection('shots').doc('x'), { url: JPG });
+    await assertFails(b2.commit());
+    const b3 = db.batch();
+    b3.set(ref, fbDoc(U.alice, { shots: 1 }));
+    b3.set(ref.collection('shots').doc('1'), { url: JPG, extra: 1 });
+    await assertFails(b3.commit());
+  });
+  it('screenshots cannot be added to a ticket after it was sent, not even by its sender', async () => {
+    await seed('feedback/' + T, stored(U.alice, { shots: 1 }));
+    await assertFails(dbAs(U.alice).collection('feedback').doc(T).collection('shots').doc('1').set({ url: JPG }));
+    await assertFails(dbAs(U.bob).collection('feedback').doc(T).collection('shots').doc('1').set({ url: JPG }));
+  });
+  it("nobody can hang pictures on someone else's new ticket", async () => {
+    // Bob's batch creates HIS ticket under a number, with pictures claiming Alice's
+    const db = dbAs(U.bob), ref = db.collection('feedback').doc(T), b = db.batch();
+    b.set(ref, fbDoc(U.alice, { shots: 1 }));
+    b.set(ref.collection('shots').doc('1'), { url: JPG });
+    await assertFails(b.commit());
+  });
+  it('the sender reads their own ticket and its screenshots (and the list the page asks for); another member cannot', async () => {
+    await seed('feedback/' + T, stored(U.alice, { shots: 1 }));
+    await seed('feedback/' + T + '/shots/1', { url: JPG });
     await assertSucceeds(dbAs(U.alice).collection('feedback').doc(T).get());
+    await assertSucceeds(dbAs(U.alice).collection('feedback').doc(T).collection('shots').get());
     await assertSucceeds(dbAs(U.alice).collection('feedback').where('uid', '==', U.alice.uid).get());
     await assertFails(dbAs(U.bob).collection('feedback').doc(T).get());
+    await assertFails(dbAs(U.bob).collection('feedback').doc(T).collection('shots').get());
     await assertFails(dbAs(U.bob).collection('feedback').get());
     await assertFails(dbAs(null).collection('feedback').doc(T).get());
   });
@@ -824,21 +863,28 @@ describe('feedback (the Σχόλια page)', () => {
     await assertFails(dbAs(U.alice).collection('feedback').doc(T).delete());
     await assertFails(put(U.bob));
   });
-  it('an admin reads them all, closes one with an answer, reopens it, and deletes it', async () => {
-    await seed('feedback/' + T, stored(U.alice));
+  it('an admin reads them all with their screenshots, closes one with an answer, reopens it, and deletes it with its pictures', async () => {
+    await seed('feedback/' + T, stored(U.alice, { shots: 2 }));
+    await seed('feedback/' + T + '/shots/1', { url: JPG });
+    await seed('feedback/' + T + '/shots/2', { url: JPG });
     const db = dbAs(U.admin), ref = db.collection('feedback').doc(T);
     await assertSucceeds(db.collection('feedback').get());
+    await assertSucceeds(ref.collection('shots').get());
     await assertSucceeds(ref.update({ status: 'closed', resolution: 'Διορθώθηκε.', resolutionUrl: 'https://www.stouras.com/semfealumni/', resolvedAt: ST(), resolvedBy: 'kstouras@gmail.com' }));
     await assertSucceeds(ref.update({ status: 'open' }));
-    await assertSucceeds(ref.delete());
+    const b = db.batch();
+    for (let i = 1; i <= 5; i++) b.delete(ref.collection('shots').doc(String(i)));
+    b.delete(ref);
+    await assertSucceeds(b.commit());
   });
-  it('an admin cannot rewrite what the member sent, or set a made-up status', async () => {
+  it('an admin cannot rewrite what the member sent, or set a made-up status, or add pictures', async () => {
     await seed('feedback/' + T, stored(U.alice));
     const ref = dbAs(U.admin).collection('feedback').doc(T);
     await assertFails(ref.update({ message: 'something else' }));
     await assertFails(ref.update({ email: 'other@example.com' }));
     await assertFails(ref.update({ status: 'spam' }));
     await assertFails(ref.update({ status: 'closed', resolution: 'x'.repeat(5001) }));
+    await assertFails(ref.collection('shots').doc('1').set({ url: JPG }));
   });
 });
 

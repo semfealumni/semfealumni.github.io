@@ -701,6 +701,35 @@
     });
   }
 
+  /* a batch: all its writes land together or not at all; recorded as ONE
+     fs.batch call with its operations, scriptable as fs.batch */
+  function WriteBatch() { this._ops = []; this._done = false; }
+  WriteBatch.prototype.set = function (ref, data, opts) { checkData(data, 'WriteBatch.set', true); this._ops.push({ op: 'set', path: ref.path, data: data, opts: opts }); return this; };
+  WriteBatch.prototype.update = function (ref, data) { checkData(data, 'WriteBatch.update', true); this._ops.push({ op: 'update', path: ref.path, data: data }); return this; };
+  WriteBatch.prototype.delete = function (ref) { this._ops.push({ op: 'delete', path: ref.path }); return this; };
+  WriteBatch.prototype.commit = function () {
+    if (this._done) throw errOf({ code: 'failed-precondition', message: 'A write batch can no longer be used after commit() has been called.' });
+    this._done = true;
+    var ops = this._ops;
+    rec('fs.batch', [ops.map(function (o) { return o.op === 'delete' ? { op: o.op, path: o.path } : { op: o.op, path: o.path, data: o.data }; })]);
+    var q = take('fs.batch', { paths: ops.map(function (o) { return o.path; }) });
+    var before = JSON.parse(JSON.stringify(state.docs));
+    for (var i = 0; i < ops.length; i++) {
+      var o = ops[i], cur = state.docs[o.path];
+      if (o.op === 'update' && cur === undefined) { state.docs = before; return later(8).then(function () { throw errOf({ code: 'not-found', message: 'No document to update' }); }); }
+      if (o.op === 'set') state.docs[o.path] = applyFields((o.opts && o.opts.merge) && cur ? JSON.parse(JSON.stringify(cur)) : {}, o.data);
+      else if (o.op === 'update') state.docs[o.path] = applyFields(JSON.parse(JSON.stringify(cur)), o.data);
+      else delete state.docs[o.path];
+    }
+    save(); notifyAll();
+    return later((q && q.delayMs) || 15).then(function () {
+      if (q && q.reject) { state.docs = before; save(); notifyAll(); throw errOf(q.reject); }
+      ops.forEach(function (o) { if (state.docs[o.path] && hasPending(state.docs[o.path])) state.docs[o.path] = resolvePending(state.docs[o.path], now()); });
+      save();
+      setTimeout(notifyAll, 0);
+    });
+  };
+
   function DocRef(path) { this.path = path; this.id = path.split('/').pop(); }
   Object.defineProperty(DocRef.prototype, 'parent', { get: function () { return new ColRef(this.path.split('/').slice(0, -1).join('/')); } });
   DocRef.prototype.get = function (opts) {
@@ -790,6 +819,7 @@
             return new ColRef(name);
           },
           doc: function (path) { return new DocRef(path); },
+          batch: function () { return new WriteBatch(); },
           get app() { return window.firebase.apps[0]; }
         };
       }

@@ -12,9 +12,15 @@
  * this can never be used to mail someone else.
  *
  * Each e-mail is sent at most once: the document is "claimed" in a
- * transaction (mailedAt / resolutionSentHash) before sending. A failure is
- * written to mailError for the admin page to show, never retried in a loop.
- * Editing the answer (a different text or link) sends it again.
+ * transaction (mailedAt / resolutionSentHash) before sending, and an answer
+ * only when the ticket, as it is NOW, still holds that answer (events can
+ * arrive out of order). A failure is written to mailError for the admin page
+ * to show, never retried in a loop. Editing the answer (a different text or
+ * link) sends it again.
+ *
+ * The screenshots are not in the ticket but beside it, feedback/<ticket>/
+ * shots/1..5 (deps.shots() reads them): a trigger event carries at most
+ * 512 KB, and an update event carries the ticket twice.
  *
  * Pure logic with injected dependencies; index.js wires Firestore and SMTP,
  * test-feedback.js runs it offline. */
@@ -37,7 +43,7 @@ function resolutionHash(d) {
   return crypto.createHash('sha256').update(String(d.resolution || '') + '\n' + String(d.resolutionUrl || '')).digest('hex').slice(0, 16);
 }
 function attachmentsOf(d) {
-  return (Array.isArray(d.screenshots) ? d.screenshots : []).map((u, i) => {
+  return (Array.isArray(d.screenshots) ? d.screenshots : []).map((u, i) => {   // d: { ticket, screenshots: [data URLs] }
     const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(String(u || ''));
     return m ? { filename: d.ticket + '-' + (i + 1) + '.jpg', content: Buffer.from(m[1], 'base64'), contentType: 'image/jpeg' } : null;
   }).filter(Boolean);
@@ -57,8 +63,9 @@ function quote(text) {
   return '<div style="border-left:3px solid #dbe3ec;padding:4px 0 4px 12px;margin:10px 0;color:#26384f">' + para(text) + '</div>';
 }
 
-function renderAdmin(d, cfg) {
-  const n = attachmentsOf(d).length, page = httpUrl(d.page);
+function renderAdmin(d, cfg, n) {
+  n = n == null ? (d.shots || 0) : n;
+  const page = httpUrl(d.page);
   const who = (d.name || '(χωρίς όνομα)') + (d.email ? ' <' + d.email + '>' + (d.emailVerified ? '' : ' (μη επιβεβαιωμένο)') : ' (χωρίς e-mail)');
   const admin = cfg.site + 'admin/#feedback';
   const text = [
@@ -115,15 +122,21 @@ function renderResolution(d, cfg) {
 
 function errText(e) { return oneLine((e && (e.code || e.responseCode) ? (e.code || e.responseCode) + ': ' : '') + ((e && e.message) || e), 200); }
 
-/* A new ticket. deps: { claim(field, value) -> bool, update(patch), send(msg), now() }.
-   cfg: { to: [...], from, site }. Returns what it did, for the log and the tests. */
+/* A new ticket. deps: { claim(field, value, stillTrue?) -> bool, update(patch),
+   send(msg), now(), shots() -> [data URLs] }. cfg: { to: [...], from, site }.
+   Returns what it did, for the log and the tests. */
 async function onCreated(id, d, deps, cfg) {
   if (!TICKET.test(id || '') || !d || d.ticket !== id) return 'skip';
   if (d.mailedAt) return 'already';
   if (!(await deps.claim('mailedAt', deps.now()))) return 'already';
   const errors = [], patch = {};
   if (cfg.to.length) {
-    try { await deps.send(Object.assign({ to: cfg.to.join(', '), from: cfg.from, replyTo: d.email || undefined, attachments: attachmentsOf(d) }, renderAdmin(d, cfg))); }
+    let urls = [];
+    if (d.shots) { try { urls = await deps.shots(); } catch (e) { errors.push('στιγμιότυπα: ' + errText(e)); } }
+    const attachments = attachmentsOf({ ticket: d.ticket, screenshots: urls });
+    // Reply-To the sender only when their address is confirmed: an admin's
+    // reply (or an auto-reply) must not go to an address nobody proved
+    try { await deps.send(Object.assign({ to: cfg.to.join(', '), from: cfg.from, replyTo: canMail(d) ? d.email : undefined, attachments }, renderAdmin(d, cfg, attachments.length))); }
     catch (e) { errors.push('προς διαχειριστές: ' + errText(e)); }
   }
   if (canMail(d)) {
@@ -141,7 +154,9 @@ async function onUpdated(id, before, d, deps, cfg) {
   const h = resolutionHash(d);
   if (d.resolutionSentHash === h) return 'already';
   if (!canMail(d)) return 'no-address';
-  if (!(await deps.claim('resolutionSentHash', h))) return 'already';
+  // claimed only if the ticket, as stored NOW, is still closed with this very
+  // answer: an older event arriving late must not send a superseded answer
+  if (!(await deps.claim('resolutionSentHash', h, cur => !!cur && cur.status === 'closed' && resolutionHash(cur) === h && canMail(cur)))) return 'already';
   try {
     await deps.send(Object.assign({ to: d.email, from: cfg.from, replyTo: cfg.replyTo || undefined }, renderResolution(d, cfg)));
     await deps.update({ resolutionSentAt: deps.now(), mailError: null });

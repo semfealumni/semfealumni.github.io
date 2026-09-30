@@ -26,6 +26,9 @@
   A.onChange(function (u) {
     me = u;
     if (unsub) { unsub(); unsub = null; }
+    // a different account (or none) starts from a clean users list: signing out
+    // and in again without a reload must not leave the old spinner behind
+    users = null; usersErr = null; picked = []; merging = false; uMsg = null;
     if (!A.configured) return html('<div class="notice warn"><strong>Η σύνδεση μελών δεν έχει ενεργοποιηθεί ακόμα.</strong><p>Δείτε το FIREBASE-SETUP.md.</p></div>');
     if (!u) {
       html('<div class="panel" style="max-width:640px"><h2>Μόνο για διαχειριστές</h2><p>Συνδεθείτε με τον λογαριασμό διαχειριστή.</p><button type="button" class="btn btn-primary" data-open>Σύνδεση</button></div>');
@@ -90,14 +93,13 @@
     if (!el && k.id) {
       var tr = app.querySelector('tr[data-id="' + cssEsc(k.id) + '"]');
       if (tr) el = tr.querySelector('[data-act="' + k.act + '"]') || tr.querySelector('button');
-      if (!el) {
-        var rows = app.querySelectorAll('tr[data-id]');
-        var next = rows[Math.min(k.row, rows.length - 1)];
-        el = next ? next.querySelector('button') : app.querySelector('[data-filter][aria-pressed="true"]');
-      }
+      // the row left this list (approved, say): the focus goes to the list's
+      // own filter, never onto the next person's buttons, where a second Enter
+      // would approve someone else
+      if (!el) el = app.querySelector('[data-filter][aria-pressed="true"]');
     }
     if (!el) return;
-    el.focus();
+    el.focus({ preventScroll: true });                   // a redraw must not scroll the page
     if (k.pos != null) try { el.setSelectionRange(k.pos, k.pos); } catch (e) {}
   }
   function cssEsc(v) { return window.CSS && CSS.escape ? CSS.escape(v) : String(v).replace(/["\\]/g, '\\$&'); }
@@ -142,7 +144,7 @@
       '<p class="muted intro">Όλοι οι λογαριασμοί σύνδεσης, με ή χωρίς αίτηση μέλους: όνομα, e-mail, τρόποι σύνδεσης, πότε γράφτηκαν και πότε μπήκαν τελευταία φορά. ' +
       'Όταν ένα άτομο έχει δύο λογαριασμούς (π.χ. έναν με Google κι έναν με LinkedIn), τσεκάρετε τους δύο και πατήστε <strong>«Ένωση επιλεγμένων»</strong>: η αίτηση, οι συνδρομές, η καταχώριση στον κατάλογο και οι τρόποι σύνδεσης μεταφέρονται στον λογαριασμό που κρατάτε και ο άλλος διαγράφεται. ' +
       'Όσοι έχουν το ίδιο όνομα ή e-mail με άλλον λογαριασμό σημειώνονται <em>«Πιθανό διπλό»</em>. Το κάθε μέλος μπορεί επίσης να ενώσει μόνο του τους λογαριασμούς του, από τη σελίδα «Ο λογαριασμός μου».</p>' +
-      '<div class="dir-tools"><div class="field"><label for="usr-q" class="sr-only">Αναζήτηση χρηστών</label><input id="usr-q" type="search" placeholder="Αναζήτηση: όνομα ή e-mail"></div>' +
+      '<div class="dir-tools"><div class="field"><label for="usr-q" class="sr-only">Αναζήτηση χρηστών</label><input id="usr-q" type="search" placeholder="Αναζήτηση: όνομα ή e-mail" value="' + esc(uq) + '"></div>' +
       '<div class="filters" role="group" aria-label="Εμφάνιση χρηστών" style="margin:0">' +
       [['all', 'Όλοι'], ['noapp', 'Χωρίς αίτηση'], ['dup', 'Πιθανά διπλά']].map(function (f) {
         return '<button type="button" data-ufilter="' + f[0] + '" aria-pressed="' + (uview === f[0]) + '">' + f[1] + '</button>';
@@ -449,8 +451,10 @@
       if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;           // stop spreadsheet formula injection
       return '"' + v.replace(/"/g, '""') + '"';
     };
-    var text = '﻿' + cols.map(function (c) { return cell(c[1]); }).join(',') + '\r\n' +
-      list.map(function (m) { return cols.map(function (c) { return cell(m[c[0]], c[0]); }).join(','); }).join('\r\n');
+    // ";" between columns: Excel in Greek (and most European) settings expects
+    // it, and with "," would put every value in the first column
+    var text = '﻿' + cols.map(function (c) { return cell(c[1]); }).join(';') + '\r\n' +
+      list.map(function (m) { return cols.map(function (c) { return cell(m[c[0]], c[0]); }).join(';'); }).join('\r\n');
     var blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);

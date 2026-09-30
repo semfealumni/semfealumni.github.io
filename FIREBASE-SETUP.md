@@ -401,10 +401,14 @@ function). To switch it on, run once from the repository folder:
     cd ..
     firebase deploy --only functions --project semfe-alumni
 
-The CLI keeps your earlier answers (`functions/.env.semfe-alumni`), so it asks
-nothing new. Until this is done, the Διαχείριση page shows the applications as
-before, with a note saying the users list needs this step, and the merge
-buttons on the account page say the service is not ready yet.
+The CLI keeps your earlier answers (`functions/.env.semfe-alumni`). The same
+deploy also brings the feedback e-mail functions, so it asks for their four
+settings (press Enter for each default) and needs their two secrets,
+`SMTP_USER` and `SMTP_PASS`, to exist first: FEEDBACK-SETUP.md step 2 (or set
+both to `none` for now, as explained there). Until this is done, the
+Διαχείριση page shows the applications as before, with a note saying the
+users list needs this step, and the merge buttons on the account page say the
+service is not ready yet.
 
 How a merge decides what to keep:
 * **The account you keep** keeps its sign-in e-mail. If it has none, it takes

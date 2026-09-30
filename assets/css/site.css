@@ -578,8 +578,9 @@ li, .stat .label, .post-nav a, .card p { text-wrap: pretty; }
 .badge.err { background: var(--err-soft); color: var(--err); }
 .badge.muted { background: var(--mist); color: var(--muted); }
 
-/* forms */
-.form { display: grid; gap: 16px; }
+/* forms (minmax(0, …): a long unbroken value, such as an e-mail address,
+   wraps instead of widening the column past a phone's screen) */
+.form { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 .form .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 @media (max-width: 620px) { .form .row { grid-template-columns: minmax(0, 1fr); } }
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -785,7 +786,8 @@ table.data .acts-in .btn { flex: 1 1 auto; justify-content: center; }
 .fb-thumb img { object-fit: cover; }
 .fb-x { position: absolute; top: 4px; right: 4px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(4, 12, 24, .72); color: #fff; font-size: 1.2rem; line-height: 1; cursor: pointer; }
 .fb-working { display: flex; align-items: center; gap: 8px; margin: 0; font-size: .9rem; }
-.fb-mail { margin: 0; font-size: .92rem; }
+.fb-mail { margin: 0; font-size: .92rem; overflow-wrap: anywhere; }
+.afb-close .muted, .fb-thanks p { overflow-wrap: anywhere; }
 .fb-ticket { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .fb-ticket code { font-size: 1.35rem; font-weight: 800; letter-spacing: .04em; padding: 6px 12px; border-radius: 10px; background: var(--mist); }
 .fb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }

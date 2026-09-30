@@ -65,9 +65,13 @@ is never used or stored).
    switching things on for the project. Wait 5 minutes and run the same
    command again.
 
-   (If you want to deploy the other functions before setting up e-mail, run
-   `firebase deploy --only functions:linkedinSignIn,functions:accounts,functions:cleanupDeletedUser --project semfe-alumni`.
-   The full deploy needs the two secrets to exist.)
+   **Not ready for e-mail yet?** Every functions deploy (even with
+   `--only functions:accounts`) needs the two secrets to exist. Set both to
+   `none` for now (`firebase functions:secrets:set SMTP_USER` → type `none`,
+   the same for `SMTP_PASS`) and deploy: everything else works, and each
+   ticket shows "e-mail is not set up yet" on the admin page instead of an
+   e-mail. When you have the app password, set the two secrets again with the
+   real values and deploy once more.
 
 Test: send a message. Within a minute the admins get a copy (Reply-To is the
 sender) and the sender a confirmation. On the admin page, «Κλείσιμο με
@@ -128,9 +132,12 @@ goes out when it is merged.
 
     feedback/{ticket}    the message: sender's account id, name, sign-in e-mail
                          (and whether it is confirmed), kind, text, the page it
-                         was about, up to 5 screenshots, the browser, status,
+                         was about, how many screenshots, the browser, status,
                          the answer. Readable by the sender and the admins.
-                         Deleted when the sender deletes their account.
+    feedback/{ticket}/shots/{1..5}   the screenshots, one per document (kept
+                         out of the ticket so its e-mail triggers stay small).
+    Both are deleted when the sender deletes their account, and the private
+    log keeps only its latest snapshot, so a deleted ticket leaves it too.
 
 Offline checks: `cd functions && npm test` (the e-mails),
 `node tools/feedback-sync.mjs --selftest` (the resolution files and the log),

@@ -27,9 +27,12 @@
  * Modes:
  *   node tools/feedback-sync.mjs --selftest     offline tests
  *   node tools/feedback-sync.mjs --scan         check the resolution files (offline)
- *   node tools/feedback-sync.mjs [--log DIR] [--dry-run]
+ *   node tools/feedback-sync.mjs --close                close tickets from the files
+ *   node tools/feedback-sync.mjs --mirror --log DIR     copy every ticket into DIR
+ *   (neither: both; add --dry-run to only say what would happen)
  *       needs FIREBASE_SERVICE_ACCOUNT (the JSON key) in the environment, and
- *       functions/node_modules (cd functions && npm ci) for firebase-admin. */
+ *       functions/node_modules (cd functions && npm ci) for firebase-admin.
+ * The screenshots are read from beside each ticket (feedback/<ticket>/shots/). */
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -82,12 +85,12 @@ function shotsOf(d) {
 }
 /* the ticket as data, as it goes into feedback.json: screenshots replaced by their file names, times as ISO */
 export function ticketData(d) {
-  const shots = shotsOf(d).map((_, i) => 'screenshot-' + (i + 1) + '.jpg');
   const o = {};
   Object.keys(d).sort().forEach(k => {
-    if (k === 'screenshots') o.screenshots = shots;
-    else { const v = d[k]; o[k] = v && (v.toDate || v instanceof Date) ? iso(v) : v; }
+    if (k !== 'screenshots') { const v = d[k]; o[k] = v && (v.toDate || v instanceof Date) ? iso(v) : v; }
   });
+  // always present, even for a ticket written without any (by hand, say)
+  o.screenshots = shotsOf(d).map((_, i) => 'screenshot-' + (i + 1) + '.jpg');
   return o;
 }
 export function ticketMarkdown(d) {
@@ -204,6 +207,11 @@ async function selftest() {
     assert.ok(md.includes('2026-09-30T10:11:12Z'));
     assert.ok(!md.includes('base64'));
   });
+  t('a ticket with no screenshots field at all (written by hand) does not stop the mirror', () => {
+    const d = Object.assign({}, DOC); delete d.screenshots;
+    assert.deepStrictEqual(ticketData(d).screenshots, []);
+    assert.ok(ticketMarkdown(d).includes('# SEMFE-260930-AB23') && indexOf([d]).md.includes('1 μηνύματα'));
+  });
   t('the mirror: files per ticket, an index, nothing rewritten when nothing changed, deleted tickets removed', () => {
     const dir = path.join(os.tmpdir(), 'semfe-fb-' + process.pid);
     rmSync(dir, { recursive: true, force: true });
@@ -247,8 +255,9 @@ async function run(args) {
   initializeApp({ credential: cert(key), projectId: want });
   const db = getFirestore(), col = db.collection('feedback');
 
+  const both = !args.includes('--close') && !args.includes('--mirror');
   let applied = 0;
-  for (const r of files.filter(f => !f.error)) {
+  for (const r of (both || args.includes('--close')) ? files.filter(f => !f.error) : []) {
     const ref = col.doc(r.ticket), snap = await ref.get();
     if (!snap.exists) { console.log('::warning file=_feedback-resolutions/' + r.file + '::no ticket ' + r.ticket + ' in Firestore (deleted, or a typo?)'); continue; }
     if (snap.get('resolutionRepoHash') === r.hash) continue;
@@ -258,11 +267,18 @@ async function run(args) {
       applied++;
     }
   }
-  console.log(applied + ' ticket(s) closed from _feedback-resolutions/');
+  if (both || args.includes('--close')) console.log(applied + ' ticket(s) closed from _feedback-resolutions/');
 
-  if (logDir) {
+  if (logDir && (both || args.includes('--mirror'))) {
     const qs = await col.get(), docs = [];
-    qs.forEach(d => { const x = d.data(); x.ticket = d.id; docs.push(x); });
+    for (const d of qs.docs) {
+      const x = d.data(); x.ticket = d.id; x.screenshots = [];
+      if (x.shots) {
+        const ss = await col.doc(d.id).collection('shots').get();
+        x.screenshots = ss.docs.slice().sort((a, b) => +a.id - +b.id).map(s => s.get('url')).filter(u => typeof u === 'string');
+      }
+      docs.push(x);
+    }
     if (dry) console.log('would mirror ' + docs.length + ' ticket(s) into ' + logDir);
     else { const ch = writeMirror(logDir, docs); console.log('mirrored ' + docs.length + ' ticket(s), ' + ch.length + ' file(s) changed'); }
   }
