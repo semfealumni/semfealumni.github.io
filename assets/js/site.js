@@ -27,6 +27,11 @@
     document.addEventListener('keydown', function (e) {
       if ((e.key === 'Escape' || e.key === 'Esc') && nav.classList.contains('open')) { setOpen(false); toggle.focus(); }
     });
+    // Tab out of the open menu (into the page behind it) closes it: otherwise
+    // the focused link is hidden under the menu
+    document.addEventListener('focusin', function (e) {
+      if (nav.classList.contains('open') && !closest(e.target, '.site-header')) setOpen(false);
+    });
     if (window.matchMedia) {
       var mq = window.matchMedia('(min-width: 1101px)');
       var onChange = function () { fitHeader(); if (mq.matches && !tight()) setOpen(false); };
@@ -67,7 +72,7 @@
     if (small) docEl.classList.add('hdr-small');
     headerWrap.getBoundingClientRect();                // settle the sizes before transitions come back
     docEl.classList.remove('hdr-measure');
-    if (was !== tight() && toggle) { nav.classList.remove('open'); toggle.setAttribute('aria-expanded', 'false'); }
+    if (was !== tight() && toggle && setOpen) setOpen(false);     // the label too, not only aria-expanded
   }
   var fitQueued = false;
   function queueFit() { if (fitQueued) return; fitQueued = true; (window.requestAnimationFrame || setTimeout)(function () { fitQueued = false; fitHeader(); }); }
@@ -116,6 +121,9 @@
       });
     });
   });
+
+  /* ---- the footer's year: never behind the calendar, without a rebuild each January ---- */
+  $$('[data-year]').forEach(function (el) { var y = new Date().getFullYear(); if (+el.textContent < y) el.textContent = String(y); });
 
   /* ---- announcements filter ---- */
   var filter = $('[data-post-filter]'), list = $('#post-list'), count = $('[data-post-count]');

@@ -364,7 +364,10 @@ html.hdr-measure .site-header, html.hdr-measure .site-header * { transition: non
     linear-gradient(160deg, #0a2240 0%, #12355b 70%, #1b4f86 100%);
   padding: 48px 0 52px;
 }
-.page-hero h1 { font-size: clamp(1.8rem, 5vw, 2.9rem); margin-bottom: .25em; }
+.page-hero h1 { font-size: clamp(1.8rem, 5vw, 2.9rem); margin-bottom: .25em; hyphens: auto; }
+/* on the narrowest phones a long Greek word («εκλογοαπολογιστική») must fit a
+   line whole, not break in the middle */
+@media (max-width: 380px) { .page-hero h1 { font-size: 1.5rem; } .hero h1 { font-size: 1.75rem; } }
 .page-hero .lede { color: rgba(255,255,255,.86); max-width: 44em; margin: 0; font-size: 1.08rem; }
 .crumbs { font-size: .88rem; margin-bottom: 14px; color: rgba(255,255,255,.75); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .crumbs a { color: rgba(255,255,255,.9); display: inline-block; padding: 9px 0; }
@@ -390,6 +393,7 @@ section.dark a:not(.btn) { color: var(--gold); }
 /* stats */
 .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .stats.one { grid-template-columns: minmax(0, 1fr); }            /* sentence-long labels */
+@media (max-width: 380px) { .stats { grid-template-columns: minmax(0, 1fr); } }   /* «Διπλωματούχοι» whole, not split */
 .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 18px; box-shadow: var(--shadow); }
 .stat .value { font-size: 2rem; font-weight: 800; color: var(--navy); line-height: 1; }
 .stat .label { color: var(--muted); font-weight: 600; margin-top: 8px; font-size: .95rem; }
@@ -541,7 +545,10 @@ li, .stat .label, .post-nav a, .card p { text-wrap: pretty; }
 .lightbox .lb-stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 56px 12px 12px; min-height: 0; }
 .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
 .lightbox .lb-cap { color: #fff; text-align: center; padding: 10px 16px 18px; font-weight: 600; min-height: 1.5em; }
-.lightbox button { position: absolute; background: rgba(255,255,255,.12); color: #fff; border: 0; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
+/* dark discs with a light ring: on a phone the arrows sit ON the photo, and a
+   light disc vanished over a bright one (a white poster, marble) */
+.lightbox button { position: absolute; background: rgba(5, 11, 22, .72); box-shadow: 0 0 0 1px rgba(255,255,255,.35); color: #fff; border: 0; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: grid; place-items: center; }
+@media (hover: hover) { .lightbox button:hover { background: rgba(5, 11, 22, .9); } }
 .lightbox button svg { width: 24px; height: 24px; }
 .lightbox .lb-close { top: 10px; right: 10px; }
 .lightbox .lb-prev { left: 10px; top: 50%; margin-top: -24px; }
@@ -829,6 +836,11 @@ table.data .acts-in .btn { flex: 1 1 auto; justify-content: center; }
   .site-header, .site-footer, .nav-toggle, .acct-slot, .skip, .cta, .lightbox, .modal-backdrop { display: none !important; }
   .hero, .page-hero { background: none !important; color: #000 !important; padding: 12px 0 !important; }
   .hero *, .page-hero * { color: #000 !important; }
+  /* dark bands print as white paper: their light text must turn dark too, and
+     shadows would print as grey smudges */
+  section.dark, .milestones { background: none !important; }
+  section.dark, section.dark *, .milestones, .milestones * { color: #000 !important; }
+  * { box-shadow: none !important; text-shadow: none !important; }
   section { padding: 16px 0 !important; }
   body { font-size: 12pt; background: #fff; color: #000; }
 }

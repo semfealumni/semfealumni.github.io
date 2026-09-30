@@ -808,6 +808,7 @@
   /* ---- public API -------------------------------------------------------- */
   function onChange(fn) {
     listeners.push(fn);
+    if (configured && !sdkPromise && !authKnown) loadSdk();   // a page that asks about the account needs the library
     if (authKnown) { try { fn(current); } catch (e) {} }
     else if (!configured) { try { fn(null); } catch (e) {} }
   }
@@ -841,11 +842,12 @@
     }, function () { signingOut = false; });
   }
   if (configured) {
-    // load right away on the member pages; elsewhere once the page is idle
-    var eager = document.body.getAttribute('data-firestore') === '1' || !!hint();
-    if (eager) loadSdk();
-    else if ('requestIdleCallback' in window) requestIdleCallback(loadSdk, { timeout: 2500 });
-    else setTimeout(loadSdk, 1200);
+    // Load the sign-in library (from Google's gstatic.com; it keeps its
+    // session in the browser's storage) only when it can be needed: on the
+    // member pages, for someone who has signed in on this browser before, or
+    // once the visitor opens the sign-in dialog. A visitor who only reads the
+    // public pages never downloads it and gets nothing stored.
+    if (document.body.getAttribute('data-firestore') === '1' || !!hint()) loadSdk();
   } else {
     authKnown = true;
   }

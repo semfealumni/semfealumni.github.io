@@ -40,7 +40,7 @@ const SITE_URL = C.siteUrl.replace(/\/?$/, '/');
    search engines are asked not to index it (two copies of one site compete
    in search results). Set to true when this becomes the official site. */
 const INDEXABLE = false;
-const YEAR_NOW = 2026;       // the footer's copyright range ends here
+const YEAR_NOW = 2026;       // the footer's copyright range ends here in the built page; site.js moves it on to the current year
 const OG_W = 1200, OG_H = 630;
 
 /* ---- the sign-in methods a page names ------------------------------------- */
@@ -313,7 +313,7 @@ function footer(root) {
       </div>
     </div>
     <div class="footer-bottom">
-      <span>Copyright &copy; 2013–${YEAR_NOW} Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ</span>
+      <span>Copyright &copy; 2013–<span data-year>${YEAR_NOW}</span> Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ</span>
       <span class="legal"><a href="${root}privacy/">Πολιτική απορρήτου</a><a href="${root}terms/">Όροι χρήσης</a><a href="${root}data-deletion/">Διαγραφή δεδομένων</a></span>
     </div>
   </div>
@@ -340,6 +340,10 @@ function typeset(html) {
   const parts = html.slice(at).split(/(<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]+>)/);
   for (let i = 0; i < parts.length; i += 2)       // even entries are text between tags
     parts[i] = keepDate(parts[i]).replace(ONE_LETTER, '$1$2&nbsp;');
+  // a one-letter word right before an inline tag («όπως η <a…», «(ο <strong>…»):
+  // the rule above cannot see past the end of its text, so bind it here
+  for (let i = 0; i + 1 < parts.length; i += 2)
+    if (/^<(a|strong|em|b|i|span|abbr|time|q|cite)\b/i.test(parts[i + 1])) parts[i] = parts[i].replace(/(^|[\s(«"])([οηήΟΗΉ]) $/, '$1$2&nbsp;');
   return html.slice(0, at) + parts.join('');
 }
 
@@ -439,10 +443,11 @@ if (ROOTED) {
   for (const f of ['CNAME', 'robots.txt']) if (existsSync(path.join(ROOT, f))) DROP.push(f);
 }
 
-/* sitemap.xml: every indexable page */
+/* sitemap.xml: every indexable page (none while the whole site is noindex:
+   a sitemap of noindex pages only earns "submitted URL marked noindex") */
 out.push(['sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${all.filter(p => !p.meta.noindex && !p.meta.file).map(p => `  <url><loc>${SITE_URL}${p.path}</loc>${p.isPost ? `<lastmod>${p.meta.date}</lastmod>` : ''}</url>`).join('\n')}
+${all.filter(p => INDEXABLE && !p.meta.noindex && !p.meta.file).map(p => `  <url><loc>${SITE_URL}${p.path}</loc>${p.isPost ? `<lastmod>${p.meta.date}</lastmod>` : ''}</url>`).join('\n')}
 </urlset>
 `]);
 

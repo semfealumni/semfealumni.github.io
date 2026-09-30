@@ -613,7 +613,28 @@ try {
       await ctx.close();
     }
   }
-  // the header slims down once the page scrolls, and comes back at the top
+  // the narrowest phones: no heading, figure label or button has to break a
+  // Greek word in the middle («Διπλωματούχ / οι», «εκλογοαπολογιστικ / ή»)
+  for (const w of [320, 360]) {
+    const { ctx, page } = await open(SUB, { width: w, height: 700, phone: true, touch: true });
+    const split = [];
+    for (const rel of PAGES.filter(p => !/^(auth|admin)\//.test(p) && !/^blog\/(archive|category)\//.test(p))) {   // not the forwarding pages
+      await page.goto(ORIGIN + urlOf(rel));
+      split.push(...(await page.evaluate(() => {
+        const out = [];
+        document.querySelectorAll('h1, h2:not(.sr-only), h3, .stat .label, .subnav .btn, main .btn').forEach(el => {
+          if (!el.offsetWidth) return;
+          el.style.overflowWrap = 'normal'; el.style.hyphens = 'manual';
+          if (el.scrollWidth > el.clientWidth + 1) out.push(location.pathname + ' ' + el.tagName + ': ' + el.textContent.trim().slice(0, 40));
+          el.style.overflowWrap = ''; el.style.hyphens = '';
+        });
+        return out;
+      })));
+    }
+    t(split.length === 0, `${w}px: every heading, figure label and button fits its words whole` + list(split));
+    await ctx.close();
+  }
+  // the header slims down once the page scrolls, and comes back at the top  // the header slims down once the page scrolls, and comes back at the top
   for (const [w, h] of [[1440, 900], [1101, 800], [390, 844]]) {
     const phone = isPhone(w, h);
     const { ctx, page, log } = await open(SUB + 'blog/', { width: w, height: h, phone, touch: phone });

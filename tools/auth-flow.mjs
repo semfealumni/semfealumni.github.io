@@ -248,6 +248,9 @@ async function scenario(id, title, opts, fn) {
     route.fulfill({ status: 200, contentType: 'application/javascript; charset=utf-8', body: configFor(opts.cfg || 'oidc') }));
   const seed = Object.assign({ accounts: {}, docs: {}, currentUid: null, queue: [], calls: [] }, opts.seed || {});
   await ctx.addInitScript(s => { try { if (!localStorage.getItem('__fbfake')) localStorage.setItem('__fbfake', JSON.stringify(s)); } catch (e) {} }, seed);
+  // a browser that signed in before also holds auth.js's note of it (saveHint), which the
+  // public pages use to decide whether to load the sign-in library at all
+  if (opts.hint) await ctx.addInitScript(h => { try { if (!localStorage.getItem('semfe:auth-hint')) localStorage.setItem('semfe:auth-hint', JSON.stringify(h)); } catch (e) {} }, opts.hint);
   const page = await ctx.newPage();
   page.setDefaultTimeout(8000);
   const errors = [];
@@ -385,7 +388,7 @@ await scenario('A', 'header, dialog, providers, a new Google user, the menu, sig
 });
 
 /* ================================================================================== */
-await scenario('B', 'the «Διαχείριση» menu item appears only for a VERIFIED admin e-mail', { cfg: 'oidc',
+await scenario('B', 'the «Διαχείριση» menu item appears only for a VERIFIED admin e-mail', { cfg: 'oidc', hint: { n: 'Διαχειριστής', p: '', e: ADMIN },
   seed: signedInSeed(acct('u-admin', { email: ADMIN, name: 'Διαχειριστής', verified: true, providers: ['google.com'] })) }, async (page) => {
   t(ADMIN && R.admins.map(x => x.toLowerCase()).includes(ADMIN), `ADMIN_EMAILS[0] (${ADMIN}) is also in isAdmin() of firestore.rules`);
   await page.goto(URL_(''));
@@ -1656,6 +1659,17 @@ await scenario('R6', 'merging: the person is asked, with the other account named
   t(await waitFor(page, () => /ακυρώθηκε/.test((document.querySelector('#account-app [data-merge-msg]') || {}).textContent || '')), '«Η ένωση ακυρώθηκε: δεν άλλαξε τίποτα.»');
   t(env.dialogs.some(d => d.type === 'confirm' && /maria\.old@example\.com/.test(d.message)), 'the question names the account that would be merged away');
   t(!env.fnRequests || !env.fnRequests.some(r => /accounts/.test(r.url || '')), 'nothing was sent to the server');
+});
+
+await scenario('R7', 'a visitor who only reads the public pages never downloads the sign-in library', { cfg: 'oidc' }, async (page, env) => {
+  await page.goto(URL_(''));
+  await page.goto(URL_('organa/'));
+  await sleep(1500);
+  t(env.sdkUrls.length === 0, 'no request to gstatic.com on the public pages' + list(env.sdkUrls));
+  t(await page.evaluate(() => !window.firebase), '… and nothing of Firebase in the page');
+  await page.click('#acct-slot [data-signin]');
+  t(await visible(page.locator('.modal-backdrop')), '«Σύνδεση» opens the dialog');
+  t(await sdkReady(page) && env.sdkUrls.length > 0, '… and only then the library is loaded');
 });
 
 /* ======================= Q. the Σχόλια page and the admin inbox ======================= */
