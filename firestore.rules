@@ -162,5 +162,9 @@ service cloud.firestore {
     match /accountMerges/{id} {
       allow read, write: if false;
     }
+    // the same function's "one merge at a time" locks (a few seconds each)
+    match /mergeLocks/{uid} {
+      allow read, write: if false;
+    }
   }
 }

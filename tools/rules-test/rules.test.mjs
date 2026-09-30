@@ -776,6 +776,12 @@ describe('everything else is denied, even to the admin', () => {
       await assertFails(dbAs(who).collection('accountMerges').doc('m2').set({ keep: 'alice', drop: 'bob' }));
     }
   });
+  it('nobody can read or take a merge lock (mergeLocks)', async () => {
+    for (const who of [U.alice, U.admin]) {
+      await assertFails(dbAs(who).collection('mergeLocks').doc('alice').get());
+      await assertFails(dbAs(who).collection('mergeLocks').doc('alice').set({ at: 1 }));
+    }
+  });
   it('an active member cannot read or write an unlisted collection', async () => {
     await seed('members/alice', storedMember('active'));
     const db = dbAs(U.alice);

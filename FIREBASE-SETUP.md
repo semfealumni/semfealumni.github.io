@@ -415,7 +415,15 @@ How a merge decides what to keep:
 * **Ways to sign in** (Google, LinkedIn, e-mail and password) all move over.
 * Every merge is recorded in `accountMerges/` (visible only in the Firebase
   console) with who did it and when.
-* An admin cannot merge away or delete their own account from the list.
+* An admin cannot merge away or delete their own account from the list, and
+  an account with a confirmed admin address is never the one removed.
+* A member can merge only into an account whose e-mail is confirmed (or that
+  has none), and an unconfirmed e-mail is never handed to the kept account:
+  otherwise someone could register another person's address and keep a way
+  into it after the real owner claims it.
+* If a way to sign in cannot move to the kept account, it goes back to the
+  other one and that account is kept, so nobody is locked out; the page says
+  the merge was partial and it can be tried again.
 
 ---
 
@@ -471,6 +479,8 @@ deploy and refuses when the target is not the project in `.firebaserc`.
     accountMerges/{id}   a note of each merge of two accounts (which, by whom,
                          when). Written only by the Cloud Function; no browser
                          can read it.
+    mergeLocks/{uid}     held for a few seconds while a merge runs, so two
+                         merges never work on one account at once. Server only.
 
 Nothing else is stored. The privacy policy (`/privacy/`) says the same in Greek;
 if you change what the site collects, update it too.

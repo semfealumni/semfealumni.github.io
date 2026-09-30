@@ -54,6 +54,7 @@ function fakeDb(seed) {
     key,
     async get() { return { exists: docs.has(key), id: key.split('/')[1], data: () => docs.get(key) }; },
     async set(v, o) { docs.set(key, Object.assign({}, o && o.merge ? docs.get(key) : {}, v)); },
+    async create(v) { if (docs.has(key)) { const e = new Error('6 ALREADY_EXISTS: Document already exists'); e.code = 6; throw e; } docs.set(key, v); },
     async delete() { docs.delete(key); }
   });
   return {
@@ -91,6 +92,8 @@ const TOKENS = {
   admin: { uid: 'adm', email: 'kstouras@gmail.com', email_verified: true },
   adminUnverified: { uid: 'adm', email: 'kstouras@gmail.com', email_verified: false },
   member: { uid: 'g1', email: 'maria@gmail.com', email_verified: true },
+  memberUnverified: { uid: 'p9', email: 'kstouras@gmail.com', email_verified: false },
+  otherAdmin: { uid: 'adm2', email: 'gradsemfe@gmail.com', email_verified: true, auth_time: CLOCK / 1000 - 60 },
   otherFresh: { uid: 'li1', auth_time: CLOCK / 1000 - 60 },
   otherStale: { uid: 'li1', auth_time: CLOCK / 1000 - 3600 },
   selfAgain: { uid: 'g1', auth_time: CLOCK / 1000 - 10 }
@@ -206,6 +209,79 @@ const APP = (o) => Object.assign({
     await assert.rejects(accounts.mergeAccounts({ auth, db: fakeDb(), now: () => NOW, keepUid: 'k', dropUid: 'k' }), e => e.code === 'same-account');
     await assert.rejects(accounts.mergeAccounts({ auth, db: fakeDb(), now: () => NOW, keepUid: 'k', dropUid: 'zz' }), e => e.code === 'no-such-account');
     assert.ok(auth.byUid.has('k'));
+  });
+
+  /* ---- the safety rules (from the security review) ---- */
+  await t('an address moves to KEEP only if DROP had CONFIRMED it', async () => {
+    const auth = fakeAuth([{ uid: 'k', customClaims: { li: true } }, { uid: 'd', email: 'someone@gmail.com', emailVerified: false, providerData: [PW('someone@gmail.com')] }]);
+    const r = await accounts.mergeAccounts({ auth, db: fakeDb(), now: () => NOW, keepUid: 'k', dropUid: 'd' });
+    assert.ok(!auth.byUid.get('k').email, 'no unconfirmed address handed over'); assert.strictEqual(r.email, null);
+  });
+  await t('an account with a confirmed admin address is never the one removed (merge and delete)', async () => {
+    const auth = fakeAuth([{ uid: 'k' }, { uid: 'adm2', email: 'GradSemfe@gmail.com', emailVerified: true }]);
+    await assert.rejects(accounts.mergeAccounts({ auth, db: fakeDb(), now: () => NOW, keepUid: 'k', dropUid: 'adm2' }), e => e.code === 'cannot-remove-admin');
+    assert.ok(auth.byUid.has('adm2'));
+    const users = [{ uid: 'adm', email: 'kstouras@gmail.com', emailVerified: true }, { uid: 'adm2', email: 'gradsemfe@gmail.com', emailVerified: true }, { uid: 'g1', email: 'maria@gmail.com', emailVerified: true }];
+    let x = await call({ action: 'merge', keep: 'g1', drop: 'adm2' }, { token: 'admin', users });
+    assert.strictEqual(x.r.body.error, 'cannot-remove-admin'); assert.ok(x.auth.byUid.has('adm2'));
+    x = await call({ action: 'delete', uid: 'adm2' }, { token: 'admin', users });
+    assert.strictEqual(x.r.body.error, 'cannot-remove-admin'); assert.ok(x.auth.byUid.has('adm2'));
+    x = await call({ action: 'mergeSelf', otherIdToken: 'otherAdmin' }, { token: 'member', users });
+    assert.strictEqual(x.r.body.error, 'cannot-remove-admin'); assert.ok(x.auth.byUid.has('adm2'));
+    // an UNconfirmed account using an admin address is not an admin: it may go
+    const y = await call({ action: 'delete', uid: 'p9' }, { token: 'admin', users: [users[0], { uid: 'p9', email: 'gradsemfe@gmail.com', emailVerified: false }] });
+    assert.strictEqual(y.r.statusCode, 200);
+  });
+  await t('mergeSelf: the account kept must have a confirmed e-mail (or none)', async () => {
+    const users = [{ uid: 'p9', email: 'kstouras@gmail.com', emailVerified: false, providerData: [PW('kstouras@gmail.com')] }, { uid: 'li1', customClaims: { li: true } }];
+    const x = await call({ action: 'mergeSelf', otherIdToken: 'otherFresh' }, { token: 'memberUnverified', users, docs: { 'linkedinLinks/s1': { uid: 'li1' } } });
+    assert.strictEqual(x.r.statusCode, 403); assert.strictEqual(x.r.body.error, 'email-not-verified');
+    assert.ok(x.auth.byUid.has('li1')); assert.strictEqual(x.db.docs.get('linkedinLinks/s1').uid, 'li1', 'the LinkedIn was not pointed at the unconfirmed account');
+  });
+  await t('a sign-in that fails to attach to KEEP goes back to DROP, and DROP is kept', async () => {
+    const auth = fakeAuth([{ uid: 'k', email: 'k@x.gr', emailVerified: true, providerData: [PW('k@x.gr')] }, { uid: 'd', email: 'd@gmail.com', emailVerified: true, providerData: [G('d', 'd@gmail.com')] }]);
+    const up = auth.updateUser.bind(auth);
+    auth.updateUser = async (uid, p) => { if (uid === 'k' && p.providerToLink) { const e = new Error('boom'); e.code = 'auth/internal-error'; throw e; } return up(uid, p); };
+    const db = fakeDb({ 'members/d': APP() });
+    const r = await accounts.mergeAccounts({ auth, db, now: () => NOW, keepUid: 'k', dropUid: 'd' });
+    assert.strictEqual(r.partial, true); assert.strictEqual(r.removed, null);
+    assert.ok(auth.byUid.has('d'), 'DROP kept'); assert.deepStrictEqual(accounts.methodsOf(auth.byUid.get('d')), ['google'], 'its Google is back');
+    assert.ok(db.docs.has('members/d'), "DROP's application kept too");
+    assert.deepStrictEqual(r.notMoved.map(x => x.method + ':' + x.why), ['google:link-failed']);
+    assert.strictEqual(auth.byUid.get('k').email, 'k@x.gr');
+  });
+  await t('one merge at a time: a held lock -> merge-busy; a stale one is taken over; locks are released', async () => {
+    const users = () => fakeAuth([{ uid: 'k', email: 'k@x.gr', emailVerified: true }, { uid: 'd' }]);
+    let db = fakeDb({ 'mergeLocks/d': { at: Date.now() - 1000 } });
+    let auth = users();
+    await assert.rejects(accounts.mergeAccounts({ auth, db, now: () => NOW, keepUid: 'k', dropUid: 'd' }), e => e.code === 'merge-busy' && e.status === 409);
+    assert.ok(auth.byUid.has('d')); assert.ok(!db.docs.has('mergeLocks/k'), 'the lock taken before giving up is released');
+    db = fakeDb({ 'mergeLocks/d': { at: Date.now() - 11 * 60 * 1000 } });
+    auth = users();
+    await accounts.mergeAccounts({ auth, db, now: () => NOW, keepUid: 'k', dropUid: 'd' });
+    assert.ok(!auth.byUid.has('d'), 'a stale lock does not block for ever');
+    assert.ok(![...db.docs.keys()].some(k => k.startsWith('mergeLocks/')), 'no locks left behind');
+  });
+  await t('LinkedIn is only claimed for KEEP when a LinkedIn link actually moved', async () => {
+    const auth = fakeAuth([{ uid: 'k', email: 'k@x.gr', emailVerified: true }, { uid: 'd', customClaims: { li: true } }]);
+    const r = await accounts.mergeAccounts({ auth, db: fakeDb(), now: () => NOW, keepUid: 'k', dropUid: 'd' });
+    assert.strictEqual(r.linkedin, false); assert.ok(!(auth.byUid.get('k').customClaims || {}).li);
+  });
+  await t('a malformed body or uid is a 400/404, not a 500', async () => {
+    let x = await call('{not json', { token: 'admin', users: [{ uid: 'adm' }] });
+    assert.strictEqual(x.r.statusCode, 400); assert.strictEqual(x.r.body.error, 'bad-request');
+    const auth = fakeAuth([{ uid: 'adm', email: 'kstouras@gmail.com', emailVerified: true }], TOKENS);
+    auth.getUser = async () => { const e = new Error('bad uid'); e.code = 'auth/invalid-uid'; throw e; };
+    x = await call({ action: 'merge', keep: 'adm', drop: 'x'.repeat(200) }, { token: 'admin', auth });
+    assert.strictEqual(x.r.statusCode, 404); assert.strictEqual(x.r.body.error, 'no-such-account');
+  });
+  await t('tokens are checked for revocation (disabled or signed-out accounts)', async () => {
+    const auth = fakeAuth([{ uid: 'adm' }], TOKENS);
+    const seen = [];
+    const v = auth.verifyIdToken.bind(auth);
+    auth.verifyIdToken = async (tok, check) => { seen.push(check); return v(tok); };
+    await call({ action: 'list' }, { token: 'admin', auth });
+    assert.deepStrictEqual(seen, [true]);
   });
 
   /* ---- the HTTP handler ---- */

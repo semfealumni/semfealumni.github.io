@@ -164,7 +164,7 @@ async function handle(req, res, deps, cfg) {
     const authz = (req.get ? req.get('authorization') : (req.headers && req.headers.authorization)) || '';
     if (/^Bearer\s+\S+/.test(authz)) {
       let t;
-      try { t = await deps.auth.verifyIdToken(authz.replace(/^Bearer\s+/, '')); }
+      try { t = await deps.auth.verifyIdToken(authz.replace(/^Bearer\s+/, ''), true); }   // checkRevoked: not a disabled account's token
       catch (e) { throw new HttpError(401, 'bad-id-token'); }
       // Linking needs an account whose e-mail is PROVEN. Otherwise someone could
       // register a password account with another person's (e.g. an admin's)

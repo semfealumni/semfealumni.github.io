@@ -16,6 +16,15 @@
  *     proves the LinkedIn account, which is enough to sign in to the account
  *     it belongs to.
  *
+ * Safety rules, whichever way in:
+ *   - the account kept must have a CONFIRMED e-mail, or none (mergeSelf):
+ *     otherwise someone could register an address that is not theirs, merge
+ *     their own Google or LinkedIn into it, and keep that way in after the
+ *     real owner claims the address;
+ *   - an address moves to KEEP only if it was confirmed on DROP;
+ *   - an account with a confirmed admin address is never the one removed;
+ *   - only one merge at a time may touch an account (mergeLocks/{uid}).
+ *
  * What a merge does (KEEP stays, DROP goes), in this order, so that a failure
  * part-way never loses anything that only DROP held:
  *   1. the application: DROP's is copied over when KEEP has none; with two,
@@ -27,16 +36,19 @@
  *   4. DROP's Google / Facebook / LinkedIn-OIDC sign-ins move to KEEP, unless
  *      KEEP already has one of that kind (Firebase allows one per kind);
  *      DROP's e-mail + password cannot move (a password belongs to an address),
- *      and KEEP can add its own from the account page;
+ *      and KEEP can add its own from the account page. If one fails to attach
+ *      to KEEP, it goes back to DROP and DROP is NOT deleted (report.partial):
+ *      nobody is left without their way in, and the merge can be run again;
  *   5. DROP's application and card are deleted, then DROP itself;
- *   6. KEEP takes DROP's e-mail address when it has none;
+ *   6. KEEP takes DROP's e-mail address when it has none and DROP's was confirmed;
  *   7. a note in accountMerges/ (server only: read it in the Firebase console) says who merged what, and when. */
 'use strict';
 
 const { HttpError, LINKS } = require('./linkedin');
 
 // KEEP IN SYNC with ADMIN_EMAILS in assets/js/config.js and isAdmin() in
-// firestore.rules (tools/check.mjs fails when the three differ).
+// firestore.rules (test-accounts.js pins this list to config.js;
+// tools/check.mjs pins config.js to the rules).
 const ADMIN_EMAILS = ['kstouras@gmail.com', 'gradsemfe@gmail.com'];
 
 const KEY = { 'google.com': 'google', 'facebook.com': 'facebook', 'oidc.linkedin': 'linkedin', password: 'password' };
@@ -51,6 +63,8 @@ const ADMIN_KEYS = ['status', 'duesYears', 'adminNote', 'reviewedAt', 'reviewedB
 const FILL = ['email', 'phone', 'stage', 'entryYear', 'gradYear', 'direction', 'employer', 'position', 'city', 'linkedin', 'note'];
 const RANK = { rejected: 1, pending: 2, active: 3 };
 const FRESH_SECONDS = 15 * 60;          // the proof for mergeSelf: a sign-in in the last 15 minutes
+const LOCKS = 'mergeLocks';             // one merge at a time per account (server only, like accountMerges)
+const LOCK_STALE_MS = 10 * 60 * 1000;   // a lock left behind by a crash is taken over after 10 minutes
 
 function isAdminToken(t) {
   return !!t && t.email_verified === true && ADMIN_EMAILS.indexOf(String(t.email || '').toLowerCase()) !== -1;
@@ -62,6 +76,29 @@ function ms(t) {
   return isFinite(n) ? n : null;
 }
 function empty(v) { return v === undefined || v === null || v === ''; }
+function isAdminUser(u) {
+  return !!u && u.emailVerified === true && ADMIN_EMAILS.indexOf(String(u.email || '').toLowerCase()) !== -1;
+}
+/* the account behind a uid, or a 404 (a uid Firebase rejects outright counts as not found) */
+function getAccount(auth, uid) {
+  return auth.getUser(uid).catch(e => {
+    if (e && (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-uid' || e.code === 'auth/argument-error')) throw new HttpError(404, 'no-such-account');
+    throw e;
+  });
+}
+/* Take the lock for one account; 409 when another merge holds it. */
+async function lockAccount(db, uid, clock) {
+  const ref = db.collection(LOCKS).doc(uid);
+  try { await ref.create({ at: clock() }); return ref; }
+  catch (e) {
+    const exists = e && (e.code === 6 || e.code === 'already-exists' || /already exists/i.test(String(e.message || '')));
+    if (!exists) throw e;
+    const s = await ref.get();
+    const at = s.exists ? (s.data() || {}).at : null;
+    if (typeof at === 'number' && clock() - at > LOCK_STALE_MS) { await ref.set({ at: clock() }); return ref; }
+    throw new HttpError(409, 'merge-busy');
+  }
+}
 function methodsOf(u) {
   const l = [];
   (u.providerData || []).forEach(p => { const k = KEY[p.providerId]; if (k && l.indexOf(k) === -1) l.push(k); });
@@ -115,12 +152,25 @@ function mergeApplications(k, d) {
   return out;
 }
 
-async function mergeAccounts({ auth, db, now, keepUid, dropUid, by }) {
-  if (!keepUid || !dropUid) throw new HttpError(400, 'bad-request');
+async function mergeAccounts({ auth, db, now, clock, keepUid, dropUid, by }) {
+  if (!keepUid || !dropUid || typeof keepUid !== 'string' || typeof dropUid !== 'string') throw new HttpError(400, 'bad-request');
   if (keepUid === dropUid) throw new HttpError(400, 'same-account');
-  const keep = await auth.getUser(keepUid).catch(e => { if (e && e.code === 'auth/user-not-found') throw new HttpError(404, 'no-such-account'); throw e; });
-  const drop = await auth.getUser(dropUid).catch(e => { if (e && e.code === 'auth/user-not-found') throw new HttpError(404, 'no-such-account'); throw e; });
-  const report = { kept: keepUid, removed: dropUid, application: 'none', moved: [], notMoved: [], linkedin: false, email: null };
+  clock = clock || Date.now;
+  const keep = await getAccount(auth, keepUid);
+  const drop = await getAccount(auth, dropUid);
+  if (isAdminUser(drop)) throw new HttpError(400, 'cannot-remove-admin');
+  // both accounts, always in the same order, so two merges crossing each other cannot both start
+  const held = [];
+  try {
+    for (const uid of [keepUid, dropUid].sort()) held.push(await lockAccount(db, uid, clock));
+    return await mergeLocked({ auth, db, now, keep, drop, keepUid, dropUid, by });
+  } finally {
+    await Promise.all(held.map(r => r.delete().catch(() => {})));
+  }
+}
+
+async function mergeLocked({ auth, db, now, keep, drop, keepUid, dropUid, by }) {
+  const report = { kept: keepUid, removed: dropUid, application: 'none', moved: [], notMoved: [], linkedin: false, email: null, partial: false };
 
   // 1-2. the application and the directory card
   const members = db.collection('members'), dir = db.collection('directory');
@@ -145,7 +195,7 @@ async function mergeAccounts({ auth, db, now, keepUid, dropUid, by }) {
   const linkRefs = [];
   links.forEach(d => linkRefs.push(d.ref));
   await Promise.all(linkRefs.map(r => r.set({ uid: keepUid, updatedAt: now() }, { merge: true })));
-  if (linkRefs.length || (drop.customClaims && drop.customClaims.li === true)) {
+  if (linkRefs.length) {                              // a LinkedIn that signs in to DROP now signs in to KEEP
     report.linkedin = true;
     const claims = Object.assign({}, keep.customClaims || {});
     if (claims.li !== true) { claims.li = true; await auth.setCustomUserClaims(keepUid, claims); }
@@ -164,22 +214,39 @@ async function mergeAccounts({ auth, db, now, keepUid, dropUid, by }) {
     }
   });
 
-  // 5. DROP's documents, its sign-ins (unlinked first: one sign-in can belong to one account), then DROP itself
-  await Promise.all([members.doc(dropUid).delete(), dir.doc(dropUid).delete()]);
-  if (toMove.length) await auth.updateUser(dropUid, { providersToUnlink: toMove.map(p => p.providerId) });
-  for (const p of toMove) {
+  // 5. DROP's sign-ins (unlinked first: one sign-in can belong to one account),
+  //    then, only when every one of them found its new home, DROP itself
+  const linkOf = p => {
     const link = { providerId: p.providerId, uid: p.uid };
     if (p.email) link.email = p.email;
     if (p.displayName) link.displayName = p.displayName;
     if (p.photoURL) link.photoURL = p.photoURL;
-    try { await auth.updateUser(keepUid, { providerToLink: link }); report.moved.push(KEY[p.providerId]); }
-    catch (e) { report.notMoved.push({ method: KEY[p.providerId], why: 'link-failed', email: p.email || '' }); }
+    return link;
+  };
+  if (toMove.length) await auth.updateUser(dropUid, { providersToUnlink: toMove.map(p => p.providerId) });
+  const failed = [];
+  for (const p of toMove) {
+    try { await auth.updateUser(keepUid, { providerToLink: linkOf(p) }); report.moved.push(KEY[p.providerId]); }
+    catch (e) { failed.push(p); }
   }
-  await auth.deleteUser(dropUid);
+  if (failed.length) {
+    // give DROP back what could not move, and keep DROP: nobody loses a way in
+    for (const p of failed) {
+      let back = true;
+      try { await auth.updateUser(dropUid, { providerToLink: linkOf(p) }); } catch (e) { back = false; }
+      report.notMoved.push({ method: KEY[p.providerId], why: back ? 'link-failed' : 'link-failed-lost', email: p.email || '' });
+    }
+    report.partial = true;
+    report.removed = null;
+  } else {
+    await Promise.all([members.doc(dropUid).delete(), dir.doc(dropUid).delete()]);
+    await auth.deleteUser(dropUid);
+  }
 
-  // 6. an account with no e-mail takes DROP's (free now that DROP is gone)
+  // 6. an account with no e-mail takes DROP's (free now that DROP is gone),
+  //    but only a CONFIRMED one: an unconfirmed address proves nothing
   const patch = {};
-  if (!keep.email && drop.email) { patch.email = drop.email; patch.emailVerified = !!drop.emailVerified; report.email = drop.email; }
+  if (!report.partial && !keep.email && drop.email && drop.emailVerified === true) { patch.email = drop.email; patch.emailVerified = true; report.email = drop.email; }
   if (!keep.displayName && drop.displayName) patch.displayName = drop.displayName;
   if (!keep.photoURL && drop.photoURL) patch.photoURL = drop.photoURL;
   if (Object.keys(patch).length) {
@@ -188,7 +255,7 @@ async function mergeAccounts({ auth, db, now, keepUid, dropUid, by }) {
 
   // 7. the record
   await db.collection('accountMerges').add({
-    keep: keepUid, drop: dropUid, by: by || '', at: now(),
+    keep: keepUid, drop: dropUid, by: by || '', at: now(), partial: report.partial,
     keepEmail: keep.email || '', dropEmail: drop.email || '', keepName: keep.displayName || '', dropName: drop.displayName || '',
     application: report.application, moved: report.moved, notMoved: report.notMoved.map(x => x.method + ':' + x.why)
   });
@@ -213,21 +280,28 @@ async function handle(req, res, deps, cfg) {
     const authz = (req.get ? req.get('authorization') : (req.headers && req.headers.authorization)) || '';
     if (!/^Bearer\s+\S+/.test(authz)) throw new HttpError(401, 'not-signed-in');
     let me;
-    try { me = await deps.auth.verifyIdToken(authz.replace(/^Bearer\s+/, '')); }
+    // checkRevoked: a disabled or signed-out-everywhere account's token is refused
+    try { me = await deps.auth.verifyIdToken(authz.replace(/^Bearer\s+/, ''), true); }
     catch (e) { throw new HttpError(401, 'bad-id-token'); }
-    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
+    let body;
+    try { body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {}); }
+    catch (e) { throw new HttpError(400, 'bad-request'); }
+    if (!body || typeof body !== 'object') throw new HttpError(400, 'bad-request');
     const action = body.action;
+    const merge = (keepUid, dropUid, by) => mergeAccounts({ auth: deps.auth, db: deps.db, now: deps.now, clock: deps.clock, keepUid, dropUid, by });
 
     if (action === 'mergeSelf') {
       // the person proves the other account with a fresh sign-in to it
       if (typeof body.otherIdToken !== 'string' || !body.otherIdToken) throw new HttpError(400, 'bad-request');
       let other;
-      try { other = await deps.auth.verifyIdToken(body.otherIdToken); }
+      try { other = await deps.auth.verifyIdToken(body.otherIdToken, true); }
       catch (e) { throw new HttpError(401, 'bad-other-token'); }
       if (other.uid === me.uid) throw new HttpError(400, 'same-account');
       const nowS = Math.floor(deps.clock() / 1000);
       if (!(other.auth_time > nowS - FRESH_SECONDS)) throw new HttpError(401, 'other-sign-in-too-old');
-      const report = await mergeAccounts({ auth: deps.auth, db: deps.db, now: deps.now, keepUid: me.uid, dropUid: other.uid, by: 'self' });
+      // the account kept must own its address (see the safety rules at the top)
+      if (me.email && me.email_verified !== true) throw new HttpError(403, 'email-not-verified');
+      const report = await merge(me.uid, other.uid, 'self');
       return res.status(200).json({ ok: true, report });
     }
 
@@ -236,12 +310,14 @@ async function handle(req, res, deps, cfg) {
     if (action === 'merge') {
       if (typeof body.keep !== 'string' || typeof body.drop !== 'string') throw new HttpError(400, 'bad-request');
       if (body.drop === me.uid) throw new HttpError(400, 'cannot-remove-yourself');
-      const report = await mergeAccounts({ auth: deps.auth, db: deps.db, now: deps.now, keepUid: body.keep, dropUid: body.drop, by: me.email });
+      const report = await merge(body.keep, body.drop, me.email);
       return res.status(200).json({ ok: true, report });
     }
     if (action === 'delete') {
       if (typeof body.uid !== 'string' || !body.uid) throw new HttpError(400, 'bad-request');
       if (body.uid === me.uid) throw new HttpError(400, 'cannot-remove-yourself');
+      const u = await getAccount(deps.auth, body.uid);
+      if (isAdminUser(u)) throw new HttpError(400, 'cannot-remove-admin');     // an admin is removed from ADMIN_EMAILS first, never from here
       await deps.auth.deleteUser(body.uid).catch(e => { if (e && e.code === 'auth/user-not-found') throw new HttpError(404, 'no-such-account'); throw e; });
       // the cleanupDeletedUser trigger removes the application, card and LinkedIn link
       return res.status(200).json({ ok: true });
@@ -254,4 +330,4 @@ async function handle(req, res, deps, cfg) {
   }
 }
 
-module.exports = { handle, listAccounts, mergeAccounts, mergeApplications, methodsOf, isAdminToken, ADMIN_EMAILS, PROFILE_KEYS, ADMIN_KEYS };
+module.exports = { handle, listAccounts, mergeAccounts, mergeApplications, methodsOf, isAdminToken, isAdminUser, ADMIN_EMAILS, PROFILE_KEYS, ADMIN_KEYS, LOCKS };

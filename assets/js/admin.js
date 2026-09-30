@@ -382,7 +382,10 @@
     btn.disabled = true; msg.textContent = '';
     A.callAccounts({ action: 'merge', keep: keepUid, drop: dropUid }).then(function (j) {
       merging = false; picked = [];
-      uMsg = { cls: 'ok', text: 'Ενώθηκαν: έμεινε ο λογαριασμός ' + (keep.email || uName(keep)) + ', διαγράφηκε ο ' + (drop.email || uName(drop)) + '. ' + adminSummary(j.report || {}) };
+      var rep = j.report || {};
+      uMsg = rep.partial
+        ? { cls: 'err', text: 'Η ένωση έγινε μόνο εν μέρει: ο λογαριασμός ' + (drop.email || uName(drop)) + ' κρατήθηκε, γιατί ένας τρόπος σύνδεσής του δεν μεταφέρθηκε. ' + adminSummary(rep) + ' Δοκιμάστε ξανά σε λίγο.' }
+        : { cls: 'ok', text: 'Ενώθηκαν: έμεινε ο λογαριασμός ' + (keep.email || uName(keep)) + ', διαγράφηκε ο ' + (drop.email || uName(drop)) + '. ' + adminSummary(rep) };
       return loadUsers().then(function () { var h = app.querySelector('#users h2'); if (h) h.focus(); });
     }, function (e) {
       btn.disabled = false;
