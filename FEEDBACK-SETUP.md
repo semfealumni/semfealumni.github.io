@@ -36,7 +36,8 @@ is never used or stored).
    It needs **2-Step Verification** switched on
    (https://myaccount.google.com/security).
 2. Open https://myaccount.google.com/apppasswords (signed in as that account),
-   name it `SEMFE site`, **Create**, and copy the 16 letters.
+   name it `SEMFE Alumni website` (only a label you will recognise; nothing
+   reads it), **Create**, and copy the 16 letters.
 3. In a terminal, in the repository folder:
 
        firebase functions:secrets:set SMTP_USER --project semfe-alumni
