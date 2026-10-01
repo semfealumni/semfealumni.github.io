@@ -31,10 +31,10 @@ jobs:
       HAS_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
       HAS_LOG: ${{ secrets.FEEDBACK_LOG_TOKEN != '' && vars.FEEDBACK_LOG_REPO != '' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
       - name: Check the resolution files
         id: scan
         continue-on-error: true
@@ -57,7 +57,7 @@ jobs:
         id: log
         if: env.HAS_KEY == 'true' && env.HAS_LOG == 'true'
         continue-on-error: true
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ vars.FEEDBACK_LOG_REPO }}
           token: ${{ secrets.FEEDBACK_LOG_TOKEN }}

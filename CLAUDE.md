@@ -17,6 +17,23 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   Ανακοινώσεις, Εγγραφές & Δωρεές and Επικοινωνία stay in the row (`NAV`).
   A new page about the association goes into a group, not into the row. On a
   phone the menu button lists the groups under their headings.
+* **Motion** (owner, like www.stouras.com and operationsacademia.org), all in
+  `assets/js/site.js`, none of it under `prefers-reduced-motion`:
+  a link to a place on the SAME page glides there on the cosine "swing" curve
+  www.stouras.com scrolls with (`glideTo`, re-measured every frame, stopped by
+  the reader's wheel, touch or key); a round back-to-top button appears past
+  1.2 screens; a number marked `data-count` (the hero's four) counts up from
+  zero when it comes into view, a screen reader getting the final figure; and
+  blocks further down a page rise into view (`RISE` selector list). Nothing is
+  hidden without JavaScript or on paper: a block is held back only by the
+  script and only while it is still below the screen, never on the member
+  pages (`data-firestore`), and `settleMotion` in `tools/smoke.mjs` scrolls a
+  page through before anything is measured. A new kind of block that should
+  rise goes into `RISE`; a new number into the markup with `data-count`.
+* **Node:** the GitHub workflows run on Node 24 (`actions/checkout@v5`,
+  `actions/setup-node@v5`). The Cloud Functions stay on Node 22
+  (`functions/package.json` engines + `runtime` in `firebase.json`): Firebase
+  does not offer Node 24 yet. Move them together when it does.
 * Every page is `noindex` (`INDEXABLE = false` in `tools/build.mjs`) while
   semfealumni.gr is the official site. Flip it only when asked.
 * **The move to semfealumni.gr** is prepared: `MIGRATION.md` and

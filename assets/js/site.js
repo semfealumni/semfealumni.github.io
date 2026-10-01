@@ -1,6 +1,8 @@
 /* SEMFE Alumni: page behaviour shared by every page. No dependencies.
-   The phone menu, the photo lightbox, copy-to-clipboard buttons, the
-   announcements filter and the "apply online" switch on the support page.
+   The phone menu, the motion (gliding links, back to top, numbers that count
+   up, blocks that rise into view), the photo lightbox, copy-to-clipboard
+   buttons, the announcements filter and the "apply online" switch on the
+   support page.
    Written in plain ES5 so it runs in every browser the site supports. */
 (function () {
   'use strict';
@@ -134,6 +136,174 @@
     (window.requestAnimationFrame || setTimeout)(sizeHeader);
   }, { passive: true });
   sizeHeader();                                        // a page reloaded half-way down starts slim
+
+  /* ---- motion: the way www.stouras.com and operationsacademia.org move ----
+     1. A link to a place on the SAME page glides there instead of jumping:
+        slow to start, faster, slow to arrive (the cosine "swing" curve that
+        www.stouras.com scrolls with). The reader's own wheel, touch or key
+        takes over at once.
+     2. A round "back to top" button appears once the page is well scrolled.
+     3. Numbers marked data-count count up from zero when they come into view.
+     4. Blocks further down a page rise into view as the reader reaches them.
+     None of it when the reader asks for less motion (prefers-reduced-motion).
+     Nothing is ever hidden from a reader without JavaScript, or on paper:
+     a block is hidden only by this script, only while it is still below the
+     screen, and site.css shows everything when printing. */
+  function motionOK() { return !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  function pageY() { return window.pageYOffset || docEl.scrollTop || 0; }
+  function jumpTo(y) {
+    var sb = docEl.style.scrollBehavior;
+    docEl.style.scrollBehavior = 'auto';               // site.css asks for smooth; this must be instant
+    window.scrollTo(0, y);
+    docEl.style.scrollBehavior = sb;
+  }
+  // where an element should come to rest: just under the sticky header. Read
+  // again on every frame: the header slims down on the way, pictures load.
+  function landingY(el) {
+    if (!el || el === document.body || el === docEl) return 0;
+    var hd = $('.site-header'), gap = (hd ? hd.getBoundingClientRect().height : 0) + 12;
+    var y = el.getBoundingClientRect().top + pageY() - gap;
+    return Math.max(0, Math.min(Math.round(y), docEl.scrollHeight - window.innerHeight));
+  }
+  var glide = null, INTERRUPT = ['wheel', 'touchstart', 'mousedown', 'keydown'];
+  function glideTo(el, done) {
+    if (glide) glide.stop();
+    var from = pageY(), dist = Math.abs(landingY(el) - from);
+    if (!motionOK() || dist < 2 || !window.requestAnimationFrame) {
+      // straight there; the header is slim down the page, so measure with it slim
+      if (landingY(el) > SMALL_AT) docEl.classList.add('hdr-small');
+      jumpTo(landingY(el));
+      if (done) done();
+      return;
+    }
+    // about 0.8s for a screen or two, longer for a long way, never over 1.3s
+    var ms = Math.min(1300, Math.max(650, 480 + dist * 0.3)), t0 = null, stopped = false, sb = docEl.style.scrollBehavior;
+    var me = { stop: function () {
+      if (stopped) return;
+      stopped = true;
+      INTERRUPT.forEach(function (t) { window.removeEventListener(t, me.stop, true); });
+      docEl.style.scrollBehavior = sb;
+      if (glide === me) glide = null;
+    } };
+    glide = me;
+    docEl.style.scrollBehavior = 'auto';
+    INTERRUPT.forEach(function (t) { window.addEventListener(t, me.stop, { capture: true, passive: true }); });
+    requestAnimationFrame(function step(ts) {
+      if (stopped) return;
+      if (document.body.classList.contains('modal-open')) { me.stop(); return; }   // a dialog has the page now
+      if (t0 === null) t0 = ts;
+      var t = Math.min(1, (ts - t0) / ms);
+      window.scrollTo(0, from + (landingY(el) - from) * (0.5 - Math.cos(t * Math.PI) / 2));
+      if (t < 1) requestAnimationFrame(step);
+      else { me.stop(); if (done) done(); }
+    });
+  }
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = closest(e.target, 'a[href*="#"]');
+    if (!a || a.className.indexOf('skip') !== -1 || a.hasAttribute('data-no-glide') || (a.target && a.target !== '_self')) return;
+    if (a.host !== location.host || a.search !== location.search || a.pathname.replace(/^\/?/, '/') !== location.pathname) return;
+    var id = '';
+    try { id = decodeURIComponent(a.hash.slice(1)); } catch (err) { return; }
+    var el = id && document.getElementById(id);
+    if (!el) return;
+    e.preventDefault();
+    if (location.hash !== a.hash && history.pushState) { try { history.pushState(null, '', a.hash); } catch (err) {} }
+    glideTo(el, function () {
+      // the keyboard follows the reader there, as the browser's own jump does
+      if (!el.hasAttribute('tabindex') && !/^(A|BUTTON|INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) {
+        el.setAttribute('tabindex', '-1');
+        el.setAttribute('data-glide-focus', '');
+      }
+      try { el.focus({ preventScroll: true }); } catch (err) {}
+    });
+  });
+  if (document.body) {
+    var toTop = document.createElement('button'), topShown = false, topQueued = false;
+    toTop.type = 'button';
+    toTop.className = 'to-top';
+    toTop.setAttribute('aria-label', 'Επιστροφή στην αρχή της σελίδας');
+    toTop.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+    document.body.appendChild(toTop);
+    var placeTop = function () {
+      topQueued = false;
+      var want = pageY() > window.innerHeight * 1.2;
+      if (want !== topShown) { topShown = want; toTop.classList.toggle('is-shown', want); }
+    };
+    window.addEventListener('scroll', function () {
+      if (topQueued) return;
+      topQueued = true;
+      (window.requestAnimationFrame || setTimeout)(placeTop);
+    }, { passive: true });
+    placeTop();
+    toTop.addEventListener('click', function () {
+      glideTo(document.body, function () {
+        if (location.hash && history.replaceState) { try { history.replaceState(null, '', location.pathname + location.search); } catch (err) {} }
+        var brand = $('.brand');                         // the button is gone now: the focus goes to the top of the page
+        if (brand) { try { brand.focus({ preventScroll: true }); } catch (err) {} }
+      });
+    });
+  }
+
+  // 3. numbers: "3.000+" runs 0 → 3.000 and keeps its "+"; a year runs as a
+  // year. A screen reader is given the final figure only.
+  $$('[data-count]').forEach(function (el) {
+    var full = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    var m = /^(\d{1,3}(?:\.\d{3})+|\d+)(.*)$/.exec(full);
+    if (!m || !motionOK() || !('IntersectionObserver' in window) || !window.requestAnimationFrame) { el.classList.add('is-counting'); return; }
+    var target = parseInt(m[1].replace(/\./g, ''), 10), grouped = m[1].indexOf('.') !== -1, rest = m[2];
+    var fmt = function (v) { var s = String(v); return (grouped ? s.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : s) + rest; };
+    var sr = document.createElement('span'), shown = document.createElement('span');
+    sr.className = 'sr-only';
+    sr.textContent = full;
+    shown.setAttribute('aria-hidden', 'true');
+    shown.textContent = fmt(0);
+    el.textContent = '';
+    el.appendChild(sr);
+    el.appendChild(shown);
+    el.classList.add('is-counting');
+    var io = new IntersectionObserver(function (entries) {
+      if (!entries.some(function (en) { return en.isIntersecting; })) return;
+      io.disconnect();
+      var t0 = null;
+      requestAnimationFrame(function tick(ts) {
+        if (t0 === null) t0 = ts;
+        var t = Math.min(1, (ts - t0) / 1100);
+        shown.textContent = fmt(Math.round(target * (1 - Math.pow(1 - t, 3))));
+        if (t < 1) requestAnimationFrame(tick);
+      });
+    }, { threshold: 0.35 });
+    io.observe(el);
+  });
+
+  // 4. blocks rise into view. Only what is still below the screen when the page
+  // opens is held back: nothing the reader has already seen ever disappears.
+  // Not on the member pages, whose content is drawn by their own scripts.
+  var RISE = '.section-head, .two-col > *, .cards > *, .stats > *, .goals > li, .milestones > li, .people > *, .people-mini, ' +
+    '.posts > *, .docs > *, .doc-group, .gallery > *, .steps > *, .pay-grid > *, .section-foot, .cta .wrap > *';
+  var main = $('#main');
+  if (main && motionOK() && 'IntersectionObserver' in window && !document.body.hasAttribute('data-firestore')) {
+    var held = [], vh = window.innerHeight || docEl.clientHeight;
+    $$(RISE, main).forEach(function (el) {
+      if (closest(el, '.hero, .page-hero') || (el.parentNode && closest(el.parentNode, '.reveal'))) return;
+      if (el.getBoundingClientRect().top < vh) return;   // on screen already, or not shown at all
+      el.classList.add('reveal');
+      held.push(el);
+    });
+    var rise = new IntersectionObserver(function (entries) {
+      var n = 0;
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        rise.unobserve(en.target);
+        var el = en.target, delay = Math.min(n++, 5) * 80;       // a row of cards arrives one after another
+        if (delay) el.style.transitionDelay = delay + 'ms';
+        el.classList.add('is-in');
+        // then the block goes back to being itself (its own hover effects included)
+        setTimeout(function () { el.classList.remove('reveal'); el.classList.remove('is-in'); el.style.transitionDelay = ''; }, 900 + delay);
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
+    held.forEach(function (el) { rise.observe(el); });
+  }
 
   /* ---- copy buttons (IBAN, BIC) ---- */
   $$('[data-copy]').forEach(function (btn) {

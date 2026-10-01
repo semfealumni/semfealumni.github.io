@@ -19,7 +19,7 @@ as they are here; there is nothing to install to publish it.
     _src/posts/*.html          the announcements (Ανακοινώσεις)
     assets/css/site.css        the one stylesheet (colours at the top)
     assets/js/config.js        the settings: Firebase config, sign-in buttons, admin e-mails
-    assets/js/site.js          menu, photo viewer, copy buttons, announcement filter
+    assets/js/site.js          menu, motion (gliding links, counting numbers, fade-ins), photo viewer, copy buttons, announcement filter
     assets/js/auth.js          sign-in and registration (Firebase Authentication)
     assets/js/account.js       "Ο λογαριασμός μου": membership application, sign-in methods, delete account
     assets/js/members.js       "Περιοχή μελών": members-only directory
@@ -120,7 +120,7 @@ addresses keep working through small forwarding pages.
 ## Tests
 
     node tools/check.mjs                  offline checks (fast; run before every commit)
-    node tools/smoke.mjs                  every page at 10 screen sizes, menu, dialog, gallery (Playwright)
+    node tools/smoke.mjs                  every page at 10 screen sizes, menu, motion, dialog, gallery (Playwright)
     node tools/auth-flow.mjs              the sign-in, account, members, admin and feedback flows against a fake Firebase
     node tools/feedback-sync.mjs --selftest   the feedback resolution files and the ticket log (offline)
     cd tools/rules-test && npm install && npm test   the Firestore rules against the real emulator (needs Java)

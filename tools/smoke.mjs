@@ -349,10 +349,10 @@ const firebaseLoads = [], thirdParty = new Set();
 const browser = await pw.chromium.launch();
 
 async function open(url, o = {}) {
-  const { width = 1280, height = 800, phone = false, touch = false, colorScheme = 'light', reducedMotion = 'no-preference', permissions = [], allow404 = null, noFonts = false } = o;
+  const { width = 1280, height = 800, phone = false, touch = false, colorScheme = 'light', reducedMotion = 'no-preference', permissions = [], allow404 = null, noFonts = false, javaScript = true } = o;
   const ctx = await browser.newContext({
     ignoreHTTPSErrors: true, viewport: { width, height }, isMobile: phone, hasTouch: phone || touch,
-    deviceScaleFactor: phone ? 2 : 1, colorScheme, reducedMotion, permissions
+    deviceScaleFactor: phone ? 2 : 1, colorScheme, reducedMotion, permissions, javaScriptEnabled: javaScript
   });
   await ctx.addInitScript(LIB);
   await ctx.route('**/*', async route => {
@@ -414,6 +414,20 @@ async function scrollThrough(page) {     // lets loading="lazy" images load
     window.scrollTo({ top: 0, behavior: 'instant' });
   });
   await page.waitForLoadState('networkidle');
+}
+/* every block that rises into view has risen and every number has finished
+   counting: what a reader sees once they have scrolled the page through */
+async function settleMotion(page) {
+  await page.evaluate(async () => {
+    const step = Math.max(200, innerHeight * 0.6);
+    for (let y = 0; y < document.documentElement.scrollHeight; y += step) { window.scrollTo({ top: y, behavior: 'instant' }); await new Promise(r => setTimeout(r, 60)); }
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  });
+  await page.waitForTimeout(400);      // the header grows back to full size at the top
+  await page.waitForFunction(() => !document.querySelector('.reveal') && [...document.querySelectorAll('[data-count]')].every(el => {
+    const sr = el.querySelector('.sr-only'), shown = el.querySelector('[aria-hidden]');
+    return !sr || !shown || sr.textContent.trim() === shown.textContent.trim();
+  }), null, { timeout: 6000 });
 }
 const httpCache = new Map();
 async function get(u) {
@@ -622,7 +636,7 @@ try {
       await page.goto(ORIGIN + urlOf(rel));
       split.push(...(await page.evaluate(() => {
         const out = [];
-        document.querySelectorAll('h1, h2:not(.sr-only), h3, .stat .label, .subnav .btn, main .btn').forEach(el => {
+        document.querySelectorAll('h1, h2:not(.sr-only), h3, .stat .label, .hero-stat .label, .subnav .btn, main .btn').forEach(el => {
           if (!el.offsetWidth) return;
           el.style.overflowWrap = 'normal'; el.style.hyphens = 'manual';
           if (el.scrollWidth > el.clientWidth + 1) out.push(location.pathname + ' ' + el.tagName + ': ' + el.textContent.trim().slice(0, 40));
@@ -999,6 +1013,7 @@ try {
     const label = scheme === 'dark' ? 'dark' : 'light (extra)';
     for (const [name, p] of CONTRAST_PAGES) {
       const { ctx, page } = await open(SUB + p, { colorScheme: scheme });
+      await settleMotion(page);
       const r = await audit(page, 'body', true);
       t(r.bad.length === 0, `${label} ${name}: ${r.total} text runs pass (${r.counts}; ${r.grad} over gradients, measured in pixels)` + list(r.bad, 8));
       if (name === 'account') {
@@ -1035,6 +1050,125 @@ try {
     const pdf = p === '' ? await page.pdf({ format: 'A4' }) : null;
     t(r.header === 'none' && r.footer === 'none' && r.h1 === 'rgb(0, 0, 0)' && log.errors.length === 0 && (!pdf || pdf.length > 10000),
       `print /${p}: header and footer hidden, black headline${pdf ? `, PDF renders (${Math.round(pdf.length / 1024)} KB)` : ''}, no errors` + list(log.errors));
+    await ctx.close();
+  }
+
+  /* ======================= 9. motion ======================= */
+  section('9. motion: links that glide, back to top, numbers that count up, blocks that rise into view');
+  {
+    // the four numbers under the hero: on a phone they start below the screen,
+    // wait at zero, count up once they come into view, and land on the figure
+    // the page itself states (which a screen reader is given all along)
+    const { ctx, page, log } = await open(SUB, { width: 375, height: 667, phone: true, touch: true });
+    const nums = () => page.evaluate(() => [...document.querySelectorAll('.hero-stat [data-count]')].map(el => ({
+      sr: (el.querySelector('.sr-only') || {}).textContent, shown: (el.querySelector('[aria-hidden]') || {}).textContent, op: +getComputedStyle(el).opacity,
+      below: el.getBoundingClientRect().top > innerHeight })));
+    const a = await nums();
+    await page.evaluate(() => document.querySelector('.hero-stats').scrollIntoView({ block: 'center', behavior: 'instant' }));
+    await page.waitForTimeout(320);
+    const b = await nums();
+    await page.waitForTimeout(1300);
+    const c = await nums();
+    const want = ['2013', '3.000+', '2025', '10€'];
+    t(a.length === 4 && a.every(n => n.below) && a.every((n, i) => n.sr === want[i] && /^0\D*$/.test(n.shown) && n.op === 1),
+      `phone: below the screen the numbers wait at zero (${a.map(n => n.shown).join(' · ')}), the final figure is there for screen readers`);
+    t(b.some((n, i) => n.shown !== want[i] && n.shown !== c[i].shown && !/^0\D*$/.test(n.shown)),
+      `phone: they count up as they come into view (${b.map(n => n.shown).join(' · ')})`);
+    t(c.every((n, i) => n.shown === want[i]), `phone: and stop at the page's own figures (${c.map(n => n.shown).join(' · ')})`);
+    t(log.errors.length === 0, 'phone: no script errors while counting' + list(log.errors));
+    await ctx.close();
+  }
+  for (const [label, o] of [['reduced motion', { reducedMotion: 'reduce' }], ['no JavaScript', { javaScript: false }]]) {
+    const { ctx, page } = await open(SUB, { width: 1280, height: 800, ...o });
+    const r = await page.evaluate(() => ({ nums: [...document.querySelectorAll('[data-count]')].map(el => el.textContent.trim() + (+getComputedStyle(el).opacity < 1 ? ' (hidden)' : '')),
+      held: document.querySelectorAll('.reveal').length, hidden: [...document.querySelectorAll('#main *')].filter(el => +getComputedStyle(el).opacity === 0).length }));
+    t(r.nums.join() === '2013,3.000+,2025,10€' && r.held === 0 && r.hidden === 0,
+      `${label}: the numbers stand at their figures (${r.nums.join(' · ')}), nothing is held back or hidden (${r.held}/${r.hidden})`);
+    await ctx.close();
+  }
+  {
+    // blocks rise into view: only those below the screen are held back, and
+    // each one rises when it is reached
+    const { ctx, page, log } = await open(SUB, { width: 1280, height: 800 });
+    const r = await page.evaluate(() => {
+      const held = [...document.querySelectorAll('.reveal')];
+      // the bottom 8% of the screen is where a block STARTS to rise: one whose
+      // top edge is there (after the web font settled the page) is on its way
+      return { n: held.length, onScreen: held.filter(el => el.getBoundingClientRect().top < innerHeight * 0.92).length,
+        invisible: held.filter(el => +getComputedStyle(el).opacity === 0).length };
+    });
+    t(r.n > 10 && r.onScreen === 0 && r.invisible === r.n, `home: ${r.n} blocks below the screen wait to rise, none of what is on screen`);
+    await page.evaluate(() => document.querySelector('#skopos .section-head').scrollIntoView({ block: 'center', behavior: 'instant' }));
+    await page.waitForTimeout(250);
+    const mid = await page.evaluate(() => +getComputedStyle(document.querySelector('#skopos .section-head')).opacity);
+    await page.waitForTimeout(1100);
+    const end = await page.evaluate(() => { const el = document.querySelector('#skopos .section-head'); return { op: +getComputedStyle(el).opacity, cls: el.className }; });
+    t(mid > 0 && mid < 1 && end.op === 1 && !/reveal/.test(end.cls), `home: a block fades in as it is reached (${mid.toFixed(2)} → ${end.op}), then is itself again ("${end.cls}")`);
+    await page.emulateMedia({ media: 'print' });
+    const pr = await page.evaluate(() => [...document.querySelectorAll('.reveal')].filter(el => +getComputedStyle(el).opacity < 1).length);
+    t(pr === 0, `home printed: every block that had not risen yet is on the paper (${pr} hidden)`);
+    await page.emulateMedia({ media: 'screen' });
+    t(log.errors.length === 0, 'home: no script errors while blocks rise' + list(log.errors));
+    await ctx.close();
+    const acc = await open(SUB + 'account/', { width: 1280, height: 600 });
+    t(await acc.page.evaluate(() => document.querySelectorAll('.reveal').length) === 0, 'account page: the member pages draw their own content, nothing is held back');
+    await acc.ctx.close();
+  }
+  {
+    // a link to a place on the same page glides there: slow, faster, slow, then
+    // rests just under the header, with the address and the keyboard following
+    const { ctx, page, log } = await open(SUB + 'support/', { width: 1280, height: 800 });
+    const start = await page.evaluate(() => scrollY);
+    await page.click('a.card[href="#dorees"]');
+    const ys = [];
+    for (let i = 0; i < 10; i++) { ys.push(await page.evaluate(() => scrollY)); await page.waitForTimeout(70); }
+    await page.waitForTimeout(900);
+    const end = await page.evaluate(() => ({ y: scrollY, top: document.getElementById('dorees').getBoundingClientRect().top,
+      hdr: document.querySelector('.site-header').getBoundingClientRect().height, hash: location.hash, focus: document.activeElement && document.activeElement.id }));
+    const between = new Set(ys.filter(y => y > start + 2 && y < end.y - 2)).size;
+    const steps = ys.slice(1).map((y, i) => y - ys[i]).filter(d => d > 0);
+    t(between >= 4, `support: «Δωρεά» glides down (${between} positions on the way: ${ys.map(Math.round).join(', ')})`);
+    t(steps.length >= 3 && steps[0] < Math.max(...steps), `support: it starts slowly and speeds up (${steps.map(Math.round).join(', ')} px per step)`);
+    t(Math.abs(end.top - end.hdr - 12) <= 3 && end.hash === '#dorees' && end.focus === 'dorees',
+      `support: it rests just under the header (${Math.round(end.top)}px, header ${Math.round(end.hdr)}px), the address says #dorees, the keyboard is there`);
+    // the reader's own wheel takes over at once
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    await page.click('a.card[href="#eggrafi"]');
+    await page.waitForTimeout(160);
+    await page.mouse.wheel(0, -40);
+    await page.waitForTimeout(1200);
+    const stopped = await page.evaluate(() => Math.abs(document.getElementById('eggrafi').getBoundingClientRect().top - document.querySelector('.site-header').getBoundingClientRect().height - 12));
+    t(stopped > 40, `support: a turn of the wheel stops the glide where it is (${Math.round(stopped)}px short of #eggrafi)`);
+    t(log.errors.length === 0, 'support: no script errors while gliding' + list(log.errors));
+    await ctx.close();
+    const rm = await open(SUB + 'support/', { width: 1280, height: 800, reducedMotion: 'reduce' });
+    await rm.page.click('a.card[href="#dorees"]');
+    await rm.page.waitForTimeout(60);
+    const jump = await rm.page.evaluate(() => Math.abs(document.getElementById('dorees').getBoundingClientRect().top - document.querySelector('.site-header').getBoundingClientRect().height - 12));
+    t(jump <= 3, `support, reduced motion: the link jumps straight there (${Math.round(jump)}px off)`);
+    await rm.ctx.close();
+  }
+  for (const [w, h] of [[1280, 800], [390, 844]]) {
+    // the back-to-top button: hidden at the top, there once the page is well
+    // scrolled, and it glides back up to the start
+    const phone = isPhone(w, h);
+    const { ctx, page, log } = await open(SUB, { width: w, height: h, phone, touch: phone });
+    const st = () => page.evaluate(() => { const b = document.querySelector('.to-top'), r = b.getBoundingClientRect(), cs = getComputedStyle(b);
+      return { shown: cs.visibility === 'visible' && +cs.opacity > .9, w: r.width, h: r.height, right: innerWidth - r.right, bottom: innerHeight - r.bottom, y: scrollY,
+        name: b.getAttribute('aria-label'), focus: document.activeElement && document.activeElement.className }; });
+    const a = await st();
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+    await page.waitForTimeout(450);
+    const b = await st();
+    t(!a.shown && b.shown && b.w >= 44 && b.h >= 44 && b.right >= 8 && b.bottom >= 8 && /αρχή/.test(b.name),
+      `${w}px: «${b.name}» appears once the page is scrolled (${Math.round(b.w)}px, ${Math.round(b.right)}px from the corner), not at the top`);
+    if (phone) await page.locator('.to-top').tap(); else await page.click('.to-top');
+    await page.waitForTimeout(200);
+    const mid = await page.evaluate(() => scrollY);
+    await page.waitForTimeout(1500);
+    const c = await st();
+    t(mid > 0 && mid < b.y && c.y === 0 && !c.shown && c.focus === 'brand', `${w}px: it glides back to the top (${Math.round(b.y)} → ${Math.round(mid)} → ${c.y}), hides, and the keyboard is at the top`);
+    t(log.errors.length === 0, `${w}px: no script errors` + list(log.errors));
     await ctx.close();
   }
 

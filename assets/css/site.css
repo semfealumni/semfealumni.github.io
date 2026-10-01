@@ -380,7 +380,17 @@ html.hdr-measure .site-header, html.hdr-measure .site-header * { transition: non
   padding: 7px 14px; border-radius: 999px; font-weight: 700; font-size: .9rem; letter-spacing: .02em;
 }
 .chip svg { width: 16px; height: 16px; flex: none; }
+/* the association in four numbers, under the hero (like operationsacademia.org):
+   a full-width row below the text and the logo; site.js counts each up */
+.hero-stats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.hero-stat {
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.2); border-radius: var(--radius-sm);
+  padding: 18px 20px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.hero-stat .value { font-size: clamp(1.6rem, 3vw, 2.15rem); font-weight: 800; line-height: 1.05; color: #fff; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.hero-stat .label { margin-top: 8px; color: rgba(255,255,255,.82); font-weight: 600; font-size: .9rem; line-height: 1.35; text-wrap: pretty; }
 @media (max-width: 860px) {
+  .hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .hero { padding: 52px 0 60px; }
   .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 32px; }
   .hero-art { order: -1; justify-items: start; }
@@ -391,6 +401,8 @@ html.hdr-measure .site-header, html.hdr-measure .site-header * { transition: non
   .hero-logo { max-width: 96px; }
   .hero .lede { font-size: 1.04rem; }
   .hero .actions .btn { flex: 1 1 100%; }
+  .hero-stat { padding: 14px; }
+  .hero-stat .label { font-size: .84rem; }
 }
 
 /* page hero (inner pages): a shorter band with breadcrumb + title */
@@ -864,13 +876,42 @@ table.data .acts-in .btn { flex: 1 1 auto; justify-content: center; }
   .stat .value { font-size: 1.7rem; }
 }
 
+/* ---- motion: numbers that count up, blocks that rise into view, and the
+   "back to top" button (all driven by site.js; none of it when the reader
+   asks for less motion, and everything is visible without JavaScript) ----
+   A number waits, invisible, for site.js to start it from zero, so it is never
+   seen at its final value first. If site.js never comes, it shows itself after
+   two seconds anyway. */
+@media (prefers-reduced-motion: no-preference) {
+  html.js [data-count]:not(.is-counting) { opacity: 0; animation: semfe-show 0s linear 2s forwards; }
+  /* hidden at once (no fade OUT), only the arrival is animated */
+  .reveal { opacity: 0; transform: translateY(26px); }
+  .reveal.is-in { opacity: 1; transform: none; transition: opacity .7s ease, transform .75s cubic-bezier(.22, .9, .3, 1); }
+}
+@keyframes semfe-show { to { opacity: 1; } }
+[data-glide-focus]:focus { outline: none; }
+.to-top {
+  position: fixed; right: 18px; bottom: 18px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 55;
+  width: 46px; height: 46px; display: grid; place-items: center; padding: 0; cursor: pointer;
+  border-radius: 50%; border: 2px solid rgba(227,169,56,.75); background: #0a2240; color: #fff;
+  box-shadow: 0 10px 26px rgba(3, 12, 26, .32); --focus: #e3a938;
+  opacity: 0; visibility: hidden; transform: translateY(14px);
+  transition: opacity .25s ease, transform .25s ease, visibility 0s linear .25s;
+}
+.to-top.is-shown { opacity: 1; visibility: visible; transform: none; transition: opacity .25s ease, transform .25s ease, visibility 0s; }
+.to-top svg { width: 22px; height: 22px; }
+@media (hover: hover) { .to-top:hover { background: #12355b; } }
+body.modal-open .to-top { display: none; }
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition: none !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
 
 @media print {
-  .site-header, .site-footer, .nav-toggle, .acct-slot, .skip, .cta, .lightbox, .modal-backdrop { display: none !important; }
+  .site-header, .site-footer, .nav-toggle, .acct-slot, .skip, .cta, .lightbox, .modal-backdrop, .to-top { display: none !important; }
+  .reveal, [data-count] { opacity: 1 !important; transform: none !important; animation: none !important; transition: none !important; }
+  .hero-stat { background: none !important; border-color: #999 !important; }
   .hero, .page-hero { background: none !important; color: #000 !important; padding: 12px 0 !important; }
   .hero *, .page-hero * { color: #000 !important; }
   /* dark bands print as white paper: their light text must turn dark too, and
