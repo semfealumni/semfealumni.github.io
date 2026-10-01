@@ -559,7 +559,7 @@ try {
     const { ctx, page } = await open(SUB, { width: w, height: h });
     const r = await page.evaluate(() => {
       const box = e => e.getBoundingClientRect();
-      const links = [...document.querySelectorAll('#nav a')], lr = links.map(box);
+      const links = [...document.querySelectorAll('#nav > a, #nav .nav-more-btn')], lr = links.map(box);   // the row: «Ο Σύλλογος ▾» + 3 links
       // the text's own extent (left + scrollWidth), not its box: a nowrap line can overflow a shrunken box
       const brand = [document.querySelector('.brand'), ...document.querySelectorAll('.brand-text span')].filter(e => box(e).width > 0)
         .map(e => ({ right: Math.max(box(e).right, box(e).left + e.scrollWidth) }));
@@ -571,7 +571,7 @@ try {
         brandR: Math.max(...brand.map(b => b.right)), acctL: acct.left, acctR: acct.right, vw: innerWidth,
         headerH: box(document.querySelector('.site-header')).height };
     });
-    t(r.toggle === 'none' && r.shown === r.n, `${w}px: all ${r.n} menu links shown, no menu button`);
+    t(r.toggle === 'none' && r.n === 4 && r.shown === r.n, `${w}px: all ${r.n} menu items shown (Ο Σύλλογος ▾ and 3 links), no menu button`);
     t(r.rowSpread < 1 && r.wraps === 0 && r.headerH < 80, `${w}px: the links sit in one row (spread ${r.rowSpread.toFixed(1)}px, header ${Math.round(r.headerH)}px)`);
     t(r.navL >= r.brandR && r.navR <= r.acctL && r.acctR <= r.vw,
       `${w}px: links clear the brand and the Σύνδεση button (gaps ${Math.round(r.navL - r.brandR)}px / ${Math.round(r.acctL - r.navR)}px)`);
@@ -584,7 +584,7 @@ try {
     if (big) await page.evaluate(() => { document.documentElement.style.fontSize = '125%'; dispatchEvent(new Event('resize')); });
     await page.waitForTimeout(250);
     const r = await page.evaluate(() => {
-      const wrap = document.querySelector('.site-header .wrap'), nav = document.querySelector('#nav'), links = [...nav.querySelectorAll('a')];
+      const wrap = document.querySelector('.site-header .wrap'), nav = document.querySelector('#nav'), links = [...nav.querySelectorAll(':scope > a, .nav-more-btn')];
       let br = 0; document.querySelectorAll('.brand-text span').forEach(s => { const b = s.getBoundingClientRect(); br = Math.max(br, b.right, b.left + s.scrollWidth); });
       const row = getComputedStyle(nav).position !== 'absolute' && getComputedStyle(nav).display !== 'none';
       const tog = getComputedStyle(document.querySelector('.nav-toggle')).display !== 'none';
@@ -662,6 +662,64 @@ try {
     t(log.errors.length === 0, `${w}px: no script errors while scrolling` + list(log.errors));
     await ctx.close();
   }
+  // «Ο Σύλλογος ▾» on a wide screen: opens on a click, lists its 6 pages in two
+  // groups, marks the page you are on, and closes on Escape, Tab, a click
+  // outside it and a link followed
+  for (const [w, h, rel] of [[1280, 800, 'governance/'], [1920, 1080, ''], [1101, 800, 'fotothiki/']]) {
+    const { ctx, page, log } = await open(SUB + rel, { width: w, height: h });
+    const st = () => page.evaluate(() => {
+      const btn = document.querySelector('.nav-more-btn'), panel = document.getElementById('nav-more'), b = panel.getBoundingClientRect();
+      const links = [...panel.querySelectorAll('a')];
+      return { exp: btn.getAttribute('aria-expanded'), shown: b.height > 0, here: btn.classList.contains('is-here'),
+        n: links.length, heads: [...panel.querySelectorAll('.nav-group-h')].map(e => e.textContent.trim()),
+        cur: links.filter(a => a.getAttribute('aria-current') === 'page').map(a => a.textContent.trim()),
+        inView: b.left >= 0 && b.right <= innerWidth && b.bottom <= innerHeight, focus: document.activeElement && document.activeElement.textContent.replace(/\s+/g, ' ').trim(),
+        tall: links.every(a => a.getBoundingClientRect().height >= 40) };
+    });
+    const a = await st();
+    t(a.exp === 'false' && !a.shown, `${w}px ${rel || 'home'}: the drop-down starts closed`);
+    await page.click('.nav-more-btn');
+    const b = await st();
+    t(b.exp === 'true' && b.shown && b.n === 6 && b.heads.length === 2 && b.inView && b.tall,
+      `${w}px: a click opens it: ${b.n} pages under «${b.heads.join('» and «')}», on screen, every link 40px+ tall`);
+    if (rel === 'governance/') t(b.here && b.cur.join() === 'Διοίκηση', `${w}px: on Διοίκηση, the button and that link say "you are here" (${b.cur.join() || 'none'})`);
+    if (rel === '') t(!b.here && b.cur.length === 0, `${w}px: on the home page nothing in it is marked as the current page`);
+    await page.keyboard.press('Escape');
+    const c = await st();
+    t(c.exp === 'false' && !c.shown && c.focus === 'Ο Σύλλογος', `${w}px: Escape closes it and puts the focus back on its button`);
+    await page.keyboard.press('Enter');
+    const d = await st();
+    await page.locator('#nav-more a').last().focus();
+    await page.keyboard.press('Tab');
+    const e = await st();
+    t(d.shown && !e.shown && e.focus === 'Ανακοινώσεις', `${w}px: opened from the keyboard, Tab past its last link closes it (focus on ${e.focus})`);
+    await page.click('.nav-more-btn');
+    await page.mouse.click(Math.round(w / 2), h - 40);
+    t(!(await st()).shown, `${w}px: a click elsewhere on the page closes it`);
+    await page.click('.nav-more-btn');
+    await page.evaluate(() => document.addEventListener('click', ev => { if (ev.target.closest('#nav-more a')) ev.preventDefault(); }, true));
+    await page.locator('#nav-more a').nth(1).click();
+    t(!(await st()).shown, `${w}px: following one of its links closes it`);
+    t(log.errors.length === 0, `${w}px: no script errors in the drop-down` + list(log.errors));
+    await ctx.close();
+  }
+  // in the phone menu the drop-down is not a button: its pages are listed under
+  // their two headings, before the other three links
+  {
+    const { ctx, page } = await open(SUB + 'fotothiki/', { width: 390, height: 844, phone: true, touch: true });
+    await page.locator('.nav-toggle').tap();
+    const r = await page.evaluate(() => {
+      const nav = document.getElementById('nav');
+      const shown = el => el.getBoundingClientRect().height > 0 && getComputedStyle(el).visibility !== 'hidden';
+      return { btn: shown(document.querySelector('.nav-more-btn')), heads: [...nav.querySelectorAll('.nav-group-h')].filter(shown).length,
+        links: [...nav.querySelectorAll('a')].filter(shown).map(a => a.textContent.trim()),
+        cur: [...nav.querySelectorAll('a[aria-current="page"]')].map(a => a.textContent.trim()) };
+    });
+    t(!r.btn && r.heads === 2 && r.links.length === 9 && r.links[0] === 'Όραμα & Σκοπός' && r.links[8] === 'Επικοινωνία',
+      `390px phone menu: no drop-down button, 2 headings, all ${r.links.length} links listed (${r.links.join(' · ')})`);
+    t(r.cur.join() === 'Φωτοθήκη', `390px phone menu: the page you are on is marked (${r.cur.join() || 'none'})`);
+    await ctx.close();
+  }
   for (const [w, h] of [[1100, 800], [1024, 768], [768, 1024], [844, 390], [414, 896], [390, 844], [375, 667], [360, 740], [320, 568]]) {
     const tag = `${w}x${h}`, phone = isPhone(w, h);
     const { ctx, page, log } = await open(SUB, { width: w, height: h, phone, touch: true });
@@ -707,7 +765,7 @@ try {
     await tap('.nav-toggle');
     const before = page.url();
     await page.evaluate(() => document.addEventListener('click', e => { if (e.target.closest('#nav a')) e.preventDefault(); }, true));
-    await tap('#nav a:nth-child(3)');
+    await tap('#nav > a:nth-child(3)');
     t(!(await page.locator('#nav').isVisible()) && page.url() === before, `${tag}: following a menu link closes the menu`);
     if (w === 1024) {
       await tap('.nav-toggle');
@@ -959,7 +1017,7 @@ try {
     const { ctx, page, log } = await open(SUB, { width: 390, height: 844, phone: true, reducedMotion: 'reduce' });
     const sb = await page.evaluate(() => getComputedStyle(document.documentElement).scrollBehavior);
     await page.locator('.nav-toggle').tap();
-    await page.locator('#nav a:nth-child(2)').tap();
+    await page.locator('#nav > a:nth-child(2)').tap();
     await page.waitForLoadState('networkidle');
     await page.goto(ORIGIN + SUB + 'fotothiki/', { waitUntil: 'networkidle' });
     await page.locator('[data-gallery] a').first().tap();

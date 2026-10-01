@@ -11,6 +11,12 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   `node tools/build.mjs` and commit the regenerated HTML WITH the source.
   `node tools/check.mjs` fails when the two differ (CI runs it on every push).
 * Header, footer, menu and page heads come from `tools/build.mjs`.
+* **The top menu is kept short on purpose** (owner, like operationsacademia.org):
+  the logo is the way home (no «Αρχική» link), the pages ABOUT the association
+  sit in one «Ο Σύλλογος ▾» drop-down (`NAV_GROUPS`, two groups), and only
+  Ανακοινώσεις, Εγγραφές & Δωρεές and Επικοινωνία stay in the row (`NAV`).
+  A new page about the association goes into a group, not into the row. On a
+  phone the menu button lists the groups under their headings.
 * Every page is `noindex` (`INDEXABLE = false` in `tools/build.mjs`) while
   semfealumni.gr is the official site. Flip it only when asked.
 * **The move to semfealumni.gr** is prepared: `MIGRATION.md` and

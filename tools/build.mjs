@@ -103,11 +103,24 @@ const ICONS = {
 };
 
 /* ---- navigation ------------------------------------------------------------ */
+/* Kept short, like operationsacademia.org: the logo is the way home, the pages
+   ABOUT the association sit in one «Ο Σύλλογος» drop-down (two groups), and
+   only the three pages people come for stay in the row. On a phone the menu
+   button shows the same entries, the groups under their headings. */
+const NAV_GROUPS = {
+  key: 'club', label: 'Ο Σύλλογος',
+  groups: [
+    { id: 'nav-g-club', label: 'Ο Σύλλογος', items: [
+      { key: 'home-orama', label: 'Όραμα & Σκοπός', href: '#orama' },
+      { key: 'organa', label: 'Όργανα', href: 'organa/' },
+      { key: 'governance', label: 'Διοίκηση', href: 'governance/' }] },
+    { id: 'nav-g-history', label: 'Η ιστορία μας', items: [
+      { key: 'how_we_started', label: 'Πώς ξεκινήσαμε', href: 'how_we_started/' },
+      { key: 'fotothiki', label: 'Φωτοθήκη', href: 'fotothiki/' },
+      { key: 'archive', label: 'Αρχείο', href: 'archive/' }] }
+  ]
+};
 const NAV = [
-  { key: 'home', label: 'Αρχική', href: '' },
-  { key: 'organa', label: 'Όργανα', href: 'organa/' },
-  { key: 'governance', label: 'Διοίκηση', href: 'governance/' },
-  { key: 'history', label: 'Ιστορία', href: 'how_we_started/' },
   { key: 'blog', label: 'Ανακοινώσεις', href: 'blog/' },
   { key: 'support', label: 'Εγγραφές & Δωρεές', href: 'support/' },
   { key: 'contact', label: 'Επικοινωνία', href: 'contact/' }
@@ -219,6 +232,14 @@ ${(page.meta.scripts || []).map(s => `  <script src="${root}assets/js/${s}" defe
 
 function header(page, root) {
   const cur = page.meta.nav;
+  // the page itself is marked inside the drop-down (by its address, so the
+  // three «history» pages are told apart), the drop-down's button as "here"
+  const here = href => href && href === page.meta.path;
+  const inClub = NAV_GROUPS.groups.some(g => g.items.some(i => here(i.href)));
+  const groups = NAV_GROUPS.groups.map(g => `<div class="nav-group" role="group" aria-labelledby="${g.id}">
+            <span class="nav-group-h" id="${g.id}">${esc(g.label)}</span>
+            ${g.items.map(i => `<a href="${root}${i.href}"${here(i.href) ? ' aria-current="page"' : ''}>${esc(i.label)}</a>`).join('\n            ')}
+          </div>`).join('\n          ');
   const links = NAV.map(n => `<a href="${root}${n.href}"${n.key === cur ? ' aria-current="page"' : ''}>${esc(n.label)}</a>`).join('\n      ');
   return `<a class="skip" href="#main">Μετάβαση στο περιεχόμενο</a>
 <header class="site-header">
@@ -232,6 +253,12 @@ function header(page, root) {
     </a>
     <div class="header-right">
       <nav class="nav" id="nav" aria-label="Κύριο μενού">
+      <div class="nav-more">
+        <button class="nav-more-btn${inClub ? ' is-here' : ''}" type="button" aria-expanded="false" aria-controls="nav-more">${esc(NAV_GROUPS.label)}<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="nav-more-panel" id="nav-more">
+          ${groups}
+        </div>
+      </div>
       ${links}
       </nav>
       <div class="acct-slot" id="acct-slot">

@@ -34,9 +34,35 @@
     });
     if (window.matchMedia) {
       var mq = window.matchMedia('(min-width: 1101px)');
-      var onChange = function () { fitHeader(); if (mq.matches && !tight()) setOpen(false); };
+      var onChange = function () { fitHeader(); setMore(false); if (mq.matches && !tight()) setOpen(false); };
       if (mq.addEventListener) mq.addEventListener('change', onChange); else if (mq.addListener) mq.addListener(onChange);
     }
+  }
+
+  /* ---- «Ο Σύλλογος ▾», the drop-down in the header row ----
+     On a wide screen only: in the phone menu its links are always listed
+     (site.css hides the button there). It closes on Escape (focus back to its
+     button), on a click or Tab outside it, and when a link is followed. */
+  var more = $('.nav-more'), moreBtn = $('.nav-more-btn');
+  function setMore(open) {
+    if (!more || !moreBtn) return;
+    more.classList.toggle('open', open);
+    moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  if (more && moreBtn) {
+    moreBtn.addEventListener('click', function () { setMore(!more.classList.contains('open')); });
+    $$('a', more).forEach(function (a) { a.addEventListener('click', function () { setMore(false); }); });
+    // in the capture phase: the account button stops its own clicks from
+    // reaching the page, and opening that menu must still close this one
+    document.addEventListener('click', function (e) {
+      if (more.classList.contains('open') && !closest(e.target, '.nav-more')) setMore(false);
+    }, true);
+    document.addEventListener('focusin', function (e) {
+      if (more.classList.contains('open') && !closest(e.target, '.nav-more')) setMore(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if ((e.key === 'Escape' || e.key === 'Esc') && more.classList.contains('open')) { setMore(false); moreBtn.focus(); }
+    });
   }
 
   /* ---- the header row must fit ----
@@ -49,7 +75,8 @@
   var headerWrap = $('.site-header .wrap'), docEl = document.documentElement;
   function tight() { return docEl.classList.contains('nav-tight'); }
   function headerOver() {
-    var links = $$('a', nav), first = links[0], brandRight = 0;
+    // the row's own items: the drop-down (its button) and the three links
+    var links = Array.prototype.slice.call(nav.children), first = links[0], brandRight = 0;
     if (!first) return false;
     $$('.brand-text span').forEach(function (sp) { var r = sp.getBoundingClientRect(); brandRight = Math.max(brandRight, r.right, r.left + sp.scrollWidth); });
     var top = first.getBoundingClientRect().top;
@@ -72,7 +99,10 @@
     if (small) docEl.classList.add('hdr-small');
     headerWrap.getBoundingClientRect();                // settle the sizes before transitions come back
     docEl.classList.remove('hdr-measure');
-    if (was !== tight() && toggle && setOpen) setOpen(false);     // the label too, not only aria-expanded
+    if (was !== tight()) {
+      if (toggle && setOpen) setOpen(false);     // the label too, not only aria-expanded
+      setMore(false);
+    }
   }
   var fitQueued = false;
   function queueFit() { if (fitQueued) return; fitQueued = true; (window.requestAnimationFrame || setTimeout)(function () { fitQueued = false; fitHeader(); }); }
