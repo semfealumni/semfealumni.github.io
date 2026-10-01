@@ -1,5 +1,9 @@
 # Moving the site to semfealumni.gr
 
+**Done on 1 October 2026.** The site now lives at https://semfealumni.gr/. The
+domain's records and what keeps it working are in `DOMAIN.md`; what follows is
+kept as the record of how the move was made (and how to undo it).
+
 Today this site is a preview at **https://www.stouras.com/semfealumni/**, beside
 the association's current site at **https://semfealumni.gr/** (served by
 GitHub Pages from the association's own repository,

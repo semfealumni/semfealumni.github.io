@@ -8,6 +8,7 @@ exclude:
   - FIREBASE-SETUP.md
   - FEEDBACK-SETUP.md
   - MIGRATION.md
+  - DOMAIN.md
   - tools
   - functions
   - firebase.json

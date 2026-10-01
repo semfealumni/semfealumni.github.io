@@ -136,7 +136,8 @@ VERIFIED in the owner's GitHub account (a TXT record
 `_github-pages-challenge-konstantinosstouras` at papaki, the registrar, which
 must stay), so no other account can claim it. DNS at papaki: four A and four
 AAAA records to GitHub Pages, `www` a CNAME to `konstantinosstouras.github.io`.
-A missing address shows this site's own `404.html`.
+A missing address shows this site's own `404.html`. Every DNS record, the
+verification code and what to do if one goes missing: **`DOMAIN.md`**.
 
 Do **not** add a `.nojekyll` file: Jekyll is what keeps `_src/` off the web,
 and `_config.yml` keeps `tools/`, `functions/` and the Firebase files off it too.

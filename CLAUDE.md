@@ -38,7 +38,8 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
 * Search engines are allowed (`INDEXABLE = true` in `tools/build.mjs`): this is
   the official site. Never delete `CNAME`, and never remove the
   `_github-pages-challenge-konstantinosstouras` TXT record at papaki: either
-  one takes the site off its address.
+  one takes the site off its address. Every DNS record is listed in
+  `DOMAIN.md`; keep it in step with papaki.
 * **The move to semfealumni.gr** is prepared: `MIGRATION.md` and
   `tools/migrate.mjs` (`--plan`, `--rehearse`, `--prep-check`, `--apply`,
   `--verify`). Never hard-code the address: everything reads `siteUrl`, and
