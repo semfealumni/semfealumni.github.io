@@ -936,6 +936,22 @@ try {
       t(r.shown.length === want.length && r.shown.every(c => !cat || c === cat) && r.pressed.length === 1 && r.pressed[0] === label,
         `"${label}" shows ${r.shown.length} of ${cats.length} cards (expected ${want.length}) and is the one pressed button`);
     }
+    // following the announcements: e-mail alerts and the feeds (built by build.mjs)
+    const follow = await page.$$eval('.follow a', as => as.map(a => a.getAttribute('href')));
+    t(follow.length === 3 && /account\/#alerts$/.test(follow[0]) && /rss\.xml$/.test(follow[1]) && /feed\.xml$/.test(follow[2]),
+      'under the announcements: e-mail alerts, RSS and Atom' + list(follow));
+    const alt = await page.$$eval('link[rel=alternate]', ls => ls.map(l => l.type + ' ' + l.href));
+    t(alt.length === 2 && alt.some(a => /^application\/atom\+xml .*feed\.xml$/.test(a)) && alt.some(a => /^application\/rss\+xml .*rss\.xml$/.test(a)),
+      'the page names both feeds in its <head>, so a feed reader finds them from the address alone');
+    const get = async f => { const r = await page.request.get(ORIGIN + SUB + f); return { ok: r.ok(), body: await r.text() }; };
+    const [atom, rss, jf] = await Promise.all([get('feed.xml'), get('rss.xml'), get('feed.json')]);
+    const n = POSTS.length, count = (x, tag) => (x.match(new RegExp('<' + tag + '>', 'g')) || []).length;
+    t(atom.ok && /^<\?xml/.test(atom.body) && count(atom.body, 'entry') === n, `feed.xml (Atom) is served with all ${n} announcements (${count(atom.body, 'entry')})`);
+    t(rss.ok && /<rss version="2.0"/.test(rss.body) && count(rss.body, 'item') === n, `rss.xml (RSS 2.0) is served with all ${n} (${count(rss.body, 'item')})`);
+    let items = [];
+    try { items = JSON.parse(jf.body).items; } catch (e) { items = []; }
+    t(jf.ok && items.length === n && items.every(i => /^https:\/\//.test(i.url) && i.tags && i.tags.length === 1), `feed.json (read by the e-mail alerts) lists all ${n}, each with its category`);
+    t(!/\{\{root\}\}|src="\.\.\//.test(atom.body + rss.body + jf.body), 'links inside the posts are absolute in every feed');
     if (log.errors.length) t(false, 'blog: script errors' + list(log.errors));
     await ctx.close();
   }

@@ -312,6 +312,7 @@
       (admin ? '<a href="' + root + 'admin/">' + svg('shield') + '<span>Διαχείριση</span>' + count(info.pending, 'warn') + '</a>' : '') +
       '<a href="' + root + 'account/" class="strong">' + svg('user') + '<span>Ο λογαριασμός μου</span></a>' +
       '<a href="' + root + 'account/#apply">' + svg('doc') + '<span>Η αίτηση μέλους μου</span>' + (app ? count(app[0], app[1]) : '') + '</a>' +
+      '<a href="' + root + 'account/#alerts">' + svg('mail') + '<span>Ειδοποιήσεις με e-mail</span></a>' +
       '<a href="' + root + 'members/">' + svg('users') + '<span>Περιοχή μελών</span></a>' +
       '<a href="' + root + 'account/#methods">' + svg('key') + '<span>Τρόποι σύνδεσης</span>' + (info.methods === 1 ? count('Προσθήκη', 'warn') : '') + '</a>' +
       '<a href="' + root + 'feedback/">' + svg('chat') + '<span>Σχόλια και προβλήματα</span></a>' +
@@ -355,7 +356,8 @@
       doc: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
       key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14 9l2 2"/>',
       chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/>',
-      news: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>' }[k];
+      news: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+      mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 6L2 7"/>' }[k];
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
   }
 

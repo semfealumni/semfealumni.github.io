@@ -179,6 +179,34 @@ service cloud.firestore {
       allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
     }
 
+    // ---- e-mail alerts (account/ > «Ειδοποιήσεις με e-mail») ----------------
+    // One document per member: the kinds of news they want by e-mail.
+    // KEEP IN SYNC with KEYS and DOC_KEYS in assets/js/alert-topics.js
+    // (tools/check.mjs fails when they differ). Only a registered member (one
+    // with an application) may choose, and the address is pinned to their
+    // CONFIRMED sign-in e-mail, so no one can sign someone else up. `k`, the
+    // key of the stop link in the e-mails, is written only by the Cloud
+    // Function (functions/alerts.js); the member may keep it, never change it.
+    function alertTopics() { return ['announcements', 'events', 'site']; }
+    function alertsOk(d) {
+      return d.topics is list && d.topics.size() <= 10 && d.topics.hasOnly(alertTopics())
+        && d.email is string && d.email.size() >= 3 && d.email.size() <= 200
+        && d.email == request.auth.token.get('email', '')
+        && d.updatedAt == request.time;
+    }
+    match /alertPrefs/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if signedIn() && request.auth.uid == uid && emailConfirmed() && exists(memberPath(uid))
+        && request.resource.data.keys().hasOnly(['topics', 'email', 'updatedAt'])
+        && alertsOk(request.resource.data);
+      allow update: if signedIn() && request.auth.uid == uid && emailConfirmed() && exists(memberPath(uid))
+        && request.resource.data.keys().hasOnly(['topics', 'email', 'updatedAt', 'k'])
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['k'])
+        && alertsOk(request.resource.data);
+      allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
     // ---- feedback (the Σχόλια page) --------------------------------------
     // One document per message; its id is the ticket number the sender sees
     // (SEMFE-YYMMDD-XXXX). Any signed-in account may send one, as itself and

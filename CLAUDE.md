@@ -176,6 +176,42 @@ Setup for the owner: `ANALYTICS-SETUP.md`. Two parts, two sources each:
   `node tools/build-analytics.mjs --selftest`, `tools/auth-flow.mjs` S1-S2
   and F2, `tools/rules-test` (optional answers, publicStats, siteVisits).
 
+## E-mail alerts and the RSS / Atom feeds
+
+Owner's guide: `ALERTS-SETUP.md`. A member with an application (pending or
+active) chooses kinds of news on account/ > «Ειδοποιήσεις με e-mail»
+(`#alerts`, also in the account menu):
+
+* **The kinds are ONE list, `assets/js/alert-topics.js`** (UMD; byte-identical
+  copy in `functions/`), pinned by check.mjs against `alertTopics()` and the
+  `alertPrefs` hasOnly() lists in `firestore.rules`. `announcements` and
+  `events` are the posts' `category` (Ανακοινώσεις / Εκδηλώσεις: check.mjs
+  fails when a post's category is covered by no alert); `site` is a «Τι νέο»
+  entry once an admin APPROVES it (`functions/news.js`, a copy of
+  `assets/js/news.js`, pinned too).
+* **`alertPrefs/{uid}`** = `{topics, email, updatedAt}` written by the member,
+  the address pinned by the rules to the confirmed sign-in e-mail (no one can
+  sign someone else up), plus `k`, the stop-link key, written ONLY by the
+  function (the member's write is a merge and may never change it). Deleted
+  with the account (account.js + `cleanupUser`), carried over by a merge
+  (union of kinds, `accounts.js` step 3a).
+* **`alertsMailer`** (scheduled, every 2 h, `functions/alerts.js`) reads only
+  what is PUBLIC: the live site's `feed.json` and `changelog.json` +
+  `newsOverrides`. Firestore `alertState/ledger` (server only) holds every
+  item key ever seen: the FIRST run only seeds it (no back-catalogue mail),
+  later runs CLAIM new keys in a transaction before sending, so nothing is
+  mailed twice; a failed read or e-mail off claims nothing. One e-mail per
+  member per run; only pending/active applications.
+* **`alertsUnsubscribe`**: GET shows a page with a button (mail scanners open
+  links), POST (the button, or a mail program's one-click via
+  `List-Unsubscribe-Post`) empties the member's topics if `k` matches.
+* **Feeds**: `tools/build.mjs` writes `feed.xml` (Atom), `rss.xml` (RSS 2.0)
+  and `feed.json` (JSON Feed 1.1, what the mailer reads) from the posts, with
+  absolute links, and every page's `<head>` names the first two. The
+  announcements page links them (`.follow`).
+* Tests: `functions/test-alerts.js`, the merge/cleanup tests, auth-flow
+  T1-T2, rules-test (alertPrefs, alertState), smoke section 6 (feeds).
+
 ## Deploying Firebase: always name the project
 
     firebase deploy --only firestore:rules --project <project-id>
@@ -191,7 +227,7 @@ guard refuses every deploy. Keep `firebase.json`'s functions `runtime` equal to
     node tools/check.mjs                      offline checks (fast)
     node tools/smoke.mjs                      every page, 10 screen sizes, no web font, larger text (Playwright)
     node tools/auth-flow.mjs                  sign-in, account, members, admin flows against a fake Firebase
-    cd functions && npm test                  the Cloud Functions (LinkedIn, accounts, feedback e-mails), against fakes
+    cd functions && npm test                  the Cloud Functions (LinkedIn, accounts, feedback e-mails, statistics, e-mail alerts), against fakes
     node tools/feedback-sync.mjs --selftest   the feedback resolution files and the ticket log
     cd tools/rules-test && npm install && npm test   firestore.rules on the real emulator (needs Java)
 

@@ -39,6 +39,7 @@ as they are here; there is nothing to install to publish it.
     FIREBASE-SETUP.md          step by step: Firebase, Google, LinkedIn, e-mail
     FEEDBACK-SETUP.md          step by step: the feedback e-mails and the private ticket log
     ANALYTICS-SETUP.md         step by step: the Στατιστικά page (counter, members, Google Analytics)
+    ALERTS-SETUP.md            the e-mail alerts by kind of news, and the RSS / Atom feeds
     _feedback-resolutions/     one file per ticket closed from the repository (see its README)
     functions/                 Cloud Functions: LinkedIn sign-in, accounts list/merge, feedback e-mails,
                                the visit counter (recordVisit) and the members' statistics (memberStats)
@@ -75,10 +76,15 @@ META-->
 <p>Το κείμενο της ανακοίνωσης…</p>
 ```
 
-`category` is `Ανακοινώσεις` or `Εκδηλώσεις`. `image` is optional: put the
-picture in `assets/img/posts/`. Then `node tools/build.mjs`. The home page
-shows the three newest automatically, and the address follows the old site's
-scheme (`blog/2026/02/11/2026-kopi-pitas/`).
+`category` is `Ανακοινώσεις` or `Εκδηλώσεις`, and it also decides **who is
+e-mailed about it**: members who chose «Ανακοινώσεις του Συλλόγου» or
+«Εκδηλώσεις και συναντήσεις» in their e-mail alerts (a meet-up or event is
+`Εκδηλώσεις`). `image` is optional: put the picture in `assets/img/posts/`.
+Then `node tools/build.mjs`. The home page shows the three newest
+automatically, the RSS / Atom feeds (`rss.xml`, `feed.xml`, `feed.json`) are
+rebuilt, and the address follows the old site's scheme
+(`blog/2026/02/11/2026-kopi-pitas/`). The e-mails go out within two hours of
+the post going live (ALERTS-SETUP.md).
 
 ## Sign-in and member accounts
 

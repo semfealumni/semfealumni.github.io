@@ -1054,3 +1054,84 @@ describe('publicStats (the members\' anonymous statistics) and siteVisits (the v
     }
   });
 });
+
+describe('alertPrefs (e-mail alerts): a registered member chooses, for their own confirmed address', () => {
+  const choice = (who, topics = ['announcements', 'site']) => ({ topics, email: who.token.email, updatedAt: ST() });
+  const prefs = (db, uid) => db.collection('alertPrefs').doc(uid);
+  it('a member (any application status) chooses, changes and reads their alerts', async () => {
+    await seed('members/alice', storedMember('pending'));
+    await assertSucceeds(prefs(dbAs(U.alice), 'alice').set(choice(U.alice)));
+    await assertSucceeds(prefs(dbAs(U.alice), 'alice').set(choice(U.alice, ['events'])));
+    await assertSucceeds(prefs(dbAs(U.alice), 'alice').set(choice(U.alice, [])));
+    await assertSucceeds(prefs(dbAs(U.alice), 'alice').get());
+    await assertSucceeds(prefs(dbAs(U.alice), 'alice').delete());
+  });
+  it('a confirmed e-mail + password member and a LinkedIn (function) member may too', async () => {
+    await seed('members/pwv', storedMember('active'));
+    await assertSucceeds(prefs(dbAs(U.pwVerified), 'pwv').set(choice(U.pwVerified)));
+    await seed('members/lif', storedMember('active'));
+    await assertSucceeds(prefs(dbAs(U.linkedinFn), 'lif').set(choice(U.linkedinFn)));
+  });
+  it('the stop-link key the server stored is kept, never changed or added by the member', async () => {
+    await seed('members/alice', storedMember('active'));
+    await seed('alertPrefs/alice', { topics: ['site'], email: 'alice@gmail.com', updatedAt: PAST, k: 'K'.repeat(32) });
+    await assertSucceeds(prefs(dbAs(U.alice), 'alice').set({ ...choice(U.alice, ['events']), k: 'K'.repeat(32) }));
+    await assertSucceeds(prefs(dbAs(U.alice), 'alice').update({ topics: ['site', 'events'], email: 'alice@gmail.com', updatedAt: ST() }));
+    await assertFails(prefs(dbAs(U.alice), 'alice').set({ ...choice(U.alice), k: 'X'.repeat(32) }));
+    await assertFails(prefs(dbAs(U.alice), 'alice').update({ k: 'X'.repeat(32), updatedAt: ST() }));
+    await seed('alertPrefs/bob', { topics: [], email: 'bob@gmail.com', updatedAt: PAST });
+    await seed('members/bob', storedMember('active'));
+    await assertFails(prefs(dbAs(U.bob), 'bob').set({ ...choice(U.bob), k: 'B'.repeat(32) }), 'a member cannot make up their own key');
+  });
+  it('only the admins list everyone\'s choices; a member reads only their own', async () => {
+    await seed('alertPrefs/alice', { topics: ['site'], email: 'alice@gmail.com', updatedAt: PAST });
+    await assertSucceeds(dbAs(U.admin).collection('alertPrefs').get());
+    await assertSucceeds(dbAs(U.admin).doc('alertPrefs/alice').get());
+    await assertFails(dbAs(U.bob).collection('alertPrefs').get());
+    await assertFails(dbAs(U.bob).doc('alertPrefs/alice').get());
+    await assertFails(dbAs(null).doc('alertPrefs/alice').get());
+  });
+  describe('refused', () => {
+    it('no application yet: only registered members choose alerts', async () => {
+      await assertFails(prefs(dbAs(U.alice), 'alice').set(choice(U.alice)));
+    });
+    it('someone else\'s address: the e-mail must be the sign-in one (no signing others up)', async () => {
+      await seed('members/alice', storedMember('active'));
+      await assertFails(prefs(dbAs(U.alice), 'alice').set({ ...choice(U.alice), email: 'victim@example.com' }));
+    });
+    it('an unconfirmed address, or a sign-in with no address at all', async () => {
+      await seed('members/pwu', storedMember('pending'));
+      await assertFails(prefs(dbAs(U.pwUnverified), 'pwu').set(choice(U.pwUnverified)));
+      await seed('members/lifn', storedMember('pending'));
+      await assertFails(prefs(dbAs(U.linkedinFnNoEmail), 'lifn').set({ topics: ['site'], email: '', updatedAt: ST() }));
+    });
+    it('another member\'s document', async () => {
+      await seed('members/bob', storedMember('active'));
+      await assertFails(prefs(dbAs(U.alice), 'bob').set(choice(U.alice)));
+      await seed('alertPrefs/bob', { topics: ['site'], email: 'bob@gmail.com', updatedAt: PAST });
+      await assertFails(prefs(dbAs(U.alice), 'bob').delete());
+    });
+    it('an unknown kind of alert, a wrong type, an extra field, a made-up time', async () => {
+      await seed('members/alice', storedMember('active'));
+      await assertFails(prefs(dbAs(U.alice), 'alice').set(choice(U.alice, ['site', 'spam'])));
+      await assertFails(prefs(dbAs(U.alice), 'alice').set({ ...choice(U.alice), topics: 'site' }));
+      await assertFails(prefs(dbAs(U.alice), 'alice').set({ ...choice(U.alice), freq: 'daily' }));
+      await assertFails(prefs(dbAs(U.alice), 'alice').set({ ...choice(U.alice), updatedAt: PAST }));
+    });
+    it('signed out, or anonymous', async () => {
+      await assertFails(dbAs(null).doc('alertPrefs/x').set({ topics: [], email: 'a@b.c', updatedAt: ST() }));
+      await seed('members/anon', storedMember('pending'));
+      await assertFails(prefs(dbAs(U.anonymous), 'anon').set({ topics: ['site'], email: '', updatedAt: ST() }));
+    });
+  });
+});
+
+describe('alertState (the e-mail alerts ledger): server only', () => {
+  it('no browser reads or writes it, admin included', async () => {
+    await seed('alertState/ledger', { keys: ['post:blog/a/'] });
+    for (const who of [null, U.alice, U.admin]) {
+      await assertFails(dbAs(who).doc('alertState/ledger').get());
+      await assertFails(dbAs(who).doc('alertState/ledger').set({ keys: [] }));
+    }
+  });
+});

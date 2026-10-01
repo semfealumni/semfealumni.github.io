@@ -217,8 +217,8 @@ async function run(opts) {
     await handle(req({ code: 'C', redirectUri: RU }), r, { fetch: fakeFetch(P), auth, db: fakeDb(), now: () => 1, log: () => {} }, CFG);
     assert.strictEqual(r.statusCode, 500); assert.deepStrictEqual(r.body, { error: 'internal' });
   });
-  await t('cleanup of a deleted account removes its application, directory card, LinkedIn links and feedback', async () => {
-    const docs = new Map([['members/u1', {}], ['directory/u1', {}], ['linkedinLinks/a', { uid: 'u1' }], ['linkedinLinks/b', { uid: 'u2' }], ['members/u2', {}],
+  await t('cleanup of a deleted account removes its application, directory card, e-mail alerts, LinkedIn links and feedback', async () => {
+    const docs = new Map([['members/u1', {}], ['directory/u1', {}], ['alertPrefs/u1', { topics: ['site'] }], ['alertPrefs/u2', { topics: ['events'] }], ['linkedinLinks/a', { uid: 'u1' }], ['linkedinLinks/b', { uid: 'u2' }], ['members/u2', {}],
       ['feedback/SEMFE-260930-AAAA', { uid: 'u1' }], ['feedback/SEMFE-260930-AAAA/shots/1', { url: 'x' }], ['feedback/SEMFE-260930-AAAA/shots/2', { url: 'x' }],
       ['feedback/SEMFE-260930-BBBB', { uid: 'u2' }], ['feedback/SEMFE-260930-BBBB/shots/1', { url: 'y' }]]);
     const ref = key => ({ key, delete: async () => { docs.delete(key); }, collection: name => ({ doc: id => ref(key + '/' + name + '/' + id) }) });
@@ -231,7 +231,7 @@ async function run(opts) {
     }; } };
     const n = await cleanupUser({ db, uid: 'u1' });
     assert.ok(n >= 4);
-    assert.deepStrictEqual([...docs.keys()].sort(), ['feedback/SEMFE-260930-BBBB', 'feedback/SEMFE-260930-BBBB/shots/1', 'linkedinLinks/b', 'members/u2']);
+    assert.deepStrictEqual([...docs.keys()].sort(), ['alertPrefs/u2', 'feedback/SEMFE-260930-BBBB', 'feedback/SEMFE-260930-BBBB/shots/1', 'linkedinLinks/b', 'members/u2']);
   });
   console.log(failed ? `\n${failed} failed, ${passed} passed` : `\nall ${passed} passed`);
   process.exit(failed ? 1 : 0);

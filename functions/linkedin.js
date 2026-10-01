@@ -198,7 +198,7 @@ async function handle(req, res, deps, cfg) {
    LinkedIn link, which no browser may touch. */
 async function cleanupUser({ db, uid }) {
   if (!uid) return 0;
-  const refs = [db.collection('members').doc(uid), db.collection('directory').doc(uid)];
+  const refs = [db.collection('members').doc(uid), db.collection('directory').doc(uid), db.collection('alertPrefs').doc(uid)];
   // the LinkedIn links, and the messages sent from the Σχόλια page (the
   // privacy page promises that deleting the account deletes everything; a
   // merge moves them to the kept account first, so none are lost there)

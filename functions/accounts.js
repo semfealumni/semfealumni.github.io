@@ -34,6 +34,8 @@
  *   2. the directory card follows the merged application;
  *   3. LinkedIn links (linkedinLinks/) that pointed to DROP now point to KEEP,
  *      and so do the messages DROP sent from the Σχόλια page (feedback/);
+ *   3a. the e-mail alerts (alertPrefs/): KEEP gets every kind either chose,
+ *       sent to KEEP's sign-in e-mail; DROP's choice is deleted;
  *   4. DROP's Google / Facebook / LinkedIn-OIDC sign-ins move to KEEP, unless
  *      KEEP already has one of that kind (Firebase allows one per kind);
  *      DROP's e-mail + password cannot move (a password belongs to an address),
@@ -213,6 +215,23 @@ async function mergeLocked({ auth, db, now, keep, drop, keepUid, dropUid, by }) 
     const claims = Object.assign({}, keep.customClaims || {});
     if (claims.li !== true) { claims.li = true; await auth.setCustomUserClaims(keepUid, claims); }
     if (methodsOf(keep).indexOf('linkedin') === -1) report.moved.push('linkedin');
+  }
+
+  // 3a. the e-mail alerts: the kept account gets every kind either chose,
+  //     sent to its own sign-in e-mail when it has one (the rules pin the
+  //     address to the account's sign-in e-mail)
+  const alertsCol = db.collection('alertPrefs');
+  const [kal, dal] = await Promise.all([alertsCol.doc(keepUid).get(), alertsCol.doc(dropUid).get()]);
+  if (dal.exists) {
+    const ko = kal.exists ? kal.data() || {} : {}, dO = dal.data() || {};
+    const topics = Array.from(new Set([].concat(ko.topics || [], dO.topics || []))).filter(t => typeof t === 'string');
+    const email = keep.email || ko.email || dO.email || '';
+    const next = { topics, email, updatedAt: now() };
+    const k = ko.k || dO.k;
+    if (k) next.k = k;
+    await alertsCol.doc(keepUid).set(next);
+    await alertsCol.doc(dropUid).delete();
+    report.alerts = topics.length;
   }
 
   // 3b. messages sent from the Σχόλια page follow the person (deleting DROP

@@ -589,6 +589,10 @@ section.dark a:not(.btn) { color: var(--gold); }
   color: var(--ink); font: inherit; font-weight: 800; font-size: .92rem; cursor: pointer;
 }
 .filters button[aria-pressed="true"] { background: #12355b; border-color: #12355b; color: #fff; }
+/* under the announcements: e-mail alerts and the feeds */
+.follow { margin-top: 32px; padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.follow p { margin: 0 0 12px; }
+.follow-links { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* long-form content (announcements, legal pages, about text) */
 .prose { max-width: 760px; }

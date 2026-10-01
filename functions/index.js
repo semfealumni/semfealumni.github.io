@@ -3,8 +3,9 @@
  *   accounts            the admin page's list of registered accounts, and
  *                       merging two accounts of one person (HTTPS, accounts.js)
  *   cleanupDeletedUser  when a sign-in account is deleted, removes its
- *                       application, directory card, LinkedIn link and the
- *                       messages it sent from the Σχόλια page
+ *                       application, directory card, e-mail alert choice,
+ *                       LinkedIn link and the messages it sent from the
+ *                       Σχόλια page
  *   feedbackCreated     a new message on the Σχόλια page: a copy to the
  *                       admins, a confirmation with the ticket number to the
  *                       sender (feedback.js)
@@ -19,6 +20,12 @@
  *   memberStats         recounts the anonymous statistics of the members
  *                       (publicStats/members) whenever an application changes
  *                       (member-stats.js)
+ *   alertsMailer        every 2 hours: e-mails each member who chose an alert
+ *                       on account/ what has been published since (new
+ *                       announcements and events from the site's feed.json,
+ *                       «Τι νέο» entries an admin approved). The first run
+ *                       only records what is already published (alerts.js)
+ *   alertsUnsubscribe   the "stop the alerts" link in those e-mails (alerts.js)
  *
  * Settings (asked for by the Firebase CLI on the first deploy, stored in
  * functions/.env.<project-id>; the secret goes to Google Secret Manager):
@@ -46,9 +53,11 @@ const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const functionsV1 = require('firebase-functions/v1');
 const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { handle, cleanupUser, splitList } = require('./linkedin');
 const accounts = require('./accounts');
 const feedback = require('./feedback');
+const alerts = require('./alerts');
 
 initializeApp();
 
@@ -64,7 +73,7 @@ const LINKEDIN_REDIRECT_URIS = defineString('LINKEDIN_REDIRECT_URIS', {
 });
 
 const SITE_URL = defineString('SITE_URL', {
-  default: 'https://www.stouras.com/semfealumni/',
+  default: 'https://semfealumni.gr/',
   description: "The site's address, ending in /, for the links in e-mails"
 });
 const FEEDBACK_TO = defineString('FEEDBACK_TO', {
@@ -262,5 +271,80 @@ exports.memberStats = onDocumentWritten(
     if (!stats.matters(before, after)) return;
     const out = await publishMemberStats(getFirestore());
     logger.info('member statistics: ' + out.registered + ' registered, ' + out.active + ' active');
+  }
+);
+
+/* ---- the e-mail alerts (alerts.js) ---------------------------------------
+   Every 2 hours: what has been published since the last run, to the members
+   who chose that kind of news. One instance, so two runs never overlap (the
+   ledger's transaction would stop a double send anyway). */
+function projectId() {
+  if (process.env.GCLOUD_PROJECT) return process.env.GCLOUD_PROJECT;
+  try { return JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId || ''; } catch (e) { return ''; }
+}
+function unsubBase() { return 'https://europe-west1-' + projectId() + '.cloudfunctions.net/alertsUnsubscribe'; }
+async function fetchJson(url) {
+  const res = await fetch(url, { headers: { 'cache-control': 'no-cache' }, signal: AbortSignal.timeout(20000) });
+  if (!res.ok) throw new Error(url + ' answered ' + res.status);
+  return res.json();
+}
+exports.alertsMailer = onSchedule(
+  { schedule: 'every 2 hours', timeZone: 'Europe/Athens', region: 'europe-west1', secrets: [SMTP_USER, SMTP_PASS],
+    retryCount: 0, maxInstances: 1, timeoutSeconds: 540, memory: '256MiB' },
+  async () => {
+    const db = getFirestore();
+    const prefsCol = db.collection(alerts.PREFS), ledgerRef = db.collection(alerts.LEDGER[0]).doc(alerts.LEDGER[1]);
+    const result = await alerts.run({
+      fetchJson,
+      decisions: async () => {
+        const out = {};
+        (await db.collection('newsOverrides').get()).forEach(d => { out[d.id] = d.data(); });
+        return out;
+      },
+      ledger: async () => { const snap = await ledgerRef.get(); return snap.exists ? (snap.get('keys') || []) : null; },
+      seed: keys => ledgerRef.set({ keys, t: FieldValue.serverTimestamp() }),
+      claim: keys => db.runTransaction(async tx => {
+        const snap = await tx.get(ledgerRef);
+        const have = new Set(snap.exists ? (snap.get('keys') || []) : []);
+        const added = keys.filter(k => !have.has(k));
+        if (added.length) tx.set(ledgerRef, { keys: Array.from(have).concat(added), t: FieldValue.serverTimestamp() });
+        return added;
+      }),
+      prefs: async () => (await prefsCol.get()).docs.map(d => Object.assign({ uid: d.id }, d.data())),
+      statuses: async uids => {
+        const out = {};
+        for (let i = 0; i < uids.length; i += 100) {
+          const snaps = await db.getAll(...uids.slice(i, i + 100).map(u => db.collection('members').doc(u)));
+          snaps.forEach(s => { if (s.exists) out[s.id] = s.get('status'); });
+        }
+        return out;
+      },
+      setKey: (uid, k) => prefsCol.doc(uid).update({ k }),
+      send: msg => mailer().sendMail(msg),
+      mailOn: /@/.test(SMTP_USER.value()),
+      log: t => logger.warn(t)
+    }, {
+      site: SITE_URL.value().replace(/\/?$/, '/'),
+      from: '"' + 'Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ' + '" <' + SMTP_USER.value() + '>',
+      unsubBase: unsubBase()
+    });
+    logger.info('alerts: ' + result);
+  }
+);
+
+exports.alertsUnsubscribe = onRequest(
+  { region: 'europe-west1', invoker: 'public', maxInstances: 3, timeoutSeconds: 15, memory: '256MiB' },
+  async (req, res) => {
+    const prefsCol = getFirestore().collection(alerts.PREFS);
+    try {
+      const r = await alerts.unsubscribe({ method: req.method, query: req.query }, {
+        get: async uid => { const s = await prefsCol.doc(uid).get(); return s.exists ? s.data() : null; },
+        stop: uid => prefsCol.doc(uid).update({ topics: [], updatedAt: FieldValue.serverTimestamp() })
+      }, { site: SITE_URL.value().replace(/\/?$/, '/') });
+      res.status(r.status).set('content-type', 'text/html; charset=utf-8').set('cache-control', 'no-store').send(r.html);
+    } catch (e) {
+      logger.error('unsubscribe failed', e);
+      res.status(500).set('content-type', 'text/plain; charset=utf-8').send('Κάτι πήγε στραβά. Δοκιμάστε ξανά σε λίγο.');
+    }
   }
 );

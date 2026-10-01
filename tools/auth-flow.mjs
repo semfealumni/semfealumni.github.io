@@ -2026,6 +2026,53 @@ const AN_MEMBERS = MSTATS.memberStats(people, new Date('2026-10-10T08:00:00Z'));
 const anRoute = async (page, file) => page.route(u => u.href.endsWith('/data/analytics.json'), route =>
   route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(file) }));
 
+await scenario('T1', 'account page: e-mail alerts, chosen by kind, for the sign-in e-mail', { cfg: 'oidc',
+  seed: signedInSeed(mariaAcct(), { docs: { ['members/' + MARIA.uid]: member({ firstName: 'Μαρία', lastName: 'Παπαδοπούλου', email: MARIA.email, status: 'pending' }) } }) }, async (page) => {
+  await page.goto(URL_('account/#alerts'));
+  const panel = page.locator('#account-app #alerts');
+  t(await waitFor(page, () => !!document.querySelector('#account-app #alerts form[data-alerts]')), 'a member (application pending) sees «Ειδοποιήσεις με e-mail»');
+  t(await waitFor(page, () => document.activeElement && document.activeElement.closest && !!document.activeElement.closest('#alerts')), 'arriving at account/#alerts lands on the card');
+  const boxes = await page.$$eval('#alerts input[name=topic]', bs => bs.map(b => [b.value, b.checked]));
+  t(js(boxes) === js([['announcements', false], ['events', false], ['site', false]]), 'three kinds, none chosen yet' + list([js(boxes)]));
+  t(await hasText(panel, 'Ανακοινώσεις του Συλλόγου') && await hasText(panel, 'Εκδηλώσεις και συναντήσεις') && await hasText(panel, 'Νέα του ιστότοπου'), '… named as on the list in alert-topics.js');
+  t(await hasText(panel, 'Τα e-mail πηγαίνουν στο ' + MARIA.email), 'it says the e-mails go to the sign-in address');
+  await page.check('#al-announcements'); await page.check('#al-events');
+  await page.click('#alerts [type=submit]');
+  const w = (await waitCalls(page, 'fs.set', 1)).find(x => x.args[0] === 'alertPrefs/' + MARIA.uid);
+  t(!!w, 'saving writes alertPrefs/{uid}');
+  t(w && js(Object.keys(w.args[1]).sort()) === js(['email', 'topics', 'updatedAt']) && js(w.args[1].topics) === js(['announcements', 'events']) && w.args[1].email === MARIA.email,
+    '… only topics, the sign-in e-mail and the time, as the rules allow' + list([js(w && w.args[1])]));
+  t(w && w.args[2] && w.args[2].merge === true, '… merged, so the stop-link key the server keeps is never dropped');
+  t(await hasText(panel, 'Αποθηκεύτηκε. Θα λαμβάνετε: Ανακοινώσεις του Συλλόγου, Εκδηλώσεις και συναντήσεις.'), 'the page confirms what will come');
+  await page.reload();
+  t(await waitFor(page, () => { const a = document.getElementById('al-announcements'), e = document.getElementById('al-events'), s = document.getElementById('al-site'); return a && a.checked && e && e.checked && s && !s.checked; }), 'after a reload the stored choice is ticked');
+  await page.uncheck('#al-announcements'); await page.uncheck('#al-events');
+  await page.click('#alerts [type=submit]');
+  t(await waitFor(page, () => { const d = JSON.parse(localStorage.getItem('__fbfake')).docs['alertPrefs/u-maria']; return d && d.topics.length === 0; }), 'unticking everything and saving stops them');
+  t(await hasText(panel, 'Δεν θα λαμβάνετε ειδοποιήσεις με e-mail.'), '… and says so');
+  await page.click('.acct-chip');
+  t(await page.locator('#acct-menu a[href$="account/#alerts"]').count() === 1, 'the account menu links to «Ειδοποιήσεις με e-mail»');
+});
+
+await scenario('T2', 'account page: the stop-link key is kept; no alerts card without an application or after a rejection', { cfg: 'oidc',
+  seed: signedInSeed(mariaAcct(), { docs: { ['members/' + MARIA.uid]: member({ status: 'active' }),
+    ['alertPrefs/' + MARIA.uid]: { topics: ['site'], email: MARIA.email, updatedAt: ts(Date.now() - DAY), k: 'K'.repeat(32) } } }) }, async (page) => {
+  await page.goto(URL_('account/'));
+  t(await waitFor(page, () => { const s = document.getElementById('al-site'); return s && s.checked; }), 'the stored choice is shown');
+  await page.check('#al-events');
+  await page.click('#alerts [type=submit]');
+  t(await waitFor(page, () => { const d = JSON.parse(localStorage.getItem('__fbfake')).docs['alertPrefs/u-maria']; return d && d.topics.join() === 'events,site'; }), 'a new choice is saved');
+  t((await docOf(page, 'alertPrefs/' + MARIA.uid)).k === 'K'.repeat(32), '… and the server\'s stop-link key is still there');
+  // a rejected application: no card
+  await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('__fbfake')); s.docs['members/u-maria'].status = 'rejected'; localStorage.setItem('__fbfake', JSON.stringify(s)); });
+  await page.reload();
+  t(await waitFor(page, () => /δεν εγκρίθηκε/.test(document.getElementById('account-app').textContent)) && await page.locator('#account-app #alerts').count() === 0, 'a rejected application: no alerts card');
+  // no application: the application form, no card
+  await page.evaluate(() => { const s = JSON.parse(localStorage.getItem('__fbfake')); delete s.docs['members/u-maria']; localStorage.setItem('__fbfake', JSON.stringify(s)); });
+  await page.reload();
+  t(await waitFor(page, () => !!document.querySelector('#account-app form[data-apply]')) && await page.locator('#account-app #alerts').count() === 0, 'no application yet: the form, and no alerts card');
+});
+
 await scenario('S1', '«Στατιστικά»: the visits by period, universities and companies, and the members\' anonymous statistics', { cfg: 'oidc' }, async (page, env) => {
   const rest = [];
   env.onExternal = async (route, url) => {

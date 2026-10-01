@@ -167,6 +167,19 @@ const APP = (o) => Object.assign({
     const log = [...db.docs.entries()].find(([k]) => k.startsWith('accountMerges/'))[1];
     assert.strictEqual(log.keep, 'g1'); assert.strictEqual(log.drop, 'li1'); assert.strictEqual(log.by, 'kstouras@gmail.com');
   });
+  await t('the e-mail alerts follow the person: both choices kept, sent to the kept account\'s e-mail', async () => {
+    const auth = fakeAuth([{ uid: 'k', email: 'k@x.gr', providerData: [PW('k@x.gr')] }, { uid: 'd', email: 'd@gmail.com', providerData: [G('d', 'd@gmail.com')] }]);
+    const db = fakeDb({ 'alertPrefs/k': { topics: ['site'], email: 'k@x.gr', updatedAt: 'T0' },
+      'alertPrefs/d': { topics: ['events', 'site'], email: 'd@gmail.com', updatedAt: 'T0', k: 'K'.repeat(32) } });
+    const r = await accounts.mergeAccounts({ auth, db, now: () => NOW, keepUid: 'k', dropUid: 'd' });
+    assert.deepStrictEqual(db.docs.get('alertPrefs/k'), { topics: ['site', 'events'], email: 'k@x.gr', updatedAt: NOW, k: 'K'.repeat(32) });
+    assert.ok(!db.docs.has('alertPrefs/d')); assert.strictEqual(r.alerts, 2);
+    // KEEP had no choice: DROP's moves over
+    const db2 = fakeDb({ 'alertPrefs/d': { topics: ['announcements'], email: 'd@gmail.com', updatedAt: 'T0' } });
+    const auth2 = fakeAuth([{ uid: 'k', email: 'k@x.gr', providerData: [PW('k@x.gr')] }, { uid: 'd', email: 'd@gmail.com', providerData: [G('d', 'd@gmail.com')] }]);
+    await accounts.mergeAccounts({ auth: auth2, db: db2, now: () => NOW, keepUid: 'k', dropUid: 'd' });
+    assert.deepStrictEqual(db2.docs.get('alertPrefs/k'), { topics: ['announcements'], email: 'k@x.gr', updatedAt: NOW });
+  });
   await t('DROP deleted only AFTER its documents and links moved (order)', async () => {
     const auth = fakeAuth([{ uid: 'k', providerData: [PW('k@x.gr')], email: 'k@x.gr' }, { uid: 'd', providerData: [G('d', 'd@gmail.com')], email: 'd@gmail.com' }]);
     const db = fakeDb({ 'members/d': APP(), 'linkedinLinks/s': { uid: 'd' } });

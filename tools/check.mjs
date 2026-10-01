@@ -133,6 +133,29 @@ function jpegSize(b) {
   else ok(`«Τι νέο»: ${ids.size} entries in changelog.json, decision keys match the rules`);
 }
 
+/* 3b2. e-mail alerts: the kinds of alert and the fields a member writes are
+   the same in assets/js/alert-topics.js and firestore.rules; the Cloud
+   Function's copies of alert-topics.js and news.js are the same files; the
+   feed the alerts read exists and lists the announcements */
+{
+  const T = require(path.join(ROOT, 'assets/js/alert-topics.js'));
+  const rules = read('firestore.rules');
+  const m = rules.match(/function alertTopics\(\)[\s\S]*?\[([^\]]*)\]/);
+  const keys = m ? [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]) : [];
+  if (JSON.stringify(keys) !== JSON.stringify(T.KEYS)) fail(`alertTopics() in firestore.rules (${keys}) differs from KEYS in alert-topics.js (${T.KEYS})`);
+  const blk = (rules.match(/match \/alertPrefs\/\{uid\}[\s\S]*?\n    \}/) || [''])[0];
+  const lists = [...blk.matchAll(/hasOnly\(\[([^\]]*)\]\)/g)].map(x => [...x[1].matchAll(/'([^']+)'/g)].map(y => y[1]).sort().join(','));
+  if (lists[0] !== [...T.DOC_KEYS].sort().join(',')) fail(`alertPrefs create keys in firestore.rules (${lists[0]}) differ from DOC_KEYS in alert-topics.js`);
+  if (lists[1] !== [...T.DOC_KEYS, ...T.SERVER_KEYS].sort().join(',')) fail(`alertPrefs update keys in firestore.rules (${lists[1]}) differ from DOC_KEYS + SERVER_KEYS in alert-topics.js`);
+  for (const f of ['alert-topics.js', 'news.js'])
+    if (read('assets/js/' + f) !== read('functions/' + f)) fail(`functions/${f} must be a copy of assets/js/${f} (cp assets/js/${f} functions/)`);
+  const cats = new Set(T.TOPICS.filter(x => x.source === 'posts').map(x => x.category));
+  const feed = JSON.parse(read('feed.json'));
+  const odd = feed.items.filter(i => !cats.has((i.tags || [])[0]));
+  if (odd.length) fail(`feed.json: ${odd.length} announcement(s) in a category no e-mail alert covers (${[...new Set(odd.map(i => i.tags[0]))]}): add it to alert-topics.js or use Ανακοινώσεις / Εκδηλώσεις`);
+  ok(`e-mail alerts: ${T.KEYS.join(', ')} match the rules; feed.json lists ${feed.items.length} announcement(s)`);
+}
+
 /* 3c. «Στατιστικά»: the profile answers are the same everywhere, the two
    copies of the lists are one file, and the visit counter is on every page
    except the admin and sign-in pages */

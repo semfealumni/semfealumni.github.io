@@ -12,7 +12,7 @@
  * Messages live in module state (formErr, dirMsg) and are also announced. */
 (function () {
   'use strict';
-  var A = window.SemfeAuth, C = window.SEMFE || {}, U = window.SEMFE_UTIL || {}, PO = window.SEMFE_PROFILE;
+  var A = window.SemfeAuth, C = window.SEMFE || {}, U = window.SEMFE_UTIL || {}, PO = window.SEMFE_PROFILE, AL = window.SEMFE_ALERTS;
   var app = document.getElementById('account-app');
   if (!A || !app || !PO) return;
   var esc = A.esc, FV = null, db = null, unsub = null, user = null, member = null, dirEntry = null;
@@ -21,6 +21,8 @@
   // sign-in methods: the set-password form (open, what is typed), the merge box,
   // a method that turned out to belong to another account, deep links already followed
   var pwOpen = false, pwBox = null, mergeOpen = false, conflict = null, jumped = {};
+  // the e-mail alerts (alertPrefs/{uid}): null while loading, {} when none chosen yet
+  var alerts = null, alertsDraft = null, alertsMsg = null;
   var TAKEN = ['auth/credential-already-in-use', 'auth/email-already-in-use', 'auth/account-exists-with-different-credential'];
   var YEAR = new Date().getFullYear();
   var STAGES = { graduate: 'Απόφοιτος/η ΣΕΜΦΕ', 'final-year': 'Τελειόφοιτος/η ΣΕΜΦΕ', faculty: 'Μέλος ΔΕΠ ΣΕΜΦΕ' };
@@ -40,6 +42,7 @@
     if (unsub) { unsub(); unsub = null; }
     member = null; dirEntry = null; editing = false; draft = null; formErr = ''; dirMsg = null; refocus = null;
     autoDirTried = false; delBox = null; pwOpen = false; pwBox = null; mergeOpen = false; conflict = null;
+    alerts = null; alertsDraft = null; alertsMsg = null;
     linked = u ? A.providers(u) : [];
     if (deleted) {                  // keep the "account deleted" message on screen…
       if (!u) return;
@@ -54,6 +57,11 @@
     });
     A.db().then(function (d) {
       db = d; FV = firebase.firestore.FieldValue;
+      db.collection('alertPrefs').doc(u.uid).get().then(function (snap) {
+        if (user !== u) return;
+        alerts = snap.exists ? snap.data() || {} : {};
+        if (member) render();
+      }, function () { if (user !== u) return; alerts = { failed: true }; if (member) render(); });
       unsub = db.collection('members').doc(u.uid).onSnapshot(function (snap) {
         member = snap.exists ? snap.data() : null;
         if (member && member.status === 'active') {
@@ -156,6 +164,8 @@
     else if (del) delBox = null;
     var pwf = app.querySelector('[data-pw-form]');
     if (pwf) pwBox = { a: pwf.elements['pw-new'].value, b: pwf.elements['pw-new2'].value };
+    var af = app.querySelector('form[data-alerts]');
+    if (af) alertsDraft = alertsChecked(af);
     var mf = app.querySelector('[data-merge-pw]');
     var mergeTyped = mf ? { email: mf.elements['merge-email'].value, pass: mf.elements['merge-pass'].value } : null;
     var name = A.displayName(user);
@@ -172,6 +182,7 @@
     s += addMethodPrompt();
     s += '<div class="acct-grid" style="margin-top:18px"><div>';
     s += membershipPanel();
+    s += alertsPanel();
     s += '</div><div>';
     s += methodsPanel();
     s += dangerPanel();
@@ -196,8 +207,8 @@
     }
     // arriving at account/#methods or #apply from the account menu: the panels are drawn
     // only now, after the browser's own jump to the fragment, so go there once ourselves
-    var hm = /^#(methods|apply)$/.exec(location.hash);
-    if (hm && !jumped[hm[1]] && (hm[1] === 'methods' || member)) {
+    var hm = /^#(methods|apply|alerts)$/.exec(location.hash);
+    if (hm && !jumped[hm[1]] && (hm[1] === 'methods' || (member && (hm[1] === 'apply' || app.querySelector('#alerts'))))) {
       jumped[hm[1]] = true;
       var jh = app.querySelector('#' + hm[1] + ' h2');
       if (jh) { if (jh.scrollIntoView) jh.scrollIntoView({ block: 'start' }); try { jh.focus({ preventScroll: true }); } catch (e) { jh.focus(); } }
@@ -251,6 +262,59 @@
       '<dt>Θέσεις εργασίας</dt><dd>' + (m.consentJobs ? 'Ναι' : 'Όχι') + '</dd>' +
       '</dl><button type="button" class="btn btn-outline" data-edit>Επεξεργασία στοιχείων</button></div>';
     return s;
+  }
+
+  /* «Ειδοποιήσεις με e-mail»: the kinds of news a member wants by e-mail
+     (assets/js/alert-topics.js; sent by functions/alerts.js). For members
+     whose application is pending or active, to their confirmed sign-in
+     e-mail (firestore.rules pins it). */
+  function alertsChecked(form) {
+    return Array.prototype.filter.call(form.querySelectorAll('input[name=topic]'), function (b) { return b.checked; }).map(function (b) { return b.value; });
+  }
+  function alertsPanel() {
+    if (!AL || !member || editing || draft || member.status === 'rejected') return '';
+    var s = '<div class="panel" id="alerts"><h2 tabindex="-1">Ειδοποιήσεις με e-mail</h2>' +
+      '<p class="muted intro">Διαλέξτε τι θέλετε να μαθαίνετε με e-mail. Όταν δημοσιεύεται κάτι νέο από όσα επιλέξατε, σας στέλνουμε ένα σύντομο e-mail με τον σύνδεσμο. ' +
+      'Τις σταματάτε όποτε θέλετε, από εδώ ή από τον σύνδεσμο που έχει κάθε e-mail.</p>';
+    if (!user.email) return s + '<div class="notice warn"><p>Για να λαμβάνετε ειδοποιήσεις, ο λογαριασμός σας χρειάζεται μια διεύθυνση e-mail. ' +
+      'Συνδέστε το Google ή ορίστε e-mail και κωδικό στους <a href="#methods">τρόπους σύνδεσης</a>.</p></div></div>';
+    if (needsEmailCheck()) return s + '<p class="muted">Επιβεβαιώστε πρώτα το e-mail σας (δείτε παραπάνω), για να μπορείτε να επιλέξετε ειδοποιήσεις.</p></div>';
+    if (alerts === null) return s + '<p class="muted"><span class="spinner" aria-hidden="true"></span> Φόρτωση των επιλογών σας…</p></div>';
+    if (alerts.failed) return s + '<p class="form-error">Δεν φορτώθηκαν οι επιλογές σας. Ανανεώστε τη σελίδα για να δοκιμάσετε ξανά.</p></div>';
+    var have = alertsDraft || AL.clean(alerts.topics);
+    s += '<form data-alerts novalidate><fieldset style="border:0;padding:0;margin:0 0 12px"><legend class="sr-only">Τι θέλετε να λαμβάνετε με e-mail</legend>' +
+      AL.TOPICS.map(function (t) {
+        return '<label class="check" style="margin-bottom:12px"><input type="checkbox" name="topic" id="al-' + t.key + '" value="' + t.key + '"' + (have.indexOf(t.key) !== -1 ? ' checked' : '') + '>' +
+          '<span><strong>' + esc(t.label) + '</strong><br><span class="muted" style="font-size:.9rem">' + esc(t.hint) + '</span></span></label>';
+      }).join('') + '</fieldset>' +
+      '<p class="muted" style="font-size:.9rem;margin:0 0 12px">Τα e-mail πηγαίνουν στο <strong>' + esc(user.email) + '</strong>, το e-mail σύνδεσής σας.' +
+      (alerts.email && alerts.email !== user.email && AL.clean(alerts.topics).length ? ' Μέχρι να πατήσετε «Αποθήκευση», πηγαίνουν στο ' + esc(alerts.email) + '.' : '') + '</p>' +
+      '<button type="submit" class="btn btn-dark btn-sm">Αποθήκευση</button>' +
+      '<p class="' + (alertsMsg ? alertsMsg.cls : 'form-ok') + '" data-alerts-msg role="status" style="margin:10px 0 0">' + esc(alertsMsg ? alertsMsg.text : '') + '</p></form>';
+    return s + '</div>';
+  }
+  function saveAlerts(form) {
+    var topics = AL.clean(alertsChecked(form)), btn = form.querySelector('[type=submit]');
+    btn.disabled = true;
+    alertsMsg = null;
+    // merge: the stop-link key the server keeps on the document stays as it is
+    A.freshToken(user).catch(function () {}).then(function () {
+      return db.collection('alertPrefs').doc(user.uid).set({ topics: topics, email: user.email, updatedAt: FV.serverTimestamp() }, { merge: true });
+    }).then(function () {
+      alerts = Object.assign({}, alerts, { topics: topics, email: user.email });
+      alertsDraft = null;
+      alertsMsg = { cls: 'form-ok', text: topics.length
+        ? 'Αποθηκεύτηκε. Θα λαμβάνετε: ' + topics.map(function (k) { return AL.byKey(k).label; }).join(', ') + '.'
+        : 'Αποθηκεύτηκε. Δεν θα λαμβάνετε ειδοποιήσεις με e-mail.' };
+      refocus = 'form[data-alerts] [type=submit]';
+      render();
+      say(alertsMsg.text);
+    }, function (e) {
+      alertsMsg = { cls: 'form-error', text: A.friendly(e) };
+      refocus = 'form[data-alerts] [type=submit]';
+      render();
+      say(alertsMsg.text);
+    });
   }
 
   function directoryBox() {
@@ -434,6 +498,7 @@
     on('[data-apply]', 'submit', function (e) { e.preventDefault(); submitApplication(e.target); });
     on('[data-signout]', 'click', function () { A.signOut(); });
     on('[data-dir]', 'change', function (e) { toggleDirectory(e.target); });
+    on('form[data-alerts]', 'submit', function (e) { e.preventDefault(); saveAlerts(e.target); });
     on('[data-resend]', 'click', function () { sendVerify(q('[data-verify-msg]')); });
     on('[data-verified]', 'click', function () { checkVerified(q('[data-verify-msg]'), '#apply h2'); });
     on('[data-send-verify]', 'click', function () { sendVerify(q('[data-methods-msg]')); });
@@ -725,6 +790,8 @@
       if (unsub) { unsub(); unsub = null; }
       return db.collection('directory').doc(user.uid).delete().catch(function () {});
     }).then(function () {
+      return db.collection('alertPrefs').doc(user.uid).delete().catch(function () {});
+    }).then(function () {
       return db.collection('members').doc(user.uid).delete();
     }).then(function () {
       deleted = true;
@@ -737,7 +804,7 @@
       });
     }).then(function () {
       try { localStorage.removeItem('semfe:auth-hint'); } catch (e) {}
-      html('<div class="notice ok" tabindex="-1" id="deleted-msg"><strong>Ο λογαριασμός σας διαγράφηκε.</strong><p>Διαγράψαμε τον λογαριασμό σύνδεσης, την αίτηση μέλους και την καταχώρισή σας στον κατάλογο.</p></div>');
+      html('<div class="notice ok" tabindex="-1" id="deleted-msg"><strong>Ο λογαριασμός σας διαγράφηκε.</strong><p>Διαγράψαμε τον λογαριασμό σύνδεσης, την αίτηση μέλους, την καταχώρισή σας στον κατάλογο και τις ειδοποιήσεις με e-mail.</p></div>');
       var d = document.getElementById('deleted-msg'); if (d) d.focus();
     }).catch(function (e) {
       deleted = false;

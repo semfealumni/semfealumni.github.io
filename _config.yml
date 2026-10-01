@@ -10,6 +10,7 @@ exclude:
   - MIGRATION.md
   - DOMAIN.md
   - ANALYTICS-SETUP.md
+  - ALERTS-SETUP.md
   - tools
   - functions
   - firebase.json

@@ -84,6 +84,7 @@ const ICONS = {
   book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/></svg>',
   mic: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8"/></svg>',
   briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M2 13h20"/></svg>',
+  rss: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>',
   mail: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>',
   vote: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12l2 2 4-4"/><path d="M5 7h14l2 5v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7z"/></svg>',
   heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 0 0 0-7.8z"/></svg>',
@@ -218,6 +219,8 @@ ${noindex ? '  <meta name="robots" content="noindex">\n' : ''}  <meta property="
   <meta name="twitter:image" content="${SITE_URL}og-image.jpg">
   <link rel="image_src" href="${SITE_URL}share-square.jpg">
   <meta itemprop="image" content="${SITE_URL}share-square.jpg">
+  <link rel="alternate" type="application/atom+xml" title="Ανακοινώσεις · ${esc(C.siteName)} (Atom)" href="${SITE_URL}feed.xml">
+  <link rel="alternate" type="application/rss+xml" title="Ανακοινώσεις · ${esc(C.siteName)} (RSS)" href="${SITE_URL}rss.xml">
   <link rel="icon" type="image/svg+xml" href="${root}favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="${root}favicon-32.png">
   <link rel="apple-touch-icon" href="${root}apple-touch-icon.png">
@@ -474,6 +477,78 @@ if (ROOTED) {
 } else {
   for (const f of ['CNAME', 'robots.txt']) if (existsSync(path.join(ROOT, f))) DROP.push(f);
 }
+
+/* The announcements as feeds, for feed readers (the earlier site had them):
+     feed.xml   Atom 1.0
+     rss.xml    RSS 2.0
+     feed.json  JSON Feed 1.1; also what the e-mail alerts read (functions/
+                alerts.js), so a new announcement is mailed exactly when it
+                appears here
+   Every page names the first two in its <head>, so pasting the site's address
+   into a reader finds them. Links inside a post are made absolute. */
+const FEED_MAX = 50;
+const feedPosts = posts.slice(0, FEED_MAX).map(p => ({
+  url: SITE_URL + p.path, title: p.meta.title, summary: p.meta.description || '', date: p.meta.date,
+  category: p.meta.category || 'Ανακοινώσεις', image: p.meta.image ? SITE_URL + 'assets/img/posts/' + p.meta.image : '',
+  html: fill(p.body, SITE_URL, p)
+}));
+const isoDay = d => d + 'T12:00:00Z';
+const rfc822 = d => new Date(isoDay(d)).toUTCString().replace('GMT', '+0000');
+const cdata = s => '<![CDATA[' + String(s).replace(/]]>/g, ']]]]><![CDATA[>') + ']]>';
+const newest = feedPosts.length ? feedPosts[0].date : '2026-01-01';
+out.push(['feed.xml', `<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="el">
+  <title>Ανακοινώσεις · ${esc(C.siteName)}</title>
+  <subtitle>Ανακοινώσεις, προσκλήσεις και εκδηλώσεις του Συλλόγου</subtitle>
+  <id>${SITE_URL}blog/</id>
+  <link rel="alternate" type="text/html" href="${SITE_URL}blog/"/>
+  <link rel="self" type="application/atom+xml" href="${SITE_URL}feed.xml"/>
+  <updated>${isoDay(newest)}</updated>
+  <author><name>${esc(C.siteName)}</name></author>
+  <icon>${SITE_URL}favicon-32.png</icon>
+${feedPosts.map(p => `  <entry>
+    <title>${esc(p.title)}</title>
+    <id>${p.url}</id>
+    <link rel="alternate" type="text/html" href="${p.url}"/>
+    <published>${isoDay(p.date)}</published>
+    <updated>${isoDay(p.date)}</updated>
+    <category term="${esc(p.category)}"/>
+    <summary>${esc(p.summary)}</summary>
+    <content type="html">${esc(p.html)}</content>
+  </entry>`).join('\n')}
+</feed>
+`]);
+out.push(['rss.xml', `<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Ανακοινώσεις · ${esc(C.siteName)}</title>
+    <link>${SITE_URL}blog/</link>
+    <description>Ανακοινώσεις, προσκλήσεις και εκδηλώσεις του Συλλόγου</description>
+    <language>el</language>
+    <lastBuildDate>${rfc822(newest)}</lastBuildDate>
+    <atom:link href="${SITE_URL}rss.xml" rel="self" type="application/rss+xml"/>
+${feedPosts.map(p => `    <item>
+      <title>${esc(p.title)}</title>
+      <link>${p.url}</link>
+      <guid isPermaLink="true">${p.url}</guid>
+      <pubDate>${rfc822(p.date)}</pubDate>
+      <category>${esc(p.category)}</category>
+      <description>${cdata(p.html)}</description>
+    </item>`).join('\n')}
+  </channel>
+</rss>
+`]);
+out.push(['feed.json', JSON.stringify({
+  version: 'https://jsonfeed.org/version/1.1',
+  title: 'Ανακοινώσεις · ' + C.siteName,
+  home_page_url: SITE_URL + 'blog/',
+  feed_url: SITE_URL + 'feed.json',
+  language: 'el',
+  items: feedPosts.map(p => Object.assign({
+    id: p.url, url: p.url, title: p.title, summary: p.summary, content_html: p.html,
+    date_published: isoDay(p.date), tags: [p.category]
+  }, p.image ? { image: p.image } : {}))
+}, null, 1) + '\n']);
 
 /* sitemap.xml: every indexable page (none while the whole site is noindex:
    a sitemap of noindex pages only earns "submitted URL marked noindex") */

@@ -2,6 +2,20 @@
   "about": "The «Τι νέο» list (whats-new/). Newest first. Each entry is a SUGGESTION: it is shown publicly only after an admin approves it on the page. Fields: id (lowercase letters, digits, dashes; never reuse one), date (YYYY-MM-DD), title, summary, url (optional: a page of the site, or https://).",
   "updates": [
     {
+      "id": "2026-10-01-email-alerts",
+      "date": "2026-10-01",
+      "title": "Ειδοποιήσεις με e-mail",
+      "summary": "Από τον λογαριασμό σας διαλέγετε τι θέλετε να μαθαίνετε με e-mail: τις ανακοινώσεις του Συλλόγου, τις εκδηλώσεις και τις συναντήσεις αποφοίτων, και τα νέα του ιστότοπου. Όταν δημοσιεύεται κάτι νέο από όσα επιλέξατε, σας στέλνουμε ένα σύντομο e-mail. Τις σταματάτε όποτε θέλετε, με ένα κλικ.",
+      "url": "account/#alerts"
+    },
+    {
+      "id": "2026-10-01-rss-atom",
+      "date": "2026-10-01",
+      "title": "Οι ανακοινώσεις σε RSS και Atom",
+      "summary": "Οι ανακοινώσεις και οι εκδηλώσεις του Συλλόγου διατίθενται ξανά ως ροές RSS και Atom, για όσους τις παρακολουθούν σε πρόγραμμα ανάγνωσης ειδήσεων. Οι σύνδεσμοι βρίσκονται στο τέλος της σελίδας «Ανακοινώσεις».",
+      "url": "blog/"
+    },
+    {
       "id": "2026-10-01-statistika",
       "date": "2026-10-01",
       "title": "Στατιστικά επισκεψιμότητας και μελών",

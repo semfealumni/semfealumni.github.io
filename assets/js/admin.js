@@ -49,12 +49,32 @@
         render();
         A.noteMenu({ pending: all.filter(function (m) { return (m.status || 'pending') === 'pending'; }).length });
         if (users === null && !usersErr) loadUsers();
+        if (alertCounts === null) loadAlertCounts();
       }, function (e) {
         html('<div class="notice err"><strong>Δεν ήταν δυνατή η φόρτωση</strong><p>' + esc(A.friendly(e)) + '</p><p>Αν μόλις ρυθμίσατε το Firebase, βεβαιωθείτε ότι δημοσιεύσατε το firestore.rules και ότι το ' + esc(u.email) + ' υπάρχει και στο isAdmin() των κανόνων.</p></div>');
       });
     }, function (e) { html('<div class="notice err"><p>' + esc(A.friendly(e)) + '</p></div>'); });
   });
 
+  /* how many members chose each e-mail alert (account/ > «Ειδοποιήσεις με e-mail») */
+  var alertCounts = null;
+  function loadAlertCounts() {
+    var AL = window.SEMFE_ALERTS;
+    if (!AL) return;
+    alertCounts = {};
+    db.collection('alertPrefs').get().then(function (qs) {
+      var c = { _any: 0 };
+      qs.forEach(function (d) { var t = AL.clean(d.data().topics); if (t.length) c._any++; t.forEach(function (k) { c[k] = (c[k] || 0) + 1; }); });
+      alertCounts = c;
+      render();
+    }, function () { alertCounts = { failed: true }; render(); });
+  }
+  function alertLine() {
+    var AL = window.SEMFE_ALERTS, c = alertCounts;
+    if (!AL || !c || c._any == null) return '';
+    return '<strong>Ειδοποιήσεις με e-mail:</strong> ' + c._any + (c._any === 1 ? ' μέλος' : ' μέλη') + ' · ' +
+      AL.TOPICS.map(function (t) { return esc(t.label) + ' ' + (c[t.key] || 0); }).join(' · ');
+  }
   function ts(t) { return t && t.toMillis ? t.toMillis() : 0; }
   function date(t) { var ms = ts(t); if (!ms) return ''; var d = new Date(ms); return d.getDate() + '/' + (d.getMonth() + 1) + '/' + d.getFullYear(); }
   function fold(s) { s = String(s || '').toLowerCase(); if (s.normalize) s = s.normalize('NFD').replace(/[̀-ͯ]/g, ''); return s.replace(/ς/g, 'σ'); }
@@ -117,6 +137,8 @@
     var list = visible();
     app.querySelector('[data-tiles]').innerHTML =
       tile(all.length, 'Αιτήσεις συνολικά') + tile(count('pending'), 'Σε αναμονή') + tile(count('active'), 'Ενεργά μέλη') + tile(paidNow, 'Συνδρομή ' + YEAR);
+    var al = app.querySelector('[data-alert-line]');
+    if (al) { al.innerHTML = alertLine(); al.hidden = !al.innerHTML; }
     app.querySelectorAll('[data-filter]').forEach(function (b) { b.setAttribute('aria-pressed', String(filter === b.getAttribute('data-filter'))); });
     app.querySelector('[data-csv]').textContent = 'Εξαγωγή CSV (' + list.length + ')';
     app.querySelector('[data-list]').innerHTML = !list.length ? '<p class="muted">Καμία αίτηση σε αυτή την κατηγορία.</p>'
@@ -128,6 +150,7 @@
   }
   function buildFrame() {
     html('<div data-admin-frame><div class="tiles" data-tiles></div>' +
+      '<p class="muted" data-alert-line hidden style="font-size:.92rem;margin:-6px 0 18px"></p>' +
       '<div class="dir-tools">' +
       '<div class="filters" role="group" aria-label="Κατάσταση" style="margin:0">' +
       [['pending', 'Σε αναμονή'], ['active', 'Ενεργά'], ['rejected', 'Απορρίφθηκαν'], ['all', 'Όλες']].map(function (f) {
