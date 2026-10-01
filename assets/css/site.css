@@ -596,6 +596,15 @@ section.dark a:not(.btn) { color: var(--gold); }
 
 /* long-form content (announcements, legal pages, about text) */
 .prose { max-width: 760px; }
+/* the legal pages (privacy, terms, data deletion): the text fills the page
+   and is aligned on both sides; words break at syllables (lang="el") so the
+   spaces stay even. On a phone a line holds too few words to justify well,
+   so it stays aligned left there. */
+.prose.wide { max-width: none; }
+@media (min-width: 640px) {
+  .prose.wide p, .prose.wide li { text-align: justify; -webkit-hyphens: auto; hyphens: auto; }
+  .prose.wide .muted { text-align: left; }
+}
 .prose h2 { font-size: clamp(1.4rem, 3vw, 1.8rem); margin-top: 1.6em; }
 .prose h3 { margin-top: 1.4em; }
 .prose > :first-child { margin-top: 0; }
