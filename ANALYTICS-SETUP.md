@@ -186,6 +186,11 @@ The workflow then runs by itself every morning (06:37 Greek time in summer).
   αρχή» by month, as the average visits per day in each, so a month that has
   only just started never looks like a fall. «Τα νούμερα» under the chart
   lists the totals.
+* **A gap is not zero.** A month or more with nothing measured (the old
+  site's Google Analytics stopped on 8 February 2024; the new site's
+  counters started on 1 October 2026) is shown as a break in the line, with
+  a sentence naming the dates, and a period that falls wholly inside it
+  says "no measurements" instead of "0 visits".
 * **Two counters, one line.** Up to the day the site's own counter started,
   the visits per day are Google Analytics' (the old site's, then ours); from
   that day on, the counter's. The card says where it changes.

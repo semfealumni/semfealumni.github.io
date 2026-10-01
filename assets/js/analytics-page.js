@@ -63,14 +63,19 @@
       average visits per day in each: a part week or month at either end of
       the period then never reads as a fall. Up to 120 days stay daily. */
   function groupDays(rows) {
-    if (rows.length <= 120) return rows.map(function (r) { return { by: 'day', d: r.d, last: r.d, days: 1, v: r.v, pv: r.pv, tv: r.v, tpv: r.pv }; });
+    if (rows.length <= 120) return rows.map(function (r) { return { by: 'day', d: r.d, last: r.d, days: r.v == null ? 0 : 1, v: r.v, pv: r.pv, tv: r.v, tpv: r.pv }; });
     var by = rows.length <= 730 ? 'week' : 'month', out = [], cur = null;
     rows.forEach(function (r) {
       var k = by === 'month' ? r.d.slice(0, 7) : weekStart(r.d);
       if (!cur || cur.k !== k) { cur = { k: k, by: by, d: r.d, last: r.d, days: 0, tv: 0, tpv: 0 }; out.push(cur); }
-      cur.days++; cur.tv += r.v; cur.tpv += r.pv; cur.last = r.d;
+      cur.last = r.d;
+      if (r.v == null) return;                       // not measured: neither 0 nor counted
+      cur.days++; cur.tv += r.v; cur.tpv += r.pv;
     });
-    out.forEach(function (g) { g.v = Math.round(g.tv / g.days * 10) / 10; g.pv = Math.round(g.tpv / g.days * 10) / 10; });
+    out.forEach(function (g) {
+      g.v = g.days ? Math.round(g.tv / g.days * 10) / 10 : null;
+      g.pv = g.days ? Math.round(g.tpv / g.days * 10) / 10 : null;
+    });
     return out;
   }
   function groupLabel(g) {
@@ -233,13 +238,25 @@
     el.textContent = '';
     var W = Math.max(260, el.clientWidth), H = 220, pad = { t: 12, r: 10, b: 26, l: 38 };
     var svg = svgEl('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, tabindex: '0', class: 'an-line-svg' });
-    var max = niceMax(Math.max.apply(null, rows.map(function (r) { return r.v; }).concat([1])));
+    var max = niceMax(Math.max.apply(null, rows.map(function (r) { return r.v || 0; }).concat([1])));
     frame(svg, W, H, pad, max);
     var iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
     var X = function (i) { return pad.l + (rows.length < 2 ? iw / 2 : iw * i / (rows.length - 1)); };
     var Y = function (v) { return pad.t + ih * (1 - v / max); };
-    var line = rows.map(function (r, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(r.v).toFixed(1); }).join('');
-    svg.appendChild(svgEl('path', { d: line + 'L' + X(rows.length - 1).toFixed(1) + ',' + (pad.t + ih) + 'L' + X(0).toFixed(1) + ',' + (pad.t + ih) + 'Z', class: 'an-area' }));
+    // one stretch of line per run of measured points: an unmeasured stretch is a break, never a drop to 0
+    var runs = [], run = null;
+    rows.forEach(function (r, i) {
+      if (r.v == null) { run = null; return; }
+      if (!run) { run = []; runs.push(run); }
+      run.push(i);
+    });
+    var line = '';
+    runs.forEach(function (idx) {
+      var seg = idx.map(function (i, k) { return (k ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(rows[i].v).toFixed(1); }).join('');
+      if (idx.length === 1) seg += 'h0.01';            // a lone point still shows (round line caps)
+      line += seg;
+      svg.appendChild(svgEl('path', { d: seg + 'L' + X(idx[idx.length - 1]).toFixed(1) + ',' + (pad.t + ih) + 'L' + X(idx[0]).toFixed(1) + ',' + (pad.t + ih) + 'Z', class: 'an-area' }));
+    });
     svg.appendChild(svgEl('path', { d: line, class: 'an-line' }));
     var ticks = Math.min(rows.length, Math.max(2, Math.floor(iw / 90)));
     for (var k = 0; k < ticks; k++) {
@@ -257,17 +274,19 @@
       cur = i;
       var r = rows[i];
       cross.setAttribute('x1', X(i)); cross.setAttribute('x2', X(i)); cross.setAttribute('visibility', 'visible');
-      dot.setAttribute('cx', X(i)); dot.setAttribute('cy', Y(r.v)); dot.setAttribute('visibility', 'visible');
+      dot.setAttribute('cx', X(i)); dot.setAttribute('cy', Y(r.v || 0)); dot.setAttribute('visibility', r.v == null ? 'hidden' : 'visible');
       var b = svg.getBoundingClientRect();
       var lines;
-      if (r.by && r.by !== 'day') {
+      if (r.v == null) {
+        lines = ['Χωρίς μετρήσεις', r.by && r.by !== 'day' ? groupLabel(r) : dayLong(r.d)];
+      } else if (r.by && r.by !== 'day') {
         lines = [dec(r.v) + ' επισκέψεις την ημέρα (μέσος όρος)', groupLabel(r),
           n(r.tv) + (r.tv === 1 ? ' επίσκεψη' : ' επισκέψεις') + ' και ' + n(r.tpv) + ' προβολές σελίδων συνολικά'];
       } else {
         lines = [n(r.v) + (r.v === 1 ? ' επίσκεψη' : ' επισκέψεις'), dayLong(r.d)];
         if (r.pv) lines.push(n(r.pv) + ' προβολές σελίδων');
       }
-      showTip(lines, cx != null ? cx : b.left + X(i) * (b.width / W), cy != null ? cy : b.top + Y(r.v) * (b.height / H));
+      showTip(lines, cx != null ? cx : b.left + X(i) * (b.width / W), cy != null ? cy : b.top + Y(r.v || 0) * (b.height / H));
     }
     function off() { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); hideTip(); }
     svg.addEventListener('pointermove', function (e) {
@@ -305,10 +324,12 @@
   function daysIn(w) {
     var out = [];
     if (!data || !data.days || !w || !w.from) return out;
-    var d = new Date(w.from + 'T00:00:00Z'), end = new Date(w.to + 'T00:00:00Z');
+    var d = new Date(w.from + 'T00:00:00Z'), end = new Date(w.to + 'T00:00:00Z'), holes = data.gaps || [];
     for (var guard = 0; d <= end && guard < 4000; guard++) {
       var key = d.toISOString().slice(0, 10), row = data.days[key] || [0, 0];
-      out.push({ d: key, v: row[0] || 0, pv: row[1] || 0 });
+      // a day inside a stretch nothing was measured is unknown (null), not 0
+      var off = holes.some(function (g) { return key >= g[0] && key <= g[1]; });
+      out.push(off ? { d: key, v: null, pv: null } : { d: key, v: row[0] || 0, pv: row[1] || 0 });
       d.setUTCDate(d.getUTCDate() + 1);
     }
     return out;
@@ -327,7 +348,10 @@
     h += '<div class="an-range" role="group" aria-label="Περίοδος">' + RANGES.map(function (r) {
       return '<button type="button" class="btn btn-sm ' + (r[0] === range ? 'btn-dark' : 'btn-outline') + '" data-range="' + r[0] + '" aria-pressed="' + (r[0] === range) + '">' + esc(r[1]) + '</button>';
     }).join('') + '</div>';
-    if (!w) return h + '<p class="an-empty">Δεν υπάρχουν στοιχεία για αυτή την περίοδο.</p></section>';
+    if (!w) {
+      var other = RANGES.filter(function (r) { return data.windows[r[0]]; }).map(function (r) { return '«' + esc(r[1]) + '»'; });
+      return h + '<p class="an-empty">Δεν υπάρχουν μετρήσεις για αυτή την περίοδο' + (other.length ? '. Δείτε ' + other.join(', ') + '.' : '.') + '</p></section>';
+    }
     h += '<p class="an-period">' + esc(dayLong(w.from)) + ' – ' + esc(dayLong(w.to)) + (data.generated ? ' · ενημερώθηκε ' + esc(dayLong(String(data.generated).slice(0, 10))) : '') + '</p>';
 
     var visits = w.visits || 0, views = w.pageviews || 0;
@@ -342,7 +366,7 @@
       var grouped = groupDays(rows), by = grouped[0].by;
       var each = by === 'month' ? 'κάθε μήνα' : by === 'week' ? 'κάθε εβδομάδας' : '';
       h += card('Επισκέψεις ανά ημέρα', (each ? 'Ο μέσος όρος ' + each + '. ' : '') +
-        'Κάθε επίσκεψη μετράει μία φορά, όσες σελίδες κι αν διαβάσει ο επισκέπτης.' + lineSource(w),
+        'Κάθε επίσκεψη μετράει μία φορά, όσες σελίδες κι αν διαβάσει ο επισκέπτης.' + lineSource(w) + gapNote(w),
         chartSlot('line', grouped, each ? 'Επισκέψεις ανά ημέρα, μέσος όρος ' + each : 'Επισκέψεις ανά ημέρα') + daysTable(grouped), 'an-wide');
     }
     if (w.pages) h += card('Οι πιο δημοφιλείς σελίδες', srcNote(w.pages.src, 'προβολές σελίδων'),
@@ -395,6 +419,7 @@
   function weekdays(rows) {
     var sum = [0, 0, 0, 0, 0, 0, 0], cnt = [0, 0, 0, 0, 0, 0, 0];
     rows.forEach(function (r) {
+      if (r.v == null) return;                                           // not measured
       var wd = (new Date(r.d + 'T12:00:00Z').getUTCDay() + 6) % 7;      // Monday first
       sum[wd] += r.v; cnt[wd]++;
     });
@@ -408,11 +433,16 @@
     var by = rows.length ? rows[0].by : 'day';
     if (by === 'day') {
       return '<details class="an-numbers"><summary>Τα νούμερα ανά ημέρα</summary><div class="an-scroll"><table class="data"><thead><tr><th scope="col">Ημέρα</th><th scope="col">Επισκέψεις</th><th scope="col">Προβολές σελίδων</th></tr></thead><tbody>' +
-        rows.slice().reverse().map(function (r) { return '<tr><td>' + esc(dayLong(r.d)) + '</td><td>' + n(r.v) + '</td><td>' + n(r.pv) + '</td></tr>'; }).join('') + '</tbody></table></div></details>';
+        rows.slice().reverse().map(function (r) { return '<tr><td>' + esc(dayLong(r.d)) + '</td>' + (r.v == null ? '<td colspan="2">χωρίς μετρήσεις</td>' : '<td>' + n(r.v) + '</td><td>' + n(r.pv) + '</td>') + '</tr>'; }).join('') + '</tbody></table></div></details>';
     }
     var what = by === 'month' ? 'Μήνας' : 'Εβδομάδα';
     return '<details class="an-numbers"><summary>Τα νούμερα ανά ' + (by === 'month' ? 'μήνα' : 'εβδομάδα') + '</summary><div class="an-scroll"><table class="data"><thead><tr><th scope="col">' + what + '</th><th scope="col">Επισκέψεις</th><th scope="col">Προβολές σελίδων</th><th scope="col">Επισκέψεις ανά ημέρα</th></tr></thead><tbody>' +
-      rows.slice().reverse().map(function (r) { return '<tr><td>' + esc(by === 'week' ? spanLabel(r.d, r.last) : groupLabel(r)) + '</td><td>' + n(r.tv) + '</td><td>' + n(r.tpv) + '</td><td>' + dec(r.v) + '</td></tr>'; }).join('') + '</tbody></table></div></details>';
+      rows.slice().reverse().map(function (r) { return '<tr><td>' + esc(by === 'week' ? spanLabel(r.d, r.last) : groupLabel(r)) + '</td>' + (r.v == null ? '<td colspan="3">χωρίς μετρήσεις</td>' : '<td>' + n(r.tv) + '</td><td>' + n(r.tpv) + '</td><td>' + dec(r.v) + '</td>') + '</tr>'; }).join('') + '</tbody></table></div></details>';
+  }
+  /** The unmeasured stretches inside a period, said in words. */
+  function gapNote(w) {
+    var list = (data.gaps || []).filter(function (g) { return g[0] <= w.to && g[1] >= w.from; });
+    return list.map(function (g) { return ' Από ' + esc(dayLong(g[0])) + ' έως ' + esc(dayLong(g[1])) + ' δεν υπάρχουν μετρήσεις (κενό στη γραμμή).'; }).join('');
   }
   /** Which counter the line comes from, and where it changes over. */
   function lineSource(w) {

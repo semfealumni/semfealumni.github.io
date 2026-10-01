@@ -136,6 +136,25 @@ export function mergeDays(siteDocs, gaDays) {
   return Object.fromEntries(Object.entries(days).sort((a, b) => (a[0] < b[0] ? -1 : 1)));
 }
 
+/** Stretches of GAP_DAYS or more with nothing measured, from the first
+    measured day to `to`: a counter that was off, not a month without a
+    single visitor. (The old site's Google Analytics tag stopped on
+    8 February 2024 and the new site's counters started on 1 October 2026.)
+    The periods are trimmed out of them and the page draws them as breaks,
+    so an unmeasured stretch never reads as "0 visits". */
+export const GAP_DAYS = 30;
+export function measurementGaps(days, to) {
+  const keys = Object.keys(days).filter(d => d <= to).sort();
+  const out = [];
+  const between = (last, next) => {                 // unmeasured: the days strictly between them
+    const from = addDays(last, 1), until = addDays(next, -1);
+    if (from <= until && (Date.parse(until) - Date.parse(from)) / 864e5 + 1 >= GAP_DAYS) out.push([from, until]);
+  };
+  for (let i = 1; i < keys.length; i++) between(keys[i - 1], keys[i]);
+  if (keys.length) between(keys[keys.length - 1], addDays(to, 1));
+  return out;
+}
+
 /**
  * The whole file.
  *   site   { docs } or null (not set up)
@@ -157,15 +176,22 @@ export function buildFile({ site, ga, titles, today, generated }) {
   }
   if (ga) file.sources.ga4 = { days: Object.keys(ga.days || {}).length };
   if (!first || first > to) return file;                       // nothing measured yet
+  const holes = measurementGaps(days, to);
+  if (holes.length) file.gaps = holes;
 
   for (const [key, len] of Object.entries(WINDOWS)) {
-    // a period never starts before the first day anything was measured
+    // a period never starts before the first day anything was measured,
+    // and never starts or ends inside a stretch nothing was measured
     const start = len ? addDays(to, -(len - 1)) : first;
-    const from = start < first ? first : start;
-    if (from > to) continue;
-    const w = { from, to, visits: 0, pageviews: 0 };
-    for (const [d, row] of Object.entries(days)) if (between(d, from, to)) { w.visits += row[0]; w.pageviews += row[1]; }
-    const s = site ? siteWindow(site.docs, from, to) : null;
+    let from = start < first ? first : start, end = to;
+    for (const [a, b] of holes) {
+      if (from >= a && from <= b) from = addDays(b, 1);
+      if (end >= a && end <= b) end = addDays(a, -1);
+    }
+    if (from > end) continue;
+    const w = { from, to: end, visits: 0, pageviews: 0 };
+    for (const [d, row] of Object.entries(days)) if (between(d, from, end)) { w.visits += row[0]; w.pageviews += row[1]; }
+    const s = site ? siteWindow(site.docs, from, end) : null;
     const g = ga && ga.windows && ga.windows[key] ? ga.windows[key] : null;
     const title = p => titles[p] || p;
     const pageItems = map => topItems(map, TOP.pages, 'path').map(x => ({ path: x.path, title: title(x.path), n: x.n }));
@@ -445,6 +471,19 @@ async function selftest() {
     const f = buildFile({ site, ga, titles, today: '2026-10-03', generated: 'x' });
     assert.deepStrictEqual(f.sources.site, { days: 2, first: '2026-10-01' });
     assert.ok(!('first' in buildFile({ site: { docs: {} }, ga, titles, today: '2026-10-03', generated: 'x' }).sources.site));
+  });
+  t('a month or more with nothing measured is a gap, not zeros: periods are trimmed out of it', () => {
+    // the old site's tag: measured to 8 Feb 2024; the new site's counter from 1 Oct 2026
+    const g2 = { days: { '2024-02-07': [5, 9], '2024-02-08': [3, 4] }, windows: {} };
+    const s2 = { docs: { '2026-10-01': { seen: 7, pv: 12 } } };
+    assert.deepStrictEqual(measurementGaps({ '2026-01-01': [1, 1], '2026-01-20': [1, 1] }, '2026-01-25'), [], 'a quiet fortnight is not a gap');
+    const before = buildFile({ site: s2, ga: g2, titles, today: '2026-10-01', generated: 'x' });       // yesterday = 30 Sep
+    assert.deepStrictEqual(before.gaps, [['2024-02-09', '2026-09-30']]);
+    assert.deepStrictEqual(Object.keys(before.windows), ['all'], 'the last 30/90/365 days were not measured: no period, not "0 visits"');
+    assert.deepStrictEqual([before.windows.all.from, before.windows.all.to], ['2024-02-07', '2024-02-08'], '«all» ends on the last measured day');
+    const after = buildFile({ site: s2, ga: g2, titles, today: '2026-10-02', generated: 'x' });
+    assert.deepStrictEqual([after.windows['30'].from, after.windows['30'].to, after.windows['30'].visits], ['2026-10-01', '2026-10-01', 7], 'a period starts after the gap');
+    assert.deepStrictEqual([after.windows.all.from, after.windows.all.to, after.windows.all.visits], ['2024-02-07', '2026-10-01', 15], '«all» spans the gap; the page draws it as a break');
   });
   t('dates are Greek time', () => {
     assert.strictEqual(athensDay(new Date('2026-10-01T22:30:00Z')), '2026-10-02');

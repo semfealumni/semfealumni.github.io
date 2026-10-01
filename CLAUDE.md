@@ -141,7 +141,12 @@ Setup for the owner: `ANALYTICS-SETUP.md`. Two parts, two sources each:
   days by week and more than two years by month, as the average visits per
   day (a part month at either end then never looks like a fall), and says
   where the line changes from Google Analytics to the site's counter
-  (`sources.site.first`). GA4 without cookies cannot join the pages of one
+  (`sources.site.first`). **30+ days with nothing measured is a GAP, not
+  zeros** (`measurementGaps`, `file.gaps`): the old site's tag stopped on
+  2024-02-08 and the new counters started 2026-10-01, so a period never
+  starts or ends inside a gap (a period wholly inside one is left out, and
+  the page says so), and the line breaks across it with a sentence naming
+  the dates. GA4 without cookies cannot join the pages of one
   visit, so its "sessions" for days after 1 Oct 2026 are close to page
   views: the site's counter, which wins those days, is what counts visits.
 * **Members** = Firestore `publicStats/members` (public read, server write),

@@ -2085,10 +2085,11 @@ await scenario('S2', '«Στατιστικά» before anything is measured: it s
     await route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":{"code":404,"status":"NOT_FOUND"}}' });
     return true;
   };
+  await anRoute(page, buildFile({ site: { docs: {} }, ga: null, titles: JSON.parse(read('functions/site-paths.json')).titles, today: AN_TODAY, generated: AN_TODAY }));
   await page.goto(URL_('analytics/'));
   const app = page.locator('#analytics-app');
   t(await waitFor(page, () => /μόλις ξεκίνησαν/.test(document.getElementById('analytics-app').textContent) && /θα εμφανιστούν σύντομα/.test(document.getElementById('analytics-app').textContent)),
-    'the committed (empty) file and a missing members document each give a sentence');
+    'an empty file and a missing members document each give a sentence');
   t(await page.locator('#analytics-app .an-chart, #analytics-app .an-card').count() === 0, '… and no chart or card is drawn');
 });
 
@@ -2126,6 +2127,43 @@ await scenario('S3', '«Στατιστικά» over years: the old site\'s Googl
   t(await waitFor(page, () => { const x = document.querySelector('.an-tip').textContent; return /Απρίλιος 2024/.test(x) && !/Απρίλιος 2024 \(/.test(x) && /συνολικά/.test(x); }), 'a whole month is named alone, with its totals');
   await page.keyboard.press('End');
   t(await waitFor(page, () => /Οκτώβριος 2026 \(1–9 Οκτωβρίου 2026\)/.test(document.querySelector('.an-tip').textContent)), 'the last, part month ends yesterday');
+});
+
+await scenario('S4', '«Στατιστικά» with a stretch nothing measured: a break and a sentence, never "0 visits"', { cfg: 'oidc' }, async (page, env) => {
+  env.onExternal = async (route, url) => {
+    if (!url.startsWith('https://firestore.googleapis.com/')) return false;
+    await route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":{"code":404,"status":"NOT_FOUND"}}' });
+    return true;
+  };
+  // the old site's tag: 1 April 2023 to 8 February 2024; the new site's counter from 1 October 2026
+  const gaDays = {};
+  for (let d = new Date('2023-04-01T12:00:00Z'); d <= new Date('2024-02-08T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1)) gaDays[d.toISOString().slice(0, 10)] = [4, 9];
+  const titles = JSON.parse(read('functions/site-paths.json')).titles;
+  const ga = { days: gaDays, windows: { all: { countries: [{ k: 'GR', n: 900 }] } } };
+  // the morning the new counter has its first day
+  await anRoute(page, buildFile({ site: { docs: {} }, ga, titles, today: '2026-10-01', generated: '2026-10-01' }));
+  await page.goto(URL_('analytics/'));
+  const app = page.locator('#analytics-app');
+  t(await waitFor(page, () => /Δεν υπάρχουν μετρήσεις για αυτή την περίοδο\. Δείτε «Από την αρχή»/.test(document.getElementById('analytics-app').textContent)),
+    'the last 30 days were not measured: it says so and points to «Από την αρχή», no "0 visits"');
+  t(!(await hasText(app, '0 επισκέψεις')) && await page.locator('#analytics-app .an-kpi').count() === 0, '… and draws no figures for it');
+  // ten days on (the newer route wins): both counters, the gap between them
+  await anRoute(page, buildFile({ site: { docs: anDocs }, ga, titles, today: AN_TODAY, generated: AN_TODAY }));
+  await page.reload();
+  t(await waitFor(page, () => document.querySelectorAll('#analytics-app .an-line-svg').length === 1), 'the last 30 days: drawn from the first day the new counter measured');
+  t(await hasText(page.locator('#analytics-app .an-period').first(), '1 Οκτωβρίου 2026'), '… and the period starts there, not inside the gap');
+  await page.click('#analytics-app [data-range="all"]');
+  t(await waitFor(page, () => /Από 9 Φεβρουαρίου 2024 έως 30 Σεπτεμβρίου 2026 δεν υπάρχουν μετρήσεις/.test(document.getElementById('analytics-app').textContent)), '«Από την αρχή» names the unmeasured stretch');
+  const moves = await page.evaluate(() => (document.querySelector('#analytics-app .an-line').getAttribute('d').match(/M/g) || []).length);
+  t(moves === 2, `the line is two pieces with a break between them (${moves})`);
+  t(await page.evaluate(() => /χωρίς μετρήσεις/.test(document.querySelector('#analytics-app .an-wide .an-numbers').textContent)), 'the table says «χωρίς μετρήσεις» for the months in the gap');
+  const line = page.locator('#analytics-app .an-line-svg');
+  await line.scrollIntoViewIfNeeded();
+  await sleep(700);
+  await line.focus();
+  await page.keyboard.press('Home');
+  for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowRight');      // April 2023 + 12 = April 2024, inside the gap
+  t(await waitFor(page, () => /Χωρίς μετρήσεις/.test(document.querySelector('.an-tip').textContent) && /Απρίλιος 2024/.test(document.querySelector('.an-tip').textContent)), 'a month in the gap reads «Χωρίς μετρήσεις», not 0');
 });
 
 await browser.close();
