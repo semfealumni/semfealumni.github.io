@@ -485,6 +485,10 @@ deploy and refuses when the target is not the project in `.firebaserc`.
                          can read it.
     mergeLocks/{uid}     held for a few seconds while a merge runs, so two
                          merges never work on one account at once. Server only.
+    newsOverrides/{id}   the admins' decision about one entry of the «Τι νέο»
+                         page (published, waiting, removed, an optional
+                         rewording). Readable by anyone (the page shows
+                         visitors the published ones); written only by admins.
 
 Nothing else is stored. The privacy policy (`/privacy/`) says the same in Greek;
 if you change what the site collects, update it too.

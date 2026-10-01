@@ -27,6 +27,8 @@ as they are here; there is nothing to install to publish it.
     assets/js/feedback.js      "Σχόλια και προβλήματα": a member's message + screenshots, ticket number, their own tickets
     assets/js/admin-feedback.js  the admin page's inbox of those messages: answer and close, reopen, delete
     assets/js/admin.js         "Διαχείριση": approve applications, record dues, every account, merge duplicates, export CSV
+    assets/js/news.js, news-page.js  "Τι νέο": the list of site changes; admins approve, reword or remove each entry
+    changelog.json             the suggested "Τι νέο" entries (public only once an admin approves them)
     assets/img, assets/docs    photos, logos and the PDFs
     firestore.rules            the database security rules (the real gatekeeper)
     firebase.json, .firebaserc, check-project.mjs   for deploying the rules from the command line

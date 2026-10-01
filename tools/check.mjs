@@ -15,6 +15,8 @@ import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let bad = 0;
@@ -108,6 +110,27 @@ function jpegSize(b) {
   }
   const t = readFileSync(path.join(ROOT, 'apple-touch-icon.png'));
   if (t.readUInt32BE(16) !== 180 || t.readUInt32BE(20) !== 180) fail('apple-touch-icon.png must be 180x180'); else ok('apple-touch-icon.png 180x180');
+}
+
+/* 3b. «Τι νέο»: the changelog is well formed, and the keys a decision may
+   carry are the same in assets/js/news.js and firestore.rules */
+{
+  const N = require(path.join(ROOT, 'assets/js/news.js'));
+  const log = JSON.parse(read('changelog.json')), ids = new Set();
+  let last = '9999';
+  for (const e of log.updates || []) {
+    const p = N.problem(e);
+    if (p) fail(`changelog.json ${e && e.id}: ${p}`);
+    else if (ids.has(e.id)) fail(`changelog.json: the id ${e.id} is used twice`);
+    else if (e.date > last) fail(`changelog.json: ${e.id} is out of order (newest first)`);
+    if (e && e.id) ids.add(e.id);
+    if (e && e.date) last = e.date;
+  }
+  const rules = read('firestore.rules');
+  const m = rules.match(/match \/newsOverrides\/\{id\}[\s\S]*?hasOnly\(\[([^\]]*)\]\)/);
+  const fromRules = m ? [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]).sort() : [];
+  if (JSON.stringify(fromRules) !== JSON.stringify([...N.DOC_KEYS].sort())) fail(`news decision keys differ: news.js ${N.DOC_KEYS} vs firestore.rules ${fromRules}`);
+  else ok(`«Τι νέο»: ${ids.size} entries in changelog.json, decision keys match the rules`);
 }
 
 /* 4. the admin list: the page and the rules must agree */

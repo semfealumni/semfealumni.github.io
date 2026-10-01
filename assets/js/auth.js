@@ -316,6 +316,7 @@
       '<a href="' + root + 'account/#methods">' + svg('key') + '<span>Τρόποι σύνδεσης</span>' + (info.methods === 1 ? count('Προσθήκη', 'warn') : '') + '</a>' +
       '<a href="' + root + 'feedback/">' + svg('chat') + '<span>Σχόλια και προβλήματα</span></a>' +
       (admin ? '<a href="' + root + 'admin/#feedback">' + svg('chat') + '<span>Σχόλια μελών</span>' + count(info.fbOpen, 'warn') + '</a>' : '') +
+      (admin ? '<a href="' + root + 'whats-new/">' + svg('news') + '<span>Τι νέο: έγκριση</span>' + count(info.newsPending, 'warn') + '</a>' : '') +
       '<hr>' +
       '<button type="button" data-signout class="out">' + svg('out') + '<span>Αποσύνδεση</span></button>' +
       '</div></div>';
@@ -353,7 +354,8 @@
       out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
       doc: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
       key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14 9l2 2"/>',
-      chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/>' }[k];
+      chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 21l1.9-5.4A8 8 0 1 1 21 12z"/>',
+      news: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>' }[k];
     return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
   }
 
@@ -806,9 +808,12 @@
   }
 
   /* ---- public API -------------------------------------------------------- */
-  function onChange(fn) {
+  function onChange(fn, opts) {
     listeners.push(fn);
-    if (configured && !sdkPromise && !authKnown) loadSdk();   // a page that asks about the account needs the library
+    // a page that asks about the account needs the library. A PASSIVE listener
+    // (whats-new/: a visitor's list is the same either way) only hears of a
+    // sign-in that happens anyway: a browser that signed in before, the dialog
+    if (configured && !sdkPromise && !authKnown && !(opts && opts.passive)) loadSdk();
     if (authKnown) { try { fn(current); } catch (e) {} }
     else if (!configured) { try { fn(null); } catch (e) {} }
   }

@@ -215,6 +215,26 @@ service cloud.firestore {
       }
     }
 
+    // ---- «Τι νέο»: the admins' decisions about changelog.json -----------
+    // changelog.json (in the repository) lists what changed, as suggestions;
+    // one document per entry here says what an admin decided:
+    // status 'approved' (public), 'pending' (admins only), 'removed', plus an
+    // optional rewording. Anyone may READ (whats-new/ shows visitors the
+    // approved ones without signing in); only an admin decides. The keys are
+    // DOC_KEYS in assets/js/news.js (tools/check.mjs keeps the two equal).
+    match /newsOverrides/{id} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && id.matches('[a-z0-9][a-z0-9-]{0,79}')
+        && request.resource.data.keys().hasOnly(['status', 'title', 'summary', 't', 'by'])
+        && request.resource.data.status in ['approved', 'pending', 'removed']
+        && (!('title' in request.resource.data) || str(request.resource.data.title, 200))
+        && (!('summary' in request.resource.data) || str(request.resource.data.summary, 2000))
+        && request.resource.data.t == request.time
+        && request.resource.data.by == request.auth.token.email;
+      allow delete: if isAdmin();
+    }
+
     // ---- LinkedIn links: server only -------------------------------------
     match /linkedinLinks/{sub} {
       allow read, write: if false;

@@ -694,7 +694,7 @@ try {
     t(a.exp === 'false' && !a.shown, `${w}px ${rel || 'home'}: the drop-down starts closed`);
     await page.click('.nav-more-btn');
     const b = await st();
-    t(b.exp === 'true' && b.shown && b.n === 6 && b.heads.length === 2 && b.inView && b.tall,
+    t(b.exp === 'true' && b.shown && b.n === 7 && b.heads.length === 3 && b.inView && b.tall,
       `${w}px: a click opens it: ${b.n} pages under «${b.heads.join('» and «')}», on screen, every link 40px+ tall`);
     if (rel === 'governance/') t(b.here && b.cur.join() === 'Διοίκηση', `${w}px: on Διοίκηση, the button and that link say "you are here" (${b.cur.join() || 'none'})`);
     if (rel === '') t(!b.here && b.cur.length === 0, `${w}px: on the home page nothing in it is marked as the current page`);
@@ -729,8 +729,8 @@ try {
         links: [...nav.querySelectorAll('a')].filter(shown).map(a => a.textContent.trim()),
         cur: [...nav.querySelectorAll('a[aria-current="page"]')].map(a => a.textContent.trim()) };
     });
-    t(!r.btn && r.heads === 2 && r.links.length === 9 && r.links[0] === 'Όραμα & Σκοπός' && r.links[8] === 'Επικοινωνία',
-      `390px phone menu: no drop-down button, 2 headings, all ${r.links.length} links listed (${r.links.join(' · ')})`);
+    t(!r.btn && r.heads === 3 && r.links.length === 10 && r.links[0] === 'Όραμα & Σκοπός' && r.links[6] === 'Τι νέο' && r.links[9] === 'Επικοινωνία',
+      `390px phone menu: no drop-down button, 3 headings, all ${r.links.length} links listed (${r.links.join(' · ')})`);
     t(r.cur.join() === 'Φωτοθήκη', `390px phone menu: the page you are on is marked (${r.cur.join() || 'none'})`);
     await ctx.close();
   }
@@ -1106,6 +1106,17 @@ try {
     t(h < 1000, `home: the list takes ${h}px, not a screen-filling grid`);
     t(pr.every(Boolean) && back.join() === c.join(), 'home: a printout shows all eleven, the screen goes back to one');
     t(log.errors.length === 0, 'home: no script errors in the aims list' + list(log.errors));
+    await ctx.close();
+  }
+  {
+    // «Τι νέο» while sign-in is not set up: no decision can be read, so nothing
+    // is approved and nothing is shown (the suggestions stay private)
+    const { ctx, page, log } = await open(SUB + 'whats-new/', { width: 1280, height: 800 });
+    await page.waitForFunction(() => !document.querySelector('#news-app .loading'), null, { timeout: 5000 }).catch(() => {});
+    const r = await page.evaluate(() => ({ text: document.getElementById('news-app').textContent, items: document.querySelectorAll('#news-app .news-item').length,
+      acts: document.querySelectorAll('#news-app [data-act]').length }));
+    t(/Δεν υπάρχουν ακόμα νέα/.test(r.text) && r.items === 0 && r.acts === 0, `whats-new/: nothing approved yet, so nothing shown (${r.items} entries) and no controls`);
+    t(log.errors.length === 0 && log.bad.length === 0, 'whats-new/: no script errors, changelog.json served' + list(log.errors.concat(log.bad)));
     await ctx.close();
   }
   for (const [label, o] of [['reduced motion', { reducedMotion: 'reduce' }], ['no JavaScript', { javaScript: false }]]) {

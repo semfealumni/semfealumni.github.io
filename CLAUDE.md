@@ -87,6 +87,31 @@ the whole flow: `FEEDBACK-SETUP.md`.
    resolution file (`node tools/feedback-sync.mjs --scan` refuses one that
    carries an address).
 
+## «Τι νέο» (whats-new/): add an entry with every visible change
+
+Like operationsacademia.org, the site keeps a dated list of what changed, and
+**nothing on it is public until an admin approves it**:
+
+* `changelog.json` (repository root, served) says WHAT changed, newest first:
+  `{ id, date, title, summary, url? }`. **Whenever you ship a change people
+  would notice, add an entry at the top in the same change**: Greek, short,
+  plain words, `id` = `YYYY-MM-DD-<a-few-latin-words>` (never reuse one),
+  `url` optional (a page of the site such as `support/` or `#skopos`, or
+  https). It is only a SUGGESTION.
+* Firestore `newsOverrides/{id}` holds the admins' DECISION: `status`
+  approved | pending | removed, plus an optional rewording (`title`,
+  `summary`; empty = the changelog's own text). No document = waiting.
+  Admins decide on the page itself (Δημοσίευση, Δημοσίευση όλων,
+  Επεξεργασία, Αφαίρεση, and Επαναφορά in the closed «Αφαιρεμένα» box); the
+  account menu shows them «Τι νέο: έγκριση» with the count waiting.
+* `assets/js/news.js` is the ONE definition of who sees what (page and tests
+  load it). Visitors read the decisions with one plain request to Firestore's
+  REST address (no Firebase library, no cookies); a failed read shows nothing,
+  never everything. `node tools/check.mjs` checks every changelog entry and
+  that `DOC_KEYS` equals the rule's `hasOnly()` list.
+* Tests: `tools/rules-test` (newsOverrides), `tools/auth-flow.mjs` W1-W4,
+  `tools/smoke.mjs` (the page with sign-in off).
+
 ## Deploying Firebase: always name the project
 
     firebase deploy --only firestore:rules --project <project-id>

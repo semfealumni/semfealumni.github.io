@@ -1890,6 +1890,109 @@ await scenario('Q7', 'Σχόλια page when sign-in is not set up yet: points t
   t(await hasText(page.locator('#feedback-app'), 'ανοίγει σύντομα') && await page.locator('#feedback-app a[href$="contact/"]').count() === 1, '«ανοίγει σύντομα», with a link to Επικοινωνία');
 });
 
+/* ---- «Τι νέο» (whats-new/): changelog.json are Claude's suggestions; the
+   admins' decisions live in newsOverrides/; nothing is public unapproved ---- */
+const NEWS_LOG = JSON.parse(read('changelog.json')).updates;
+const NEWS_IDS = NEWS_LOG.map(e => e.id);
+// Firestore's REST answer for the public read, as visitors' browsers get it
+const restDocs = docs => ({ documents: Object.entries(docs).map(([id, d]) => ({
+  name: `projects/${TEST_FIREBASE.projectId}/databases/(default)/documents/newsOverrides/${id}`,
+  fields: Object.fromEntries(Object.entries(d).map(([k, v]) => [k, { stringValue: v }])) })) });
+const newsTitles = page => page.$$eval('#news-app .news-item h3', els => els.map(e => e.textContent.trim()));
+
+await scenario('W1', '«Τι νέο», signed out: only what an admin approved, in their wording; no sign-in library loaded', { cfg: 'oidc' }, async (page, env) => {
+  const rest = [];
+  env.onExternal = async (route, url) => {
+    if (!url.startsWith('https://firestore.googleapis.com/v1/projects/')) return false;
+    rest.push(url);
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(restDocs({
+      [NEWS_IDS[0]]: { status: 'approved' },
+      [NEWS_IDS[1]]: { status: 'approved', title: 'Η διατύπωση του διαχειριστή' },
+      [NEWS_IDS[2]]: { status: 'removed' },
+      [NEWS_IDS[3]]: { status: 'pending' } })) });
+    return true;
+  };
+  await page.goto(URL_('whats-new/'));
+  t(await waitFor(page, () => document.querySelectorAll('#news-app .news-item').length > 0), 'the list is drawn');
+  const titles = await newsTitles(page);
+  t(js(titles) === js([NEWS_LOG[0].title, 'Η διατύπωση του διαχειριστή']), 'only the two approved entries, newest first, the second in the admin\'s words' + list(titles));
+  t(rest.length === 1 && rest[0].includes('/documents/newsOverrides') && rest[0].includes('key='), 'the decisions come from ONE plain request to Firestore\'s REST address');
+  t(env.sdkUrls.length === 0, '… and the sign-in library is not loaded for a visitor');
+  t(await page.locator('#news-app [data-act]').count() === 0 && await page.locator('#news-app .news-review, #news-app .news-removed').count() === 0, 'no admin controls, nothing waiting, nothing removed');
+  t((await page.locator('#news-app time').first().getAttribute('datetime')) === NEWS_LOG[0].date, 'each entry carries its date');
+  t(await page.locator('.nav-more-panel a[href$="whats-new/"]').count() === 1 && await page.locator('.site-footer a[href$="whats-new/"]').count() === 1, 'reachable from the menu («Ο ιστότοπος») and the footer');
+});
+
+await scenario('W2', '«Τι νέο», signed out, the decisions cannot be read: nothing is shown (never everything)', { cfg: 'oidc' }, async (page, env) => {
+  env.onExternal = async (route, url) => {
+    if (!url.startsWith('https://firestore.googleapis.com/')) return false;
+    await route.fulfill({ status: 403, contentType: 'application/json', body: '{"error":{"code":403,"status":"PERMISSION_DENIED"}}' });
+    return true;
+  };
+  await page.goto(URL_('whats-new/'));
+  t(await hasText(page.locator('#news-app'), 'Δεν υπάρχουν ακόμα νέα'), 'it says there is nothing yet');
+  t(await page.locator('#news-app .news-item').count() === 0, '… and shows no entry: an unreadable decision means "waiting"');
+});
+
+await scenario('W3', '«Τι νέο», an admin: publish, reword, remove, restore, publish all', { cfg: 'oidc', hint: { n: 'Διαχειριστής', p: '', e: ADMIN },
+  seed: signedInSeed(acct('u-admin', { email: ADMIN, name: 'Διαχειριστής', verified: true, providers: ['google.com'] }),
+    { docs: { ['newsOverrides/' + NEWS_IDS[0]]: { status: 'approved', t: ts(Date.now() - DAY), by: ADMIN } } }) }, async (page) => {
+  await page.goto(URL_('whats-new/'));
+  t(await visible(page.locator('#news-app .news-review')), 'the admin sees «Περιμένουν έγκριση» above the list');
+  const pending = NEWS_LOG.length - 1;
+  t(await hasText(page.locator('#news-review-h'), String(pending)) && await page.locator('.news-review .news-item').count() === pending, `${pending} suggestions wait, each with its own buttons`);
+  t(js(await page.$$eval('#news-app > .news-list .news-item h3', els => els.map(e => e.textContent.trim()))) === js([NEWS_LOG[0].title]), 'the published list holds the one approved entry');
+  const second = NEWS_IDS[1];
+  await page.click(`.news-review [data-act="approve"][data-id="${second}"]`);
+  const b1 = await waitCalls(page, 'fs.batch', 1);
+  const op = ((b1[0] || { args: [[]] }).args[0] || [])[0] || {};
+  t(op.op === 'set' && op.path === 'newsOverrides/' + second && op.data.status === 'approved' && op.data.by === ADMIN && op.data.t && op.data.t.__fv === 'serverTimestamp',
+    '«Δημοσίευση» writes newsOverrides/<id>: approved, by the admin, at the server\'s time');
+  t(js(Object.keys(op.data).sort()) === js(['by', 'status', 't']), '… only keys the rules allow' + list([js(Object.keys(op.data))]));
+  t(await hasText(page.locator('#news-app .news-note'), 'Δημοσιεύτηκε') && await page.locator('#news-app > .news-list .news-item').count() === 2, 'it moves to the published list, and the page says so');
+  await page.click(`#news-app > .news-list [data-act="edit"][data-id="${second}"]`);
+  t(await visible(page.locator(`form[data-id="${second}"] input[name=title]`)), '«Επεξεργασία» opens a small form in place');
+  await page.fill(`form[data-id="${second}"] input[name=title]`, 'Νέα διατύπωση <b>τίτλου</b>');
+  await page.click(`form[data-id="${second}"] button[type=submit]`);
+  const b2 = await waitCalls(page, 'fs.batch', 2);
+  const op2 = ((b2[1] || { args: [[]] }).args[0] || [])[0] || {};
+  t(op2.data && op2.data.status === 'approved' && op2.data.title === 'Νέα διατύπωση <b>τίτλου</b>' && op2.data.summary === '', 'the new title is saved; the untouched text stays the changelog\'s (stored empty)');
+  t(await hasText(page.locator('#news-app > .news-list'), 'Νέα διατύπωση <b>τίτλου</b>') && await hasText(page.locator('#news-app > .news-list'), 'Με τη δική σας διατύπωση'), 'the list shows it, marked as reworded, as text (not markup)');
+  await page.click(`#news-app > .news-list [data-act="remove"][data-id="${second}"]`);
+  await waitCalls(page, 'fs.batch', 3);
+  t(await visible(page.locator('#news-app .news-removed')) && await hasText(page.locator('#news-app .news-removed > summary'), 'Αφαιρεμένα (1)'), '«Αφαίρεση»: it leaves the list for a closed «Αφαιρεμένα (1)» box');
+  await page.click('#news-app .news-removed > summary');
+  await page.click(`#news-app .news-removed [data-act="restore"][data-id="${second}"]`);
+  await waitCalls(page, 'fs.batch', 4);
+  t(await page.locator('#news-app .news-removed').count() === 0 && await page.locator('#news-app > .news-list .news-item').count() === 2, '«Επαναφορά» puts it back on the list');
+  const left = pending - 1;
+  await page.click('#news-app [data-act="approve-all"]');
+  const b5 = await waitCalls(page, 'fs.batch', 5);
+  const ops5 = (b5[4] || { args: [[]] }).args[0] || [];
+  t(ops5.length === left && ops5.every(o => o.data.status === 'approved'), `«Δημοσίευση όλων» publishes the other ${left} in ONE batch`);
+  t(await hasText(page.locator('#news-app .news-review'), 'Τίποτα δεν περιμένει έγκριση') && await page.locator('#news-app > .news-list .news-item').count() === NEWS_LOG.length, 'nothing waits any more; every entry is published');
+  await page.click('#acct-slot .acct-chip');
+  t(await page.locator('#acct-menu a[href$="whats-new/"]').count() === 1, 'the account menu has «Τι νέο: έγκριση» for an admin');
+  t(!(await xssFired(page)), 'nothing typed runs as markup');
+});
+
+await scenario('W4', '«Τι νέο», a member who is not an admin: the public list only', { cfg: 'oidc', hint: { n: MARIA.name, p: '', e: MARIA.email },
+  seed: signedInSeed(acct(MARIA.uid, { email: MARIA.email, name: MARIA.name }), { docs: { ['newsOverrides/' + NEWS_IDS[2]]: { status: 'approved', t: ts(Date.now() - DAY), by: ADMIN } } }) }, async (page, env) => {
+  env.onExternal = async (route, url) => {
+    if (!url.startsWith('https://firestore.googleapis.com/')) return false;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(restDocs({ [NEWS_IDS[2]]: { status: 'approved' } })) });
+    return true;
+  };
+  await page.goto(URL_('whats-new/'));
+  t(await waitFor(page, () => document.querySelectorAll('#news-app .news-item').length === 1), 'one approved entry is shown');
+  await sdkReady(page);
+  await sleep(300);
+  t(await page.locator('#news-app [data-act]').count() === 0 && await page.locator('#news-app .news-review').count() === 0, 'no admin controls for a member');
+  t(!(await calls(page, 'fs.list')).some(c => c.args[0] === 'newsOverrides'), '… and the page does not read the decisions through their sign-in');
+  await page.click('#acct-slot .acct-chip');
+  t(await page.locator('#acct-menu a[href$="whats-new/"]').count() === 0, 'their account menu has no «Τι νέο: έγκριση»');
+});
+
 await browser.close();
 console.log(`\n${passes} passed, ${fails} failed`);
 if (fails) { console.log('\nFailures:\n  ' + failed.join('\n  ')); }

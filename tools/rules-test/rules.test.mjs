@@ -930,3 +930,55 @@ describe('everything else is denied, even to the admin', () => {
     await assertFails(db.collection('messages').get());
   });
 });
+
+/* ---- «Τι νέο»: newsOverrides/{entry id}, the admins' decisions about
+ * changelog.json. news-page.js writes set(..., {merge:true}) with
+ * { status, [title, summary], t: serverTimestamp(), by: me.email }. */
+describe('newsOverrides («Τι νέο»): only admins decide, anyone may read', () => {
+  const NEWS = id => `newsOverrides/${id}`;
+  const decision = (who, over = {}) => ({ status: 'approved', t: ST(), by: emailOf(who), ...over });
+  it('anyone, even signed out, reads the decisions (visitors see the approved entries)', async () => {
+    await seed(NEWS('2026-10-01-ti-neo'), { status: 'approved', title: '', summary: '', t: PAST, by: 'kstouras@gmail.com' });
+    await assertSucceeds(dbAs(null).doc(NEWS('2026-10-01-ti-neo')).get());
+    await assertSucceeds(dbAs(null).collection('newsOverrides').get());
+    await assertSucceeds(dbAs(U.alice).collection('newsOverrides').get());
+  });
+  it('an admin publishes, rewords, removes and restores an entry', async () => {
+    const ref = dbAs(U.admin).doc(NEWS('2026-10-01-ti-neo'));
+    await assertSucceeds(ref.set(decision(U.admin), { merge: true }));
+    await assertSucceeds(ref.set(decision(U.admin, { title: 'Νέος τίτλος', summary: '' }), { merge: true }));
+    await assertSucceeds(ref.set(decision(U.admin, { status: 'removed' }), { merge: true }));
+    await assertSucceeds(ref.set(decision(U.admin, { status: 'approved' }), { merge: true }));
+    await assertSucceeds(ref.set(decision(U.admin, { status: 'pending', title: 'x'.repeat(200), summary: 'y'.repeat(2000) }), { merge: true }));
+  });
+  it('the second admin too, and «Δημοσίευση όλων» as one batch', async () => {
+    const db = dbAs(U.admin2), b = db.batch();
+    for (const id of ['2026-10-01-a', '2026-10-01-b', '2026-09-30-c']) b.set(db.doc(NEWS(id)), decision(U.admin2), { merge: true });
+    await assertSucceeds(b.commit());
+  });
+  it('an admin may delete a decision (the entry goes back to waiting)', async () => {
+    await seed(NEWS('2026-10-01-a'), { status: 'approved', t: PAST, by: 'kstouras@gmail.com' });
+    await assertSucceeds(dbAs(U.admin).doc(NEWS('2026-10-01-a')).delete());
+  });
+  describe('refused', () => {
+    const refused = (label, who, id, data) => it(label, async () => {
+      await assertFails(dbAs(who).doc(NEWS(id)).set(data, { merge: true }));
+    });
+    refused('a signed-out visitor publishes', null, '2026-10-01-a', { status: 'approved', t: ST(), by: '' });
+    refused('a member who is not an admin publishes', U.alice, '2026-10-01-a', decision(U.alice));
+    refused('an admin address that is not confirmed', U.adminUnverified, '2026-10-01-a', decision(U.adminUnverified));
+    refused('a status the page does not know', U.admin, '2026-10-01-a', decision(U.admin, { status: 'published' }));
+    refused('a decision with no status', U.admin, '2026-10-01-a', { title: 'x', t: ST(), by: 'kstouras@gmail.com' });
+    refused('a key the page does not write', U.admin, '2026-10-01-a', decision(U.admin, { order: 1 }));
+    refused('a title over 200 characters', U.admin, '2026-10-01-a', decision(U.admin, { title: 'x'.repeat(201) }));
+    refused('a summary over 2000 characters', U.admin, '2026-10-01-a', decision(U.admin, { summary: 'y'.repeat(2001) }));
+    refused('a time made up by the browser instead of the server', U.admin, '2026-10-01-a', decision(U.admin, { t: PAST }));
+    refused('signed in the name of the other admin', U.admin, '2026-10-01-a', decision(U.admin, { by: 'gradsemfe@gmail.com' }));
+    refused('an id that is not a changelog id', U.admin, 'Bad_ID', decision(U.admin));
+    it('a member who is not an admin deletes a decision', async () => {
+      await seed(NEWS('2026-10-01-a'), { status: 'approved', t: PAST, by: 'kstouras@gmail.com' });
+      await assertFails(dbAs(U.alice).doc(NEWS('2026-10-01-a')).delete());
+      await assertFails(dbAs(null).doc(NEWS('2026-10-01-a')).delete());
+    });
+  });
+});

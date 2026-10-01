@@ -117,7 +117,9 @@ const NAV_GROUPS = {
     { id: 'nav-g-history', label: 'Η ιστορία μας', items: [
       { key: 'how_we_started', label: 'Πώς ξεκινήσαμε', href: 'how_we_started/' },
       { key: 'fotothiki', label: 'Φωτοθήκη', href: 'fotothiki/' },
-      { key: 'archive', label: 'Αρχείο', href: 'archive/' }] }
+      { key: 'archive', label: 'Αρχείο', href: 'archive/' }] },
+    { id: 'nav-g-site', label: 'Ο ιστότοπος', items: [
+      { key: 'whats_new', label: 'Τι νέο', href: 'whats-new/' }] }
   ]
 };
 const NAV = [
@@ -335,6 +337,7 @@ function footer(root) {
           <li><a href="${root}account/">Ο λογαριασμός μου</a></li>
           <li><a href="${root}members/">Περιοχή μελών</a></li>
           <li><a href="${root}feedback/">Σχόλια και προβλήματα</a></li>
+          <li><a href="${root}whats-new/">Τι νέο στον ιστότοπο</a></li>
           <li><a href="${root}contact/">Επικοινωνία</a></li>
         </ul>
       </div>
