@@ -1,8 +1,1 @@
-{
-  "v": 1,
-  "about": "The figures of the Στατιστικά page (analytics/), rebuilt daily by tools/build-analytics.mjs. Empty until the first build that has a source.",
-  "generated": null,
-  "sources": {},
-  "days": {},
-  "windows": {}
-}
+{"v":1,"about":"The figures of the Στατιστικά page (analytics/), rebuilt daily by tools/build-analytics.mjs.","generated":"2026-10-01","sources":{"site":{"days":0}},"days":{},"windows":{}}
