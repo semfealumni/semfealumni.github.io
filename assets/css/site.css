@@ -475,6 +475,34 @@ section.dark a:not(.btn) { color: var(--gold); }
 }
 @media (max-width: 760px) { .goals { grid-template-columns: minmax(0, 1fr); } }
 
+/* the statute's aims as a list that opens one at a time (like the FAQ on
+   operationsacademia.org): a number, a short title, a plus that turns into a
+   minus; the statute's own words inside */
+.qa { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; max-width: 880px; }
+.qa details { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.qa details[open] { box-shadow: var(--shadow); }
+.qa summary {
+  display: flex; align-items: center; gap: 14px; min-height: 44px; padding: 13px 16px; cursor: pointer;
+  list-style: none; font-weight: 700; font-size: 1.02rem; line-height: 1.35; border-radius: var(--radius-sm);
+}
+.qa summary::-webkit-details-marker { display: none; }
+.qa summary::marker { content: ''; }
+@media (hover: hover) { .qa summary:hover { background: var(--mist); } }
+.qa-n { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--gold-soft); color: var(--gold-text); font-weight: 800; font-size: .95rem; }
+.qa-q { flex: 1 1 auto; min-width: 0; text-wrap: pretty; }
+.qa-i { flex: none; position: relative; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); color: var(--muted); }
+.qa-i::before, .qa-i::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 12px; height: 2px; border-radius: 1px;
+  background: currentColor; transform: translate(-50%, -50%); transition: transform .2s ease;
+}
+.qa-i::after { transform: translate(-50%, -50%) rotate(90deg); }
+.qa details[open] .qa-i::after { transform: translate(-50%, -50%); }
+.qa details > p { margin: 0; padding: 2px 18px 18px 64px; }
+@media (max-width: 560px) {
+  .qa summary { padding: 12px 12px; gap: 12px; font-size: .98rem; }
+  .qa details > p { padding: 0 14px 16px; }
+}
+
 /* timeline (history) */
 .milestones { list-style: none; padding: 0; margin: 0; position: relative; display: grid; gap: 18px; }
 .milestones::before { content: ''; position: absolute; left: 11px; top: 6px; bottom: 6px; width: 2px; background: rgba(227,169,56,.45); }

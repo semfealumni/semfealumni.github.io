@@ -279,7 +279,7 @@
   // 4. blocks rise into view. Only what is still below the screen when the page
   // opens is held back: nothing the reader has already seen ever disappears.
   // Not on the member pages, whose content is drawn by their own scripts.
-  var RISE = '.section-head, .two-col > *, .cards > *, .stats > *, .goals > li, .milestones > li, .people > *, .people-mini, ' +
+  var RISE = '.section-head, .two-col > *, .cards > *, .stats > *, .goals > li, .qa > li, .milestones > li, .people > *, .people-mini, ' +
     '.posts > *, .docs > *, .doc-group, .gallery > *, .steps > *, .pay-grid > *, .section-foot, .cta .wrap > *';
   var main = $('#main');
   if (main && motionOK() && 'IntersectionObserver' in window && !document.body.hasAttribute('data-firestore')) {
@@ -304,6 +304,24 @@
     }, { rootMargin: '0px 0px -8% 0px', threshold: 0 });
     held.forEach(function (el) { rise.observe(el); });
   }
+
+  /* ---- a printout shows every collapsible list open (the aims on the home
+     page). They open one at a time on screen (name="…"), so the name is put
+     aside while printing, or opening them all would close all but one. ---- */
+  window.addEventListener('beforeprint', function () {
+    $$('details:not([open])').forEach(function (d) {
+      d.setAttribute('data-print-open', d.getAttribute('name') || '');
+      d.removeAttribute('name');
+      d.open = true;
+    });
+  });
+  window.addEventListener('afterprint', function () {
+    $$('details[data-print-open]').forEach(function (d) {
+      d.open = false;
+      if (d.getAttribute('data-print-open')) d.setAttribute('name', d.getAttribute('data-print-open'));
+      d.removeAttribute('data-print-open');
+    });
+  });
 
   /* ---- copy buttons (IBAN, BIC) ---- */
   $$('[data-copy]').forEach(function (btn) {

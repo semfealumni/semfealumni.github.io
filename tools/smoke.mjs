@@ -1056,21 +1056,26 @@ try {
   /* ======================= 9. motion ======================= */
   section('9. motion: links that glide, back to top, numbers that count up, blocks that rise into view');
   {
-    // the four numbers under the hero: on a phone they start below the screen,
-    // wait at zero, count up once they come into view, and land on the figure
-    // the page itself states (which a screen reader is given all along)
+    // the four numbers under the hero: only the graduates (3.000+) runs. On a
+    // phone it starts below the screen, waits at zero, counts up once it comes
+    // into view and lands on the figure the page itself states (which a screen
+    // reader is given all along); the two years and the fee never move
     const { ctx, page, log } = await open(SUB, { width: 375, height: 667, phone: true, touch: true });
+    const fixed = () => page.evaluate(() => [...document.querySelectorAll('.hero-stat .value:not([data-count])')].map(el => el.textContent.trim()));
     const nums = () => page.evaluate(() => [...document.querySelectorAll('.hero-stat [data-count]')].map(el => ({
       sr: (el.querySelector('.sr-only') || {}).textContent, shown: (el.querySelector('[aria-hidden]') || {}).textContent, op: +getComputedStyle(el).opacity,
       below: el.getBoundingClientRect().top > innerHeight })));
+    const f0 = await fixed();
     const a = await nums();
     await page.evaluate(() => document.querySelector('.hero-stats').scrollIntoView({ block: 'center', behavior: 'instant' }));
     await page.waitForTimeout(320);
     const b = await nums();
     await page.waitForTimeout(1300);
     const c = await nums();
-    const want = ['2013', '3.000+', '2025', '10€'];
-    t(a.length === 4 && a.every(n => n.below) && a.every((n, i) => n.sr === want[i] && /^0\D*$/.test(n.shown) && n.op === 1),
+    const f1 = await fixed();
+    const want = ['3.000+'];
+    t(f0.join() === '2013,2025,10€' && f1.join() === f0.join(), `phone: the years and the fee stand still (${f0.join(' · ')})`);
+    t(a.length === 1 && a.every(n => n.below) && a.every((n, i) => n.sr === want[i] && /^0\D*$/.test(n.shown) && n.op === 1),
       `phone: below the screen the numbers wait at zero (${a.map(n => n.shown).join(' · ')}), the final figure is there for screen readers`);
     t(b.some((n, i) => n.shown !== want[i] && n.shown !== c[i].shown && !/^0\D*$/.test(n.shown)),
       `phone: they count up as they come into view (${b.map(n => n.shown).join(' · ')})`);
@@ -1078,9 +1083,34 @@ try {
     t(log.errors.length === 0, 'phone: no script errors while counting' + list(log.errors));
     await ctx.close();
   }
+  {
+    // the statute's aims (Τι κάνει ο Σύλλογος): eleven short titles that open
+    // one at a time, with a click or the keyboard; a printout shows them all
+    const { ctx, page, log } = await open(SUB, { width: 1280, height: 800, reducedMotion: 'reduce' });
+    const st = () => page.evaluate(() => [...document.querySelectorAll('#skopos .qa details')].map(d => d.open));
+    const a = await st();
+    await page.locator('#skopos .qa summary').nth(4).click();
+    const b = await st();
+    await page.locator('#skopos .qa summary').nth(6).focus();
+    await page.keyboard.press('Enter');
+    const c = await st();
+    const h = await page.evaluate(() => Math.round(document.querySelector('#skopos .qa').getBoundingClientRect().height));
+    await page.evaluate(() => dispatchEvent(new Event('beforeprint')));
+    const pr = await st();
+    await page.evaluate(() => dispatchEvent(new Event('afterprint')));
+    const back = await st();
+    const one = x => x.filter(Boolean).length === 1;
+    t(a.length === 11 && one(a) && a[0], `home: the ${a.length} aims are short titles, the first one open`);
+    t(b[4] && one(b), 'home: a click opens another aim and closes the one that was open');
+    t(c[6] && one(c), 'home: Enter on a title opens it from the keyboard');
+    t(h < 1000, `home: the list takes ${h}px, not a screen-filling grid`);
+    t(pr.every(Boolean) && back.join() === c.join(), 'home: a printout shows all eleven, the screen goes back to one');
+    t(log.errors.length === 0, 'home: no script errors in the aims list' + list(log.errors));
+    await ctx.close();
+  }
   for (const [label, o] of [['reduced motion', { reducedMotion: 'reduce' }], ['no JavaScript', { javaScript: false }]]) {
     const { ctx, page } = await open(SUB, { width: 1280, height: 800, ...o });
-    const r = await page.evaluate(() => ({ nums: [...document.querySelectorAll('[data-count]')].map(el => el.textContent.trim() + (+getComputedStyle(el).opacity < 1 ? ' (hidden)' : '')),
+    const r = await page.evaluate(() => ({ nums: [...document.querySelectorAll('.hero-stat .value')].map(el => el.textContent.trim() + (+getComputedStyle(el).opacity < 1 ? ' (hidden)' : '')),
       held: document.querySelectorAll('.reveal').length, hidden: [...document.querySelectorAll('#main *')].filter(el => +getComputedStyle(el).opacity === 0).length }));
     t(r.nums.join() === '2013,3.000+,2025,10€' && r.held === 0 && r.hidden === 0,
       `${label}: the numbers stand at their figures (${r.nums.join(' · ')}), nothing is held back or hidden (${r.held}/${r.hidden})`);

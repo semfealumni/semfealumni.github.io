@@ -23,7 +23,8 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   a link to a place on the SAME page glides there on the cosine "swing" curve
   www.stouras.com scrolls with (`glideTo`, re-measured every frame, stopped by
   the reader's wheel, touch or key); a round back-to-top button appears past
-  1.2 screens; a number marked `data-count` (the hero's four) counts up from
+  1.2 screens; a number marked `data-count` (in the hero only 3.000+, the owner's choice:
+  the years and the fee stay fixed) counts up from
   zero when it comes into view, a screen reader getting the final figure; and
   blocks further down a page rise into view (`RISE` selector list). Nothing is
   hidden without JavaScript or on paper: a block is held back only by the
