@@ -133,6 +133,37 @@ function jpegSize(b) {
   else ok(`«Τι νέο»: ${ids.size} entries in changelog.json, decision keys match the rules`);
 }
 
+/* 3c. «Στατιστικά»: the profile answers are the same everywhere, the two
+   copies of the lists are one file, and the visit counter is on every page
+   except the admin and sign-in pages */
+{
+  const P = require(path.join(ROOT, 'assets/js/profile-options.js'));
+  const rules = read('firestore.rules');
+  const list = name => { const m = rules.match(new RegExp('function ' + name + '\\(\\)[\\s\\S]*?\\[([^\\]]*)\\]')); return m ? [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]) : []; };
+  if (JSON.stringify(list('genders')) !== JSON.stringify(P.GENDER_KEYS)) fail(`genders() in firestore.rules (${list('genders')}) differs from GENDERS in profile-options.js (${P.GENDER_KEYS})`);
+  if (JSON.stringify(list('industries')) !== JSON.stringify(P.INDUSTRY_KEYS)) fail(`industries() in firestore.rules differs from INDUSTRIES in profile-options.js`);
+  if (read('assets/js/profile-options.js') !== read('functions/profile-options.js')) fail('functions/profile-options.js must be a copy of assets/js/profile-options.js (cp assets/js/profile-options.js functions/)');
+  if (P.COUNTRIES.some(c => !/^[A-Z]{2}$/.test(c[0]))) fail('profile-options.js: every country needs a two-letter code');
+  let tracked = 0;
+  for (const p of pages) {
+    const html = read(p);
+    if (/<meta http-equiv="refresh"/.test(html)) continue;
+    const has = /assets\/js\/visit\.js"/.test(html);
+    const quiet = /^(admin|auth)\//.test(p);
+    if (quiet && has) fail(`${p}: the admin and sign-in pages must not load visit.js`);
+    else if (!quiet && !has) fail(`${p}: visit.js missing (every public page counts its visits)`);
+    else if (has) tracked++;
+  }
+  const A = C.ANALYTICS || {};
+  if (!(A.hosts || []).includes(new URL(C.siteUrl).hostname)) fail(`ANALYTICS.hosts in config.js must include ${new URL(C.siteUrl).hostname}, or nothing is counted`);
+  if (!/^https:\/\/[a-z0-9.-]+\/recordVisit$/.test(A.visitUrl || '')) fail('ANALYTICS.visitUrl in config.js must be the recordVisit function\'s https address');
+  const vis = read('functions/index.js').match(/const VISIT_ORIGINS = \[([^\]]*)\]/);
+  const origins = vis ? [...vis[1].matchAll(/'([^']+)'/g)].map(x => x[1]) : [];
+  for (const h of A.hosts || []) if (!origins.includes('https://' + h)) fail(`VISIT_ORIGINS in functions/index.js must include https://${h} (ANALYTICS.hosts in config.js)`);
+  ok(`«Στατιστικά»: profile answers match the rules, visit.js on ${tracked} public pages`);
+  if (!/^G-[A-Z0-9]{4,}$/.test(A.ga4 || '')) note('Google Analytics is not set up yet: ANALYTICS.ga4 in assets/js/config.js still says PASTE_ (ANALYTICS-SETUP.md).');
+}
+
 /* 4. the admin list: the page and the rules must agree */
 {
   const rules = read('firestore.rules');

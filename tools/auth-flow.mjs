@@ -86,6 +86,9 @@ const dirBlock = grab(/match \/directory\/\{uid\}\s*\{[\s\S]*?\n    \}/, 'the di
 const R = {
   profileKeys: strList(grab(/function profileKeys\(\)\s*\{\s*return\s*\[([\s\S]*?)\]/, 'profileKeys()')[1]),
   adminKeys: strList(grab(/function adminKeys\(\)\s*\{\s*return\s*\[([\s\S]*?)\]/, 'adminKeys()')[1]),
+  optionalKeys: strList(grab(/function optionalKeys\(\)\s*\{\s*return\s*\[([\s\S]*?)\]/, 'optionalKeys()')[1]),
+  genders: strList(grab(/function genders\(\)\s*\{\s*return\s*\[([\s\S]*?)\]/, 'genders()')[1]),
+  industries: strList(grab(/function industries\(\)\s*\{\s*return\s*\[([\s\S]*?)\]/, 'industries()')[1]),
   fbKeys: strList(grab(/function fbKeys\(\)\s*\{\s*return\s*\[([\s\S]*?)\]/, 'fbKeys()')[1]),
   stages: strList(grab(/d\.stage in \[([^\]]*)\]/, 'the stage list')[1]),
   statuses: strList(grab(/data\.status in \[([^\]]*)\]/, 'the status list')[1]),
@@ -111,10 +114,14 @@ function profileProblems(d) {
   for (const k of ['entryYear', 'gradYear']) if (!(d[k] === null || (Number.isInteger(d[k]) && d[k] >= R.year[0] && d[k] <= R.year[1]))) p.push(`${k} must be null or an int ${R.year.join('..')} (${js(d[k])})`);
   for (const k of ['consentNewsletter', 'consentJobs', 'consentDirectory']) if (typeof d[k] !== 'boolean') p.push(`${k} must be a bool (${js(d[k])})`);
   if (d.acceptedPrivacy !== true) p.push('acceptedPrivacy must be true');
+  // the optional answers (counted anonymously on the Στατιστικά page)
+  if ('gender' in d && !(d.gender === '' || R.genders.includes(d.gender))) p.push(`gender ${js(d.gender)} not in ${js(R.genders)}`);
+  if ('industry' in d && !(d.industry === '' || R.industries.includes(d.industry))) p.push(`industry ${js(d.industry)} not in the list`);
+  if ('country' in d && !(typeof d.country === 'string' && /^([A-Z]{2})?$/.test(d.country))) p.push(`country ${js(d.country)} must be '' or a two-letter code`);
   return p;
 }
 function createProblems(d) {
-  const keys = Object.keys(d), allowed = [...R.profileKeys, 'status'];
+  const keys = Object.keys(d), allowed = [...R.profileKeys, ...R.optionalKeys, 'status'];
   const p = [];
   const extra = keys.filter(k => !allowed.includes(k)), missing = R.profileKeys.filter(k => !keys.includes(k));
   if (extra.length) p.push('keys the rules do not allow: ' + extra.join(', '));
@@ -128,7 +135,7 @@ function createProblems(d) {
 const changed = (before, patch) => Object.keys(patch).filter(k => js(before[k]) !== js(patch[k]));
 function ownerUpdateProblems(before, patch) {
   const merged = { ...before, ...patch }, p = [];
-  const extra = Object.keys(merged).filter(k => ![...R.profileKeys, ...R.adminKeys].includes(k));
+  const extra = Object.keys(merged).filter(k => ![...R.profileKeys, ...R.optionalKeys, ...R.adminKeys].includes(k));
   if (extra.length) p.push('keys the rules do not allow: ' + extra.join(', '));
   p.push(...profileProblems(merged));
   const bad = changed(before, patch).filter(k => [...R.adminKeys, 'createdAt'].includes(k));
@@ -552,7 +559,7 @@ await scenario('F2', 'account page: the application (validate, refused write, cr
     entryYear: '2008', gradYear: '2013', position: 'Data Scientist', employer: 'ACME', city: 'Αθήνα', linkedin: 'linkedin.com/in/maria-p', note: 'Γεια σας' };
   async function fill(v) {
     for (const [k, val] of Object.entries(v)) {
-      if (k === 'stage' || k === 'direction') await page.selectOption('#f-' + k, val);
+      if (k === 'stage' || k === 'direction' || k === 'gender' || k === 'industry' || k === 'country') await page.selectOption('#f-' + k, val);
       else await page.fill('#f-' + k, val);
     }
   }
@@ -589,8 +596,8 @@ await scenario('F2', 'account page: the application (validate, refused write, cr
   t(still === 'ACME', '… and keeps what the person typed' + list([js(still)]));
   t(!(await docOf(page, 'members/' + MARIA.uid)), 'nothing was stored');
 
-  // the real submission
-  await fill(good);
+  // the real submission, with the three optional answers
+  await fill(Object.assign({}, good, { gender: 'female', industry: 'data', country: 'GR' }));
   await page.setChecked('#f-consentNewsletter', true);
   await page.setChecked('#f-consentJobs', false);
   await page.setChecked('#f-consentDirectory', true);
@@ -601,8 +608,10 @@ await scenario('F2', 'account page: the application (validate, refused write, cr
   const w = sets[nBefore];
   t(w && w.args[0] === 'members/' + MARIA.uid, 'the application is written with set() to members/{uid}' + list([w && w.args[0]]));
   const d = (w && w.args[1]) || {};
-  t(js(Object.keys(d).sort()) === js([...R.profileKeys, 'status'].sort()), 'set() carries EXACTLY the keys the create rule requires (profileKeys + status)' +
-    list([...Object.keys(d).filter(k => ![...R.profileKeys, 'status'].includes(k)).map(k => '+' + k), ...[...R.profileKeys, 'status'].filter(k => !(k in d)).map(k => '-' + k)]));
+  const want = [...R.profileKeys, ...R.optionalKeys, 'status'];
+  t(js(Object.keys(d).sort()) === js(want.sort()), 'set() carries EXACTLY the keys the create rule allows (profileKeys + the optional answers + status)' +
+    list([...Object.keys(d).filter(k => !want.includes(k)).map(k => '+' + k), ...want.filter(k => !(k in d)).map(k => '-' + k)]));
+  t(d.gender === 'female' && d.industry === 'data' && d.country === 'GR', 'gender, industry and country are stored as keys (female, data, GR)' + list([d.gender, d.industry, d.country]));
   const probs = createProblems(d);
   t(probs.length === 0, 'the payload passes the create rule (types, lengths, status, timestamps)' + list(probs));
   t(d.status === 'pending' && isST(d.createdAt) && isST(d.updatedAt), 'status "pending", createdAt/updatedAt = serverTimestamp()');
@@ -622,6 +631,8 @@ await scenario('F2', 'account page: the application (validate, refused write, cr
   await page.click('#account-app [data-edit]');
   t(await visible(page.locator('#account-app form[data-apply]')) && (await text(page.locator('#account-app form[data-apply] [type=submit]'))) === 'Αποθήκευση', '«Επεξεργασία στοιχείων» opens the form with «Αποθήκευση»');
   t((await page.inputValue('#f-employer')) === 'ACME' && (await page.inputValue('#f-gradYear')) === '2013', 'the form holds the saved values');
+  t((await page.inputValue('#f-industry')) === 'data' && (await page.inputValue('#f-gender')) === 'female' && (await page.inputValue('#f-country')) === 'GR', '… the optional answers included');
+  t(await page.locator('#account-app form[data-apply] a[href$="analytics/#meli"]').count() === 1, 'the form says the answers are counted only anonymously, with a link to the statistics');
   await page.fill('#f-city', 'Θεσσαλονίκη');
   await page.fill('#f-gradYear', '');
   const before = await docOf(page, 'members/' + MARIA.uid);
@@ -1991,6 +2002,94 @@ await scenario('W4', '«Τι νέο», a member who is not an admin: the public 
   t(!(await calls(page, 'fs.list')).some(c => c.args[0] === 'newsOverrides'), '… and the page does not read the decisions through their sign-in');
   await page.click('#acct-slot .acct-chip');
   t(await page.locator('#acct-menu a[href$="whats-new/"]').count() === 0, 'their account menu has no «Τι νέο: έγκριση»');
+});
+
+/* ---- «Στατιστικά» (analytics/): data/analytics.json (the visits, built by
+   tools/build-analytics.mjs) and the members' anonymous statistics, read with
+   one plain request to Firestore's REST address ---- */
+const { buildFile } = await import(path.join(ROOT, 'tools/build-analytics.mjs'));
+const MSTATS = createRequire(path.join(ROOT, 'functions', 'package.json'))('./member-stats.js');
+const AN_TODAY = '2026-10-10';
+const anDocs = {};
+for (let i = 1; i <= 9; i++) {
+  const d = '2026-10-0' + i;
+  anDocs[d] = { seen: 5 + i, pv: 12 + i, pages: { '/': 8, '/blog/': 3 + i, other: 1 }, hours: { '09': 3, '21': 2 + i }, dev: { mobile: 3, desktop: 2 + i },
+    ch: { search: 3, direct: 2 + i }, unis: { 'Εθνικό Μετσόβιο Πολυτεχνείο': 1 }, cos: i === 1 ? { 'Tiny Firm': 1, '<img src=x onerror="window.__xss=1">': 2 } : { 'Siemens AG': 1 }, placed: 2 };
+}
+const AN_FILE = buildFile({ site: { docs: anDocs }, titles: JSON.parse(read('functions/site-paths.json')).titles, today: AN_TODAY, generated: AN_TODAY,
+  ga: { days: {}, windows: { 30: { countries: [{ k: 'GR', n: 40 }, { k: 'CY', n: 3 }], cities: [{ name: 'Athens', k: 'GR', n: 30 }, { name: 'London', k: 'GB', n: 2 }], sources: [{ name: 'google', n: 9 }] } } } });
+const people = [];
+for (let i = 0; i < 6; i++) people.push({ status: 'active', stage: 'graduate', gender: 'female', industry: 'software', entryYear: 2005, gradYear: 2011, city: 'Αθήνα', country: 'GR', employer: 'ACME', createdAt: new Date('2026-09-20') });
+for (let i = 0; i < 4; i++) people.push({ status: 'pending', stage: 'graduate', gender: 'male', industry: 'finance', entryYear: 2012, gradYear: 2017, city: 'London, UK', employer: 'Solo ' + i, firstName: 'Γιώργος' + i, email: 'g' + i + '@x.gr', createdAt: new Date('2026-10-02') });
+people.push({ status: 'active', stage: 'faculty', gender: 'other', industry: 'academia', city: 'Ζυρίχη', country: 'CH', createdAt: new Date('2026-10-03') });
+const AN_MEMBERS = MSTATS.memberStats(people, new Date('2026-10-10T08:00:00Z'));
+const anRoute = async (page, file) => page.route(u => u.href.endsWith('/data/analytics.json'), route =>
+  route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(file) }));
+
+await scenario('S1', '«Στατιστικά»: the visits by period, universities and companies, and the members\' anonymous statistics', { cfg: 'oidc' }, async (page, env) => {
+  const rest = [];
+  env.onExternal = async (route, url) => {
+    if (!url.startsWith('https://firestore.googleapis.com/v1/projects/')) return false;
+    rest.push(url);
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ fields: { json: { stringValue: JSON.stringify(AN_MEMBERS) } } }) });
+    return true;
+  };
+  await anRoute(page, AN_FILE);
+  await page.goto(URL_('analytics/'));
+  const app = page.locator('#analytics-app');
+  t(await waitFor(page, () => document.querySelectorAll('#analytics-app .an-kpi').length >= 8), 'the visit figures and the members\' figures are both drawn');
+  const w = AN_FILE.windows['30'];
+  t(await hasText(app, w.visits.toLocaleString('el-GR')) && await hasText(app, 'Επισκέψεις'), `the last 30 days: ${w.visits} visits`);
+  t(await page.locator('#analytics-app [data-range]').count() === 4 && (await page.getAttribute('#analytics-app [data-range="30"]', 'aria-pressed')) === 'true', 'four periods, «30 ημέρες» chosen');
+  t(await page.locator('#analytics-app .an-chart svg').count() >= 3, 'the daily line and the column charts are drawn');
+  t(await hasText(app, 'Εθνικό Μετσόβιο Πολυτεχνείο') && await hasText(app, 'Siemens AG'), 'universities and companies are listed');
+  t(!(await hasText(app, 'Tiny Firm')) && await hasText(app, 'με μία επίσκεψη δεν κατονομάζονται'), 'a company with one visit is not named, and the page says how many were left out');
+  t(await hasText(app, 'Ελλάδα') && await hasText(app, 'Κύπρος') && await hasText(app, 'Αθήνα') && await hasText(app, 'Λονδίνο (Ηνωμένο Βασίλειο)'), 'countries and cities from Google Analytics, in Greek');
+  t(await hasText(app, 'Πηγή: Google Analytics') && await hasText(app, 'Πηγή: ο μετρητής του ιστότοπου'), 'each figure names its source');
+  t(!(await xssFired(page)), 'an organisation name that is an <img onerror> is shown as text');
+  // the pointer and the keyboard
+  const line = page.locator('#analytics-app .an-line-svg');
+  await line.scrollIntoViewIfNeeded();
+  await sleep(700);                               // the page glides; a scroll hides the tooltip
+  const box = await line.boundingBox();
+  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height / 2);
+  t(await waitFor(page, () => { const t = document.querySelector('.an-tip'); return t && !t.hidden && /επισκέψεις/.test(t.textContent); }), 'hovering the daily line shows that day\'s visits');
+  await line.focus();
+  await page.keyboard.press('Home');
+  t(await waitFor(page, () => /1 Οκτωβρίου 2026/.test(document.querySelector('.an-tip').textContent)), '… and the arrow keys walk the days (Home = the first)');
+  await page.mouse.move(0, 0);
+  const cols = page.locator('#analytics-app .an-cols-svg').first();
+  await cols.focus();
+  await page.keyboard.press('End');
+  t(await waitFor(page, () => { const t = document.querySelector('.an-tip'); return t && !t.hidden && /23:00/.test(t.textContent); }), 'a column chart is one keyboard stop; the arrow keys walk its columns (End = 23:00)');
+  await page.keyboard.press('Tab');
+  // another period
+  await page.click('#analytics-app [data-range="all"]');
+  t((await page.getAttribute('#analytics-app [data-range="all"]', 'aria-pressed')) === 'true' && await hasText(page.locator('#analytics-app .an-period').first(), '1 Οκτωβρίου 2026'), '«Από την αρχή» redraws everything from the first day');
+  t(!(await hasText(app, 'Κύπρος')), '… and a figure the period has no source for is not drawn');
+  // the members
+  const meli = page.locator('#meli');
+  t(await hasText(meli, 'Εγγεγραμμένοι') && await hasText(meli, '11'), 'the members: 11 registered');
+  t(await hasText(meli, 'Γυναίκες') && await hasText(meli, 'Άνδρες') && await hasText(meli, 'Λοιπά (ομάδες κάτω από 3 ατόμων)'), 'gender, with the groups under 3 merged into «Λοιπά»');
+  t(await hasText(meli, 'Πληροφορική & Λογισμικό') && await hasText(meli, 'ACME'), 'industry, and an employer with 3+ members');
+  t(await page.evaluate(() => document.getElementById('meli').textContent.includes('2005–2009')) && await hasText(meli, '2005–09'), 'entry years in five-year periods («2005–09» under the column, «2005–2009» in its table)');
+  t(!(await hasText(meli, 'Solo')) && !(await hasText(meli, 'Γιώργος')) && !(await hasText(meli, '@x.gr')), 'no name, e-mail or single person\'s employer appears');
+  t(rest.length === 1 && rest[0].includes('/documents/publicStats/members') && rest[0].includes('key='), 'the members\' figures come from ONE plain request to Firestore');
+  t(env.sdkUrls.length === 0, '… and the sign-in library is not loaded for a visitor');
+  t(await page.locator('.nav-more-panel a[href$="analytics/"]').count() === 1 && await page.locator('.site-footer a[href$="analytics/"]').count() === 1, 'reachable from the menu («Ο ιστότοπος») and the footer');
+});
+
+await scenario('S2', '«Στατιστικά» before anything is measured: it says so, never an empty chart', { cfg: 'oidc' }, async (page, env) => {
+  env.onExternal = async (route, url) => {
+    if (!url.startsWith('https://firestore.googleapis.com/')) return false;
+    await route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":{"code":404,"status":"NOT_FOUND"}}' });
+    return true;
+  };
+  await page.goto(URL_('analytics/'));
+  const app = page.locator('#analytics-app');
+  t(await waitFor(page, () => /μόλις ξεκίνησαν/.test(document.getElementById('analytics-app').textContent) && /θα εμφανιστούν σύντομα/.test(document.getElementById('analytics-app').textContent)),
+    'the committed (empty) file and a missing members document each give a sentence');
+  t(await page.locator('#analytics-app .an-chart, #analytics-app .an-card').count() === 0, '… and no chart or card is drawn');
 });
 
 await browser.close();

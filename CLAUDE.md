@@ -14,7 +14,8 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
 * Header, footer, menu and page heads come from `tools/build.mjs`.
 * **The top menu is kept short on purpose** (owner, like operationsacademia.org):
   the logo is the way home (no «Αρχική» link), the pages ABOUT the association
-  sit in one «Ο Σύλλογος ▾» drop-down (`NAV_GROUPS`, two groups), and only
+  and the site sit in one «Ο Σύλλογος ▾» drop-down (`NAV_GROUPS`, three
+  groups: Ο Σύλλογος, Η ιστορία μας, Ο ιστότοπος = Τι νέο + Στατιστικά), and only
   Ανακοινώσεις, Εγγραφές & Δωρεές and Επικοινωνία stay in the row (`NAV`).
   A new page about the association goes into a group, not into the row. On a
   phone the menu button lists the groups under their headings.
@@ -111,6 +112,48 @@ Like operationsacademia.org, the site keeps a dated list of what changed, and
   that `DOC_KEYS` equals the rule's `hasOnly()` list.
 * Tests: `tools/rules-test` (newsOverrides), `tools/auth-flow.mjs` W1-W4,
   `tools/smoke.mjs` (the page with sign-in off).
+
+## «Στατιστικά» (analytics/): visits and the members, anonymously
+
+Setup for the owner: `ANALYTICS-SETUP.md`. Two parts, two sources each:
+
+* **Visits** = `data/analytics.json`, rebuilt daily by
+  `.github/workflows/analytics.yml` (`tools/build-analytics.mjs`; modes
+  `--scan`, `--dry-run`, `--selftest`). Sources: the site's OWN counter
+  (Firestore `siteVisits/{day}`, written only by the `recordVisit` Cloud
+  Function from `assets/js/visit.js`'s one message per page view) and Google
+  Analytics 4 (Data API; secret `GA4_SERVICE_ACCOUNT`, variable
+  `GA4_PROPERTY_ID`). A day the site counted goes to the site, every other
+  to GA4; hours, universities and companies are the site's only; countries,
+  cities and referring sites GA4's only. An unreachable source that IS set
+  up leaves the committed file as it is (exit 1); a missing secret just
+  leaves that source out.
+* **Members** = Firestore `publicStats/members` (public read, server write),
+  recounted by the `memberStats` Cloud Function on every write to
+  `members/{uid}` that touches a counted field, and by the daily workflow.
+  One function counts both: `functions/member-stats.js`.
+* **Privacy is the design, keep it:** `visit.js` stores nothing but a
+  sessionStorage flag, runs only on `ANALYTICS.hosts`, never under GPC/DNT,
+  never for crawlers, never on `noTrack` pages (admin, LinkedIn callback);
+  GA4 is cookieless (`client_storage: 'none'`) and gets the path without its
+  query. `recordVisit` never stores or logs the address: `functions/netorg.js`
+  turns it into a university or company name or nothing (internet providers,
+  clouds, VPNs and security proxies are never named; a company only from its
+  OWN registration, never from reverse DNS) and the page names a company only
+  with 2+ visits. Member statistics: totals per question only, groups under
+  K=3 merged into «Λοιπά», questions under 5 answers hidden, years in
+  five-year periods, "prefer not to say" not counted. The privacy page says
+  all of this; change both together.
+* **Profile answers** gender / industry / country are OPTIONAL (also in the
+  rules, so a page loaded before them still saves). Their lists live in
+  `assets/js/profile-options.js` (keys stored, labels shown), copied byte for
+  byte to `functions/profile-options.js`; `genders()` / `industries()` in
+  `firestore.rules` must match. `tools/check.mjs` fails on any drift.
+* `functions/site-paths.json` (the pages the counter accepts; others count
+  as `other`) is WRITTEN by `tools/build.mjs`: rebuild after adding a page.
+* Tests: `cd functions && npm test` (test-analytics.js),
+  `node tools/build-analytics.mjs --selftest`, `tools/auth-flow.mjs` S1-S2
+  and F2, `tools/rules-test` (optional answers, publicStats, siteVisits).
 
 ## Deploying Firebase: always name the project
 

@@ -119,7 +119,8 @@ const NAV_GROUPS = {
       { key: 'fotothiki', label: 'Φωτοθήκη', href: 'fotothiki/' },
       { key: 'archive', label: 'Αρχείο', href: 'archive/' }] },
     { id: 'nav-g-site', label: 'Ο ιστότοπος', items: [
-      { key: 'whats_new', label: 'Τι νέο', href: 'whats-new/' }] }
+      { key: 'whats_new', label: 'Τι νέο', href: 'whats-new/' },
+      { key: 'analytics', label: 'Στατιστικά', href: 'analytics/' }] }
   ]
 };
 const NAV = [
@@ -229,7 +230,7 @@ ${noindex ? '  <meta name="robots" content="noindex">\n' : ''}  <meta property="
   <script src="${root}assets/js/config.js"></script>
   <script src="${root}assets/js/site.js" defer></script>
   <script src="${root}assets/js/auth.js" defer></script>
-${(page.meta.scripts || []).map(s => `  <script src="${root}assets/js/${s}" defer></script>\n`).join('')}</head>`;
+${page.meta.noTrack ? '' : `  <script src="${root}assets/js/visit.js" defer></script>\n`}${(page.meta.scripts || []).map(s => `  <script src="${root}assets/js/${s}" defer></script>\n`).join('')}</head>`;
 }
 
 function header(page, root) {
@@ -338,6 +339,7 @@ function footer(root) {
           <li><a href="${root}members/">Περιοχή μελών</a></li>
           <li><a href="${root}feedback/">Σχόλια και προβλήματα</a></li>
           <li><a href="${root}whats-new/">Τι νέο στον ιστότοπο</a></li>
+          <li><a href="${root}analytics/">Στατιστικά</a></li>
           <li><a href="${root}contact/">Επικοινωνία</a></li>
         </ul>
       </div>
@@ -480,6 +482,17 @@ out.push(['sitemap.xml', `<?xml version="1.0" encoding="UTF-8"?>
 ${all.filter(p => INDEXABLE && !p.meta.noindex && !p.meta.file).map(p => `  <url><loc>${SITE_URL}${p.path}</loc>${p.isPost ? `<lastmod>${p.meta.date}</lastmod>` : ''}</url>`).join('\n')}
 </urlset>
 `]);
+
+/* functions/site-paths.json: every page the site has, with its title. The
+   visit counter (recordVisit) counts a page view only under a path listed
+   here, and the analytics builder names the pages from it. */
+const BASE = new URL(SITE_URL).pathname;
+const tracked = all.filter(p => !p.meta.file && !p.meta.noTrack);
+out.push(['functions/site-paths.json', JSON.stringify({
+  about: 'Written by tools/build.mjs: the pages the visit counter (functions/index.js, recordVisit) knows. Do not edit.',
+  paths: tracked.map(p => BASE + p.path),
+  titles: Object.fromEntries(tracked.map(p => [BASE + p.path, p.meta.path === '' ? 'Αρχική' : p.meta.title]))
+}, null, 1) + '\n']);
 
 let changed = 0;
 for (const [file, html] of out) {

@@ -167,7 +167,9 @@
       (li ? '<br><a href="' + esc(li) + '" target="_blank" rel="noopener">LinkedIn</a>' : '') + (m.note ? '<br><em class="muted">«' + esc(m.note) + '»</em>' : '') + '</td>' +
       '<td data-label="Κατάσταση"><span class="badge ' + st[0] + '">' + st[1] + '</span>' + (m.reviewedBy ? '<br><small class="muted">' + esc(m.reviewedBy) + ' ' + date(m.reviewedAt) + '</small>' : '') + '</td>' +
       '<td data-label="ΣΕΜΦΕ">' + esc(STAGES[m.stage] || m.stage || '') + (m.entryYear ? '<br>Εισ. ' + esc(m.entryYear) : '') + (m.gradYear ? '<br>Αποφ. ' + esc(m.gradYear) : '') + (m.direction ? '<br>' + esc(m.direction) : '') + '</td>' +
-      '<td data-label="Εργασία">' + ([esc([m.position, m.employer].filter(Boolean).join(', ')), m.city ? '<span class="muted">' + esc(m.city) + '</span>' : '']
+      '<td data-label="Εργασία">' + ([esc([m.position, m.employer].filter(Boolean).join(', ')),
+        m.industry && window.SEMFE_PROFILE ? '<span class="muted">' + esc(window.SEMFE_PROFILE.industryLabel(m.industry)) + '</span>' : '',
+        m.city || m.country ? '<span class="muted">' + esc(window.SEMFE_PROFILE ? window.SEMFE_PROFILE.placeLine(m.city, m.country) : m.city) + '</span>' : '']
         .filter(Boolean).join('<br>') || '—') + '</td>' +
       '<td data-label="Αίτηση">' + date(m.createdAt) + '<br><small class="muted">' + esc(providerName(m.provider)) + '</small></td>' +
       '<td data-label="Συνδρομές">' + (years.length ? esc(years.join(', ')) : '—') + '</td>' +
@@ -437,8 +439,8 @@
 
   function downloadCsv(list) {
     csv([['firstName', 'Όνομα'], ['lastName', 'Επώνυμο'], ['email', 'E-mail'], ['phone', 'Τηλέφωνο'], ['status', 'Κατάσταση'], ['stage', 'Ιδιότητα'],
-      ['entryYear', 'Εισαγωγή'], ['gradYear', 'Αποφοίτηση'], ['direction', 'Κατεύθυνση'], ['position', 'Θέση'], ['employer', 'Εργοδότης'], ['city', 'Πόλη'],
-      ['linkedin', 'LinkedIn'], ['duesYears', 'Συνδρομές'], ['consentNewsletter', 'Newsletter'], ['consentJobs', 'Θέσεις εργασίας'],
+      ['entryYear', 'Εισαγωγή'], ['gradYear', 'Αποφοίτηση'], ['direction', 'Κατεύθυνση'], ['position', 'Θέση'], ['employer', 'Εργοδότης'], ['industry', 'Κλάδος'],
+      ['city', 'Πόλη'], ['country', 'Χώρα'], ['gender', 'Φύλο'], ['linkedin', 'LinkedIn'], ['duesYears', 'Συνδρομές'], ['consentNewsletter', 'Newsletter'], ['consentJobs', 'Θέσεις εργασίας'],
       ['consentDirectory', 'Κατάλογος'], ['note', 'Σημείωση'], ['createdAt', 'Αίτηση'], ['provider', 'Σύνδεση']], list, 'semfe-members-');
   }
   function csv(cols, list, prefix) {
@@ -447,6 +449,10 @@
       if (Array.isArray(v)) v = v.join(' ');
       if (typeof v === 'boolean') v = v ? 'ναι' : 'όχι';
       if (key === 'provider') v = providerName(v);
+      var PO = window.SEMFE_PROFILE;
+      if (PO && key === 'gender') v = PO.genderLabel(v) || v;
+      if (PO && key === 'industry') v = PO.industryLabel(v) || v;
+      if (PO && key === 'country') v = PO.countryName(v) || v;
       v = v == null ? '' : String(v);
       if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;           // stop spreadsheet formula injection
       return '"' + v.replace(/"/g, '""') + '"';

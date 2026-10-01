@@ -694,7 +694,7 @@ try {
     t(a.exp === 'false' && !a.shown, `${w}px ${rel || 'home'}: the drop-down starts closed`);
     await page.click('.nav-more-btn');
     const b = await st();
-    t(b.exp === 'true' && b.shown && b.n === 7 && b.heads.length === 3 && b.inView && b.tall,
+    t(b.exp === 'true' && b.shown && b.n === 8 && b.heads.length === 3 && b.inView && b.tall,
       `${w}px: a click opens it: ${b.n} pages under «${b.heads.join('» and «')}», on screen, every link 40px+ tall`);
     if (rel === 'governance/') t(b.here && b.cur.join() === 'Διοίκηση', `${w}px: on Διοίκηση, the button and that link say "you are here" (${b.cur.join() || 'none'})`);
     if (rel === '') t(!b.here && b.cur.length === 0, `${w}px: on the home page nothing in it is marked as the current page`);
@@ -729,7 +729,7 @@ try {
         links: [...nav.querySelectorAll('a')].filter(shown).map(a => a.textContent.trim()),
         cur: [...nav.querySelectorAll('a[aria-current="page"]')].map(a => a.textContent.trim()) };
     });
-    t(!r.btn && r.heads === 3 && r.links.length === 10 && r.links[0] === 'Όραμα & Σκοπός' && r.links[6] === 'Τι νέο' && r.links[9] === 'Επικοινωνία',
+    t(!r.btn && r.heads === 3 && r.links.length === 11 && r.links[0] === 'Όραμα & Σκοπός' && r.links[6] === 'Τι νέο' && r.links[7] === 'Στατιστικά' && r.links[10] === 'Επικοινωνία',
       `390px phone menu: no drop-down button, 3 headings, all ${r.links.length} links listed (${r.links.join(' · ')})`);
     t(r.cur.join() === 'Φωτοθήκη', `390px phone menu: the page you are on is marked (${r.cur.join() || 'none'})`);
     await ctx.close();

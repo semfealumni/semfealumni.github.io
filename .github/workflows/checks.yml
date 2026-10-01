@@ -18,8 +18,10 @@ jobs:
       # pages match _src/, links resolve, share card, admin list in sync, deploy guards
       - run: node tools/check.mjs
       # the Cloud Functions (LinkedIn sign-in, the accounts list and merge,
-      # the feedback e-mails), against fakes (no install needed)
+      # the feedback e-mails, the Στατιστικά counters), against fakes (no install needed)
       - run: npm test
         working-directory: functions
       # the feedback resolution files and the ticket log (offline)
       - run: node tools/feedback-sync.mjs --selftest
+      # the Στατιστικά builder and the shape of data/analytics.json (offline)
+      - run: node tools/build-analytics.mjs --selftest

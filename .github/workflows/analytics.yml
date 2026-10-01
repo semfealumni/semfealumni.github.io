@@ -1,0 +1,77 @@
+# The «Στατιστικά» page (analytics/): rebuilds data/analytics.json every
+# morning from the site's own visit counter and from Google Analytics, and
+# recounts the members' anonymous statistics (tools/build-analytics.mjs).
+# Each source is switched on by its own secret and is simply left out while
+# that secret is missing, so this runs harmlessly before anything is set up
+# (ANALYTICS-SETUP.md):
+#   secrets.FIREBASE_SERVICE_ACCOUNT  the site's own counter and the members
+#                                     (the same key the feedback workflow uses)
+#   secrets.GA4_SERVICE_ACCOUNT       a key with "Viewer" on the GA4 property
+#   vars.GA4_PROPERTY_ID              the property's NUMBER (not the G-… ID)
+# A source that is set up but does not answer leaves the committed file as
+# it is: a half-written file is a blank dashboard.
+name: analytics
+on:
+  schedule:
+    - cron: '37 3 * * *'       # 06:37 in Greece in summer, 05:37 in winter: yesterday is complete
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build it and write nothing'
+        type: boolean
+        default: false
+      scan:
+        description: 'Only report what each source gives'
+        type: boolean
+        default: false
+permissions:
+  contents: write
+concurrency:
+  group: analytics-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HAS_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Install firebase-admin
+        if: env.HAS_KEY == 'true'
+        run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+        working-directory: functions
+      - name: Build
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GA4_SERVICE_ACCOUNT: ${{ secrets.GA4_SERVICE_ACCOUNT }}
+          GA4_PROPERTY_ID: ${{ vars.GA4_PROPERTY_ID }}
+        run: node tools/build-analytics.mjs ${{ inputs.scan && '--scan' || '' }} ${{ inputs.dry_run && '--dry-run' || '' }}
+      - name: Check the file before publishing it
+        if: github.ref_name == 'main' && !inputs.dry_run && !inputs.scan
+        run: node tools/build-analytics.mjs --selftest
+      - name: Commit
+        if: github.ref_name == 'main' && !inputs.dry_run && !inputs.scan
+        run: |
+          set -e
+          if [ -z "$(git status --porcelain data/analytics.json)" ]; then
+            echo "nothing changed."
+            exit 0
+          fi
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add data/analytics.json
+          git commit -m 'data: refresh the Στατιστικά figures'
+          # nothing else writes this file, so a rejected push only means
+          # someone else pushed meanwhile: take their tip and put it on top
+          for i in 1 2 3; do
+            if git push origin "HEAD:$GITHUB_REF_NAME"; then exit 0; fi
+            git pull --rebase origin "$GITHUB_REF_NAME"
+          done
+          echo "::error::could not push after three tries"
+          exit 1

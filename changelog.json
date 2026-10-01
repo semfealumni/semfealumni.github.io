@@ -2,6 +2,20 @@
   "about": "The «Τι νέο» list (whats-new/). Newest first. Each entry is a SUGGESTION: it is shown publicly only after an admin approves it on the page. Fields: id (lowercase letters, digits, dashes; never reuse one), date (YYYY-MM-DD), title, summary, url (optional: a page of the site, or https://).",
   "updates": [
     {
+      "id": "2026-10-01-statistika",
+      "date": "2026-10-01",
+      "title": "Στατιστικά επισκεψιμότητας και μελών",
+      "summary": "Μια νέα σελίδα δείχνει πόσοι επισκέπτονται τον ιστότοπο, ποιες σελίδες διαβάζουν, από ποιες χώρες, πόλεις, πανεπιστήμια και εταιρείες, καθώς και ανώνυμα στατιστικά των μελών μας: έτη εισαγωγής και αποφοίτησης, κλάδος, χώρα, πόλη και άλλα.",
+      "url": "analytics/"
+    },
+    {
+      "id": "2026-10-01-profil-pedia",
+      "date": "2026-10-01",
+      "title": "Κλάδος, χώρα και φύλο στο προφίλ",
+      "summary": "Στα στοιχεία του λογαριασμού σας μπορείτε πλέον να δηλώσετε, προαιρετικά, τον κλάδο όπου εργάζεστε, τη χώρα και το φύλο σας. Μετρώνται μόνο ανώνυμα, ως σύνολα, στα στατιστικά των μελών.",
+      "url": "account/"
+    },
+    {
       "id": "2026-10-01-ti-neo",
       "date": "2026-10-01",
       "title": "Τι νέο στον ιστότοπο",

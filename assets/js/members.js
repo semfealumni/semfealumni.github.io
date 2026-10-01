@@ -52,7 +52,8 @@
             return db.collection('directory').doc(u.uid).set({
               name: m.firstName + ' ' + m.lastName, gradYear: m.gradYear || null,
               direction: m.direction || '', employer: m.employer || '', position: m.position || '',
-              city: m.city || '', linkedin: m.linkedin || '', updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+              city: window.SEMFE_PROFILE ? window.SEMFE_PROFILE.placeLine(m.city, m.country) : (m.city || ''),
+              linkedin: m.linkedin || '', updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
           }).catch(function () {})
         : Promise.resolve();

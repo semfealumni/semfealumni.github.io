@@ -12,9 +12,9 @@
  * Messages live in module state (formErr, dirMsg) and are also announced. */
 (function () {
   'use strict';
-  var A = window.SemfeAuth, C = window.SEMFE || {}, U = window.SEMFE_UTIL || {};
+  var A = window.SemfeAuth, C = window.SEMFE || {}, U = window.SEMFE_UTIL || {}, PO = window.SEMFE_PROFILE;
   var app = document.getElementById('account-app');
-  if (!A || !app) return;
+  if (!A || !app || !PO) return;
   var esc = A.esc, FV = null, db = null, unsub = null, user = null, member = null, dirEntry = null;
   var editing = false, deleted = false, autoDirTried = false, linked = [];
   var draft = null, formErr = '', dirMsg = null, refocus = null, applyScrolled = false, deleteShown = false, delBox = null;
@@ -242,7 +242,10 @@
       (m.gradYear ? '<dt>Αποφοίτηση</dt><dd>' + esc(m.gradYear) + '</dd>' : '') +
       (m.direction ? '<dt>Κατεύθυνση</dt><dd>' + esc(m.direction) + '</dd>' : '') +
       (m.employer || m.position ? '<dt>Εργασία</dt><dd>' + esc([m.position, m.employer].filter(Boolean).join(', ')) + '</dd>' : '') +
+      (m.industry ? '<dt>Κλάδος</dt><dd>' + esc(PO.industryLabel(m.industry)) + '</dd>' : '') +
       (m.city ? '<dt>Πόλη</dt><dd>' + esc(m.city) + '</dd>' : '') +
+      (m.country ? '<dt>Χώρα</dt><dd>' + esc(PO.countryName(m.country)) + '</dd>' : '') +
+      (m.gender ? '<dt>Φύλο</dt><dd>' + esc(PO.genderLabel(m.gender)) + '</dd>' : '') +
       (/^https:\/\//i.test(m.linkedin || '') ? '<dt>LinkedIn</dt><dd><a href="' + esc(m.linkedin) + '" target="_blank" rel="noopener">' + esc(m.linkedin.replace(/^https?:\/\/(www\.)?/, '')) + '</a></dd>' : '') +
       '<dt>Newsletter</dt><dd>' + (m.consentNewsletter ? 'Ναι' : 'Όχι') + '</dd>' +
       '<dt>Θέσεις εργασίας</dt><dd>' + (m.consentJobs ? 'Ναι' : 'Όχι') + '</dd>' +
@@ -300,8 +303,12 @@
       '<div class="row">' + field('entryYear', 'Έτος εισαγωγής', m.entryYear, { inputmode: 'numeric', max: 4, placeholder: 'π.χ. 2008' }) +
       field('gradYear', 'Έτος αποφοίτησης', m.gradYear, { inputmode: 'numeric', max: 4, placeholder: 'π.χ. 2013', hint: 'Κενό αν είστε τελειόφοιτος/η' }) + '</div>' +
       '<div class="row">' + field('position', 'Θέση εργασίας', m.position, { auto: 'organization-title', max: 120 }) + field('employer', 'Εργοδότης / Ίδρυμα', m.employer, { auto: 'organization', max: 120 }) + '</div>' +
-      '<div class="row">' + field('city', 'Πόλη / Χώρα', m.city, { max: 80, auto: 'address-level2' }) +
-      field('linkedin', 'Προφίλ LinkedIn', m.linkedin, { type: 'url', max: 200, placeholder: 'https://www.linkedin.com/in/…', hint: 'Ο πιο εύκολος τρόπος να επιβεβαιώσουμε ότι είστε απόφοιτος ΣΕΜΦΕ.' }) + '</div>' +
+      '<div class="row">' + select('industry', 'Κλάδος', m.industry || '', PO.INDUSTRIES, false) +
+      select('gender', 'Φύλο', m.gender || '', PO.GENDERS, false) + '</div>' +
+      '<div class="row">' + field('city', 'Πόλη', m.city, { max: 80, auto: 'address-level2' }) +
+      select('country', 'Χώρα', m.country != null && m.country !== '' ? m.country : (draft ? '' : PO.splitPlace(m.city).country), PO.COUNTRIES, false) + '</div>' +
+      '<p class="muted" style="font-size:.88rem;margin:-4px 0 0">Ο κλάδος, η χώρα και το φύλο είναι προαιρετικά. Τα στοιχεία σπουδών, εργασίας και τόπου μετρώνται μόνο <strong>ανώνυμα</strong>, ως σύνολα, στα <a href="' + A.root + 'analytics/#meli" target="_blank" rel="noopener">στατιστικά των μελών</a>· ομάδες κάτω από 3 ατόμων δεν εμφανίζονται.</p>' +
+      field('linkedin', 'Προφίλ LinkedIn', m.linkedin, { type: 'url', max: 200, placeholder: 'https://www.linkedin.com/in/…', hint: 'Ο πιο εύκολος τρόπος να επιβεβαιώσουμε ότι είστε απόφοιτος ΣΕΜΦΕ.' }) +
       '<div class="field"><label for="f-note">Σημείωση προς το Δ.Σ.</label><textarea id="f-note" name="note" maxlength="1000" aria-describedby="f-note-hint" data-hint="f-note-hint">' + esc(m.note || '') + '</textarea><span class="hint" id="f-note-hint">Προαιρετικό</span></div>' +
       '<fieldset><legend>Επικοινωνία</legend><div class="form" style="gap:10px">' +
       check('consentNewsletter', 'Θέλω να λαμβάνω το ενημερωτικό newsletter του Συλλόγου.', m.consentNewsletter) +
@@ -494,6 +501,7 @@
       firstName: v('firstName'), lastName: v('lastName'), email: v('email'), phone: v('phone'),
       stage: v('stage'), direction: v('direction'), entryYear: y('entryYear'), gradYear: y('gradYear'),
       position: v('position'), employer: v('employer'), city: v('city'), linkedin: v('linkedin'), note: v('note'),
+      gender: v('gender'), industry: v('industry'), country: v('country'),
       consentNewsletter: c('consentNewsletter'), consentJobs: c('consentJobs'), consentDirectory: c('consentDirectory'),
       acceptedPrivacy: c('acceptedPrivacy')
     };
@@ -581,7 +589,7 @@
     return {
       name: m.firstName + ' ' + m.lastName, gradYear: m.gradYear || null,
       direction: m.direction || '', employer: m.employer || '', position: m.position || '',
-      city: m.city || '', linkedin: m.linkedin || '', updatedAt: FV.serverTimestamp()
+      city: PO.placeLine(m.city, m.country), linkedin: m.linkedin || '', updatedAt: FV.serverTimestamp()
     };
   }
   function writeDirectory() { return db.collection('directory').doc(user.uid).set(directoryData()).then(function () { dirEntry = {}; }); }

@@ -10,6 +10,15 @@
  *                       sender (feedback.js)
  *   feedbackUpdated     a ticket closed with an answer: the answer to the
  *                       sender (feedback.js)
+ *   recordVisit         the site's own visit counter for the «Στατιστικά» page:
+ *                       one small message per page view (assets/js/visit.js),
+ *                       counted per day in siteVisits/; on the first page of a
+ *                       visit it also names the university or company the
+ *                       visitor's network belongs to (netorg.js). The address
+ *                       is never stored or logged (site-visits.js)
+ *   memberStats         recounts the anonymous statistics of the members
+ *                       (publicStats/members) whenever an application changes
+ *                       (member-stats.js)
  *
  * Settings (asked for by the Firebase CLI on the first deploy, stored in
  * functions/.env.<project-id>; the secret goes to Google Secret Manager):
@@ -36,7 +45,7 @@ const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const functionsV1 = require('firebase-functions/v1');
-const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
+const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { handle, cleanupUser, splitList } = require('./linkedin');
 const accounts = require('./accounts');
 const feedback = require('./feedback');
@@ -153,3 +162,105 @@ exports.feedbackUpdated = onDocumentUpdated(FB_OPTS, async event => {
   const r = await feedback.onUpdated(event.params.ticket, event.data.before.data(), event.data.after.data(), feedbackDeps(event.data.after.ref), feedbackCfg());
   if (r !== 'skip' && r !== 'already') logger.info('feedback ' + event.params.ticket + ' answer: ' + r);
 });
+
+/* ---- the «Στατιστικά» page ---------------------------------------------- */
+const netorg = require('./netorg');
+const siteVisits = require('./site-visits');
+const stats = require('./member-stats');
+/* every page the site has (written by tools/build.mjs): a path that is not
+   here is counted as 'other', so nobody can add keys by inventing addresses */
+const SITE_PATHS = require('./site-paths.json').paths;
+const VISIT_ORIGINS = ['https://semfealumni.gr', 'https://www.semfealumni.gr'];
+const OWN_HOSTS = ['semfealumni.gr', 'www.semfealumni.gr'];
+
+function within(promise, ms) {
+  return Promise.race([promise, new Promise(resolve => setTimeout(() => resolve(null), ms))]);
+}
+async function reverseDns(ip) {
+  try {
+    const names = await within(require('node:dns').promises.reverse(ip), 2000);
+    return (names && names[0]) || '';
+  } catch (e) { return ''; }
+}
+/* the network's registration, over RDAP; ARIN's server redirects to the
+   registry of any region (RIPE for Greece and Europe) */
+async function registration(ip) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 3000);
+  try {
+    const res = await fetch('https://rdap.arin.net/registry/ip/' + ip, {
+      headers: { accept: 'application/rdap+json', 'user-agent': 'semfealumni-functions' },
+      redirect: 'follow', signal: ctl.signal
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    return text.length > 500000 ? null : JSON.parse(text);
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+exports.recordVisit = onRequest(
+  /* a hard ceiling on what a flood can cost: a lost message is one uncounted
+     page view, never a bill */
+  { region: 'europe-west1', invoker: 'public', maxInstances: 5, timeoutSeconds: 10, memory: '256MiB' },
+  async (req, res) => {
+    res.set('cache-control', 'no-store');
+    // ALWAYS 204: the answer tells the browser nothing (not even whether its
+    // network was recognised), and the page never waits for it
+    const done = () => { res.status(204).send(''); };
+    if (req.method !== 'POST') return done();
+    let origin = String(req.headers.origin || '');
+    if (!origin) { try { origin = new URL(String(req.headers.referer || '')).origin; } catch (e) { origin = ''; } }
+    if (VISIT_ORIGINS.indexOf(origin) === -1) return done();
+    // a visitor who asks not to be tracked is not counted (visit.js does not
+    // even send; this is the same rule where the browser cannot be trusted)
+    if (req.headers['sec-gpc'] === '1' || req.headers.dnt === '1') return done();
+    const ua = String(req.headers['user-agent'] || '');
+    if (siteVisits.isBot(ua)) return done();
+    const raw = req.rawBody ? req.rawBody.toString('utf8') : typeof req.body === 'string' ? req.body : '';
+    const msg = siteVisits.parseMessage(raw);
+    if (!msg) return done();
+
+    let place = null, v6 = false;
+    if (msg.first) {
+      const ip = netorg.clientIp(req.headers['x-forwarded-for']);
+      if (ip) {
+        v6 = ip.indexOf(':') !== -1;
+        const [host, rdap] = await Promise.all([reverseDns(ip), registration(ip)]);
+        place = netorg.place(host, rdap);
+      }
+      /* from here on the address is not referenced again: it is not written
+         and not logged; only the organisation's name (if any) goes on */
+    }
+    const { day, patch } = siteVisits.visitPatch(msg,
+      { now: new Date(), ua, known: SITE_PATHS, ownHosts: OWN_HOSTS, place, v6 }, FieldValue.increment(1));
+    try {
+      await getFirestore().collection('siteVisits').doc(day).set(patch, { merge: true });
+    } catch (e) {
+      logger.warn('visit not recorded', { error: e.message });
+    }
+    return done();
+  }
+);
+
+/* The members' anonymous statistics, recounted when an application changes.
+   One instance, one event at a time, so two recounts never race to write. */
+async function publishMemberStats(db) {
+  const snap = await db.collection('members').get();
+  const out = stats.memberStats(snap.docs.map(d => d.data()), new Date());
+  await db.collection('publicStats').doc('members').set({ json: JSON.stringify(out), t: FieldValue.serverTimestamp() });
+  return out;
+}
+exports.memberStats = onDocumentWritten(
+  { document: 'members/{uid}', region: 'europe-west1', retry: false, maxInstances: 1, concurrency: 1, timeoutSeconds: 60, memory: '256MiB' },
+  async event => {
+    const before = event.data && event.data.before && event.data.before.exists ? event.data.before.data() : null;
+    const after = event.data && event.data.after && event.data.after.exists ? event.data.after.data() : null;
+    if (!stats.matters(before, after)) return;
+    const out = await publishMemberStats(getFirestore());
+    logger.info('member statistics: ' + out.registered + ' registered, ' + out.active + ' active');
+  }
+);

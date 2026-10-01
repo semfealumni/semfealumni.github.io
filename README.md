@@ -29,13 +29,19 @@ as they are here; there is nothing to install to publish it.
     assets/js/admin.js         "Διαχείριση": approve applications, record dues, every account, merge duplicates, export CSV
     assets/js/news.js, news-page.js  "Τι νέο": the list of site changes; admins approve, reword or remove each entry
     changelog.json             the suggested "Τι νέο" entries (public only once an admin approves them)
+    assets/js/analytics-page.js  "Στατιστικά": visits (data/analytics.json) and the members' anonymous statistics
+    assets/js/visit.js         on every public page: Google Analytics (cookieless) and the site's own visit counter
+    assets/js/profile-options.js  the profile's fixed answers (gender, industry, country); copied to functions/
+    data/analytics.json        the visit figures, rebuilt daily by tools/build-analytics.mjs (GitHub Action "analytics")
     assets/img, assets/docs    photos, logos and the PDFs
     firestore.rules            the database security rules (the real gatekeeper)
     firebase.json, .firebaserc, check-project.mjs   for deploying the rules from the command line
     FIREBASE-SETUP.md          step by step: Firebase, Google, LinkedIn, e-mail
     FEEDBACK-SETUP.md          step by step: the feedback e-mails and the private ticket log
+    ANALYTICS-SETUP.md         step by step: the Στατιστικά page (counter, members, Google Analytics)
     _feedback-resolutions/     one file per ticket closed from the repository (see its README)
-    functions/                 Cloud Functions: LinkedIn sign-in, accounts list/merge, feedback e-mails
+    functions/                 Cloud Functions: LinkedIn sign-in, accounts list/merge, feedback e-mails,
+                               the visit counter (recordVisit) and the members' statistics (memberStats)
     tools/                     build, checks and tests (not published)
     CLAUDE.md, .github/        repository conventions; the CI checks run on every push
 
@@ -104,6 +110,22 @@ The same page lists every account that has signed in, marks likely duplicates
 and merges two accounts of one person; that part runs in the `accounts` Cloud
 Function (`functions/accounts.js`, FIREBASE-SETUP.md Part E).
 
+## The «Στατιστικά» page
+
+`/analytics/` shows how the site is used and, anonymously, who has
+registered. Setup, step by step: **`ANALYTICS-SETUP.md`**.
+
+* **Visits** (`data/analytics.json`, rebuilt every morning by the
+  `analytics` GitHub Action): the site's own counter (the `recordVisit` Cloud
+  Function: page views, visits, hours, devices, and the university or company
+  a visitor's network is registered to) plus Google Analytics 4 without
+  cookies (countries, cities, referring sites). The visitor's address is
+  never stored; home and mobile connections are attributed to nobody.
+* **Members** (Firestore `publicStats/members`, recounted by the `memberStats`
+  Cloud Function on every registration or edit): totals per question only;
+  groups under 3 people are merged into «Λοιπά», questions with fewer than 5
+  answers are not shown, years are counted in five-year periods.
+
 ## Search engines
 
 This is the official site, so search engines are allowed (`INDEXABLE = true`
@@ -125,8 +147,9 @@ addresses keep working through small forwarding pages.
     node tools/smoke.mjs                  every page at 10 screen sizes, menu, motion, dialog, gallery (Playwright)
     node tools/auth-flow.mjs              the sign-in, account, members, admin and feedback flows against a fake Firebase
     node tools/feedback-sync.mjs --selftest   the feedback resolution files and the ticket log (offline)
+    node tools/build-analytics.mjs --selftest the Στατιστικά builder and the shape of data/analytics.json (offline)
     cd tools/rules-test && npm install && npm test   the Firestore rules against the real emulator (needs Java)
-    cd functions && npm test                         the Cloud Functions: LinkedIn sign-in, accounts list and merge, feedback e-mails (offline, with fakes)
+    cd functions && npm test                         the Cloud Functions: LinkedIn sign-in, accounts list and merge, feedback e-mails, the visit counter and the members' statistics (offline, with fakes)
 
 ## Hosting
 

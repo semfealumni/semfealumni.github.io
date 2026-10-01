@@ -20,6 +20,13 @@ rules_version = '2';
 //                    the sender sees, and its screenshots in shots/{1..5}.
 //                    The sender may create them and read them; admins read,
 //                    close, reopen and delete.
+//   publicStats/{id} the members' ANONYMOUS statistics for the «Στατιστικά»
+//                    page (publicStats/members): anyone may read, only the
+//                    memberStats Cloud Function and the analytics workflow
+//                    (Admin SDK) write.
+//   siteVisits/{day} the site's own visit counters, written only by the
+//                    recordVisit Cloud Function and read only by the
+//                    analytics workflow; no browser touches them.
 //
 // Everything else is denied.
 //
@@ -78,6 +85,22 @@ service cloud.firestore {
               'acceptedPrivacy', 'provider', 'createdAt', 'updatedAt'];
     }
     function adminKeys() { return ['status', 'duesYears', 'adminNote', 'reviewedAt', 'reviewedBy']; }
+    // OPTIONAL answers, counted only anonymously on the «Στατιστικά» page.
+    // Optional in the rules too: a page loaded before they existed saves
+    // without them. KEEP IN SYNC with GENDERS and INDUSTRIES in
+    // assets/js/profile-options.js (tools/check.mjs fails when they differ).
+    function optionalKeys() { return ['gender', 'industry', 'country']; }
+    function genders() { return ['female', 'male', 'other', 'na']; }
+    function industries() {
+      return ['academia', 'education', 'studies', 'software', 'data', 'telecom', 'finance', 'insurance',
+              'consulting', 'energy', 'manufacturing', 'engineering', 'health', 'pharma', 'defence',
+              'transport', 'public', 'commerce', 'media', 'other'];
+    }
+    function optionalOk(d) {
+      return (d.get('gender', '') == '' || d.get('gender', '') in genders())
+        && (d.get('industry', '') == '' || d.get('industry', '') in industries())
+        && d.get('country', '') is string && d.get('country', '').matches('([A-Z]{2})?');
+    }
 
     // duesYears: each admin write may add at most ONE year, and it must be a
     // real year. Only admins ever write the list, so it only ever holds years.
@@ -96,7 +119,8 @@ service cloud.firestore {
         && str(d.city, 80) && str(d.linkedin, 200) && str(d.note, 1000)
         && d.consentNewsletter is bool && d.consentJobs is bool && d.consentDirectory is bool
         && d.acceptedPrivacy == true
-        && str(d.provider, 40);
+        && str(d.provider, 40)
+        && optionalOk(d);
     }
 
     // ---- membership applications ----------------------------------------
@@ -106,7 +130,7 @@ service cloud.firestore {
 
       // the owner applies: every profile field present, status starts 'pending'
       allow create: if signedIn() && request.auth.uid == uid && emailConfirmed()
-        && request.resource.data.keys().hasOnly(profileKeys().concat(['status']))
+        && request.resource.data.keys().hasOnly(profileKeys().concat(optionalKeys()).concat(['status']))
         && request.resource.data.keys().hasAll(profileKeys())
         && validProfile(request.resource.data)
         && request.resource.data.status == 'pending'
@@ -118,7 +142,7 @@ service cloud.firestore {
       // name is frozen (the directory shows it; to change it, the admin sets
       // the application back to pending)
       allow update: if signedIn() && request.auth.uid == uid && emailConfirmed()
-        && request.resource.data.keys().hasOnly(profileKeys().concat(adminKeys()))
+        && request.resource.data.keys().hasOnly(profileKeys().concat(optionalKeys()).concat(adminKeys()))
         && validProfile(request.resource.data)
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(adminKeys().concat(['createdAt']))
         && (resource.data.status == 'pending'
@@ -233,6 +257,18 @@ service cloud.firestore {
         && request.resource.data.t == request.time
         && request.resource.data.by == request.auth.token.email;
       allow delete: if isAdmin();
+    }
+
+    // ---- the «Στατιστικά» page ---------------------------------------------
+    // The members' anonymous statistics: one document, counted by the server
+    // (functions/member-stats.js), readable by anyone, written by no browser.
+    match /publicStats/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // The visit counters: server only, in both directions.
+    match /siteVisits/{day} {
+      allow read, write: if false;
     }
 
     // ---- LinkedIn links: server only -------------------------------------

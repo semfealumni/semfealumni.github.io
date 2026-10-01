@@ -26,6 +26,16 @@
  *     decides what the page SHOWS. What an admin may actually read and write
  *     is decided by isAdmin() in firestore.rules, which must list the same
  *     addresses (tools/check.mjs fails when the two differ).
+ *
+ *  4. ANALYTICS: the two counters behind the «Στατιστικά» page
+ *     (ANALYTICS-SETUP.md). Both run only on the live site (hosts) and never
+ *     for a visitor who asks not to be tracked; neither stores anything on
+ *     the visitor's device (assets/js/visit.js).
+ *       ga4       the Google Analytics 4 Measurement ID (G-…). Not a secret.
+ *                 While it says PASTE_, Google Analytics is not loaded.
+ *       visitUrl  the recordVisit Cloud Function (functions/index.js), the
+ *                 site's own counter. Until it is deployed the message
+ *                 simply goes unanswered; nothing breaks.
  */
 window.SEMFE = {
   siteName: 'Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ',
@@ -67,6 +77,12 @@ window.SEMFE = {
   },
 
   ADMIN_EMAILS: ['kstouras@gmail.com', 'gradsemfe@gmail.com'],
+
+  ANALYTICS: {
+    ga4: 'PASTE_G-MEASUREMENT-ID',
+    visitUrl: 'https://europe-west1-semfe-alumni.cloudfunctions.net/recordVisit',
+    hosts: ['semfealumni.gr', 'www.semfealumni.gr']
+  },
 
   /* The Firebase JavaScript SDK version loaded from gstatic.com. */
   FIREBASE_SDK: '12.19.0'

@@ -1,11 +1,11 @@
 {
   "name": "semfealumni-functions",
   "private": true,
-  "description": "Cloud Functions of the SEMFE Alumni site: LinkedIn sign-in, the accounts list and merge, and the Σχόλια page e-mails.",
+  "description": "Cloud Functions of the SEMFE Alumni site: LinkedIn sign-in, the accounts list and merge, the Σχόλια page e-mails, and the counters of the Στατιστικά page.",
   "main": "index.js",
   "engines": { "node": "22" },
   "scripts": {
-    "test": "node test.js && node test-accounts.js && node test-feedback.js"
+    "test": "node test.js && node test-accounts.js && node test-feedback.js && node test-analytics.js"
   },
   "dependencies": {
     "firebase-admin": "^14.5.0",

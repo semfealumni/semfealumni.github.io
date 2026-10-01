@@ -982,3 +982,75 @@ describe('newsOverrides («Τι νέο»): only admins decide, anyone may read',
     });
   });
 });
+
+/* ---- the «Στατιστικά» page ------------------------------------------------
+ * The three optional profile answers (account.js sends them; a page loaded
+ * before they existed does not), the public members' statistics
+ * (publicStats/, written only by the server) and the visit counters
+ * (siteVisits/, server only both ways). */
+describe('the optional profile answers: gender, industry, country', () => {
+  it('an application with all three, as account.js sends them', async () => {
+    await assertSucceeds(member(dbAs(U.alice), 'alice').set(newApplication('google.com', { gender: 'female', industry: 'data', country: 'GR' })));
+  });
+  it('left empty, or not sent at all (a page loaded before they existed)', async () => {
+    await assertSucceeds(member(dbAs(U.alice), 'alice').set(newApplication('google.com', { gender: '', industry: '', country: '' })));
+    await assertSucceeds(member(dbAs(U.bob), 'bob').set(newApplication('google.com')));
+  });
+  it('"prefer not to say", "another country" and every industry key', async () => {
+    await assertSucceeds(member(dbAs(U.alice), 'alice').set(newApplication('google.com', { gender: 'na', industry: 'other', country: 'XX' })));
+    for (const industry of ['academia', 'software', 'finance', 'public', 'media']) {
+      await seed('members/bob', storedMember('pending'));
+      await assertSucceeds(member(dbAs(U.bob), 'bob').update(editApplication('google.com', { industry })));
+    }
+  });
+  it('the owner adds them to an application stored before they existed', async () => {
+    await seed('members/alice', storedMember('active'));
+    await assertSucceeds(member(dbAs(U.alice), 'alice').update(editApplication('google.com', { gender: 'male', industry: 'finance', country: 'GB' })));
+  });
+  describe('refused', () => {
+    for (const [what, over] of [
+      ['a gender that is not on the list', { gender: 'unknown' }],
+      ['a gender that is not a string', { gender: 1 }],
+      ['an industry that is not on the list', { industry: 'astrology' }],
+      ['a country written as a name', { country: 'Greece' }],
+      ['a country code in lower case', { country: 'gr' }],
+      ['a three-letter country code', { country: 'GRC' }],
+      ['a country that is not a string', { country: 30 }],
+    ]) {
+      it(what, async () => {
+        await assertFails(member(dbAs(U.alice), 'alice').set(newApplication('google.com', over)));
+        await seed('members/bob', storedMember('pending'));
+        await assertFails(member(dbAs(U.bob), 'bob').update(editApplication('google.com', over)));
+      });
+    }
+    it('any other new key next to them', async () => {
+      await assertFails(member(dbAs(U.alice), 'alice').set(newApplication('google.com', { gender: 'female', age: 40 })));
+    });
+  });
+});
+
+describe('publicStats (the members\' anonymous statistics) and siteVisits (the visit counters)', () => {
+  const STATS = { json: '{"v":1,"registered":12}', t: PAST };
+  it('anyone, even signed out, reads publicStats/members', async () => {
+    await seed('publicStats/members', STATS);
+    await assertSucceeds(dbAs(null).doc('publicStats/members').get());
+    await assertSucceeds(dbAs(U.alice).doc('publicStats/members').get());
+  });
+  it('no browser writes or deletes publicStats, not even an admin', async () => {
+    await seed('publicStats/members', STATS);
+    for (const who of [null, U.alice, U.admin]) {
+      await assertFails(dbAs(who).doc('publicStats/members').set({ json: '{"registered":999}' }));
+      await assertFails(dbAs(who).doc('publicStats/members').delete());
+      await assertFails(dbAs(who).doc('publicStats/other').set({ json: '{}' }));
+    }
+  });
+  it('siteVisits: nobody reads, writes or lists it from a browser, admin included', async () => {
+    await seed('siteVisits/2026-10-01', { day: '2026-10-01', seen: 3, pv: 7, unis: { 'Εθνικό Μετσόβιο Πολυτεχνείο': 1 } });
+    for (const who of [null, U.alice, U.admin]) {
+      await assertFails(dbAs(who).doc('siteVisits/2026-10-01').get());
+      await assertFails(dbAs(who).collection('siteVisits').get());
+      await assertFails(dbAs(who).doc('siteVisits/2026-10-01').set({ seen: 999 }, { merge: true }));
+      await assertFails(dbAs(who).doc('siteVisits/2026-10-02').set({ seen: 1 }));
+    }
+  });
+});

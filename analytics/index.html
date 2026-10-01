@@ -3,24 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Σχόλια και προβλήματα · Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ</title>
-  <meta name="description" content="Στείλτε στον Σύλλογο Διπλωματούχων ΣΕΜΦΕ ΕΜΠ σχόλια, ιδέες ή ένα πρόβλημα που βρήκατε στον ιστότοπο, με στιγμιότυπα οθόνης. Κάθε μήνυμα παίρνει αριθμό και σας απαντάμε με e-mail.">
-  <link rel="canonical" href="https://semfealumni.gr/feedback/">
-  <meta name="robots" content="noindex">
+  <title>Στατιστικά · Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ</title>
+  <meta name="description" content="Πόσοι επισκέπτονται τον ιστότοπο του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ, από ποιες χώρες, πόλεις, πανεπιστήμια και εταιρείες, και ανώνυμα στατιστικά των μελών μας.">
+  <link rel="canonical" href="https://semfealumni.gr/analytics/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="SEMFE Alumni">
   <meta property="og:locale" content="el_GR">
-  <meta property="og:title" content="Σχόλια και προβλήματα">
-  <meta property="og:description" content="Στείλτε στον Σύλλογο Διπλωματούχων ΣΕΜΦΕ ΕΜΠ σχόλια, ιδέες ή ένα πρόβλημα που βρήκατε στον ιστότοπο, με στιγμιότυπα οθόνης. Κάθε μήνυμα παίρνει αριθμό και σας απαντάμε με e-mail.">
-  <meta property="og:url" content="https://semfealumni.gr/feedback/">
+  <meta property="og:title" content="Στατιστικά">
+  <meta property="og:description" content="Πόσοι επισκέπτονται τον ιστότοπο του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ, από ποιες χώρες, πόλεις, πανεπιστήμια και εταιρείες, και ανώνυμα στατιστικά των μελών μας.">
+  <meta property="og:url" content="https://semfealumni.gr/analytics/">
   <meta property="og:image" content="https://semfealumni.gr/og-image.jpg">
   <meta property="og:image:type" content="image/jpeg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Σχόλια και προβλήματα">
-  <meta name="twitter:description" content="Στείλτε στον Σύλλογο Διπλωματούχων ΣΕΜΦΕ ΕΜΠ σχόλια, ιδέες ή ένα πρόβλημα που βρήκατε στον ιστότοπο, με στιγμιότυπα οθόνης. Κάθε μήνυμα παίρνει αριθμό και σας απαντάμε με e-mail.">
+  <meta name="twitter:title" content="Στατιστικά">
+  <meta name="twitter:description" content="Πόσοι επισκέπτονται τον ιστότοπο του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ, από ποιες χώρες, πόλεις, πανεπιστήμια και εταιρείες, και ανώνυμα στατιστικά των μελών μας.">
   <meta name="twitter:image" content="https://semfealumni.gr/og-image.jpg">
   <link rel="image_src" href="https://semfealumni.gr/share-square.jpg">
   <meta itemprop="image" content="https://semfealumni.gr/share-square.jpg">
@@ -37,9 +36,10 @@
   <script src="../assets/js/site.js" defer></script>
   <script src="../assets/js/auth.js" defer></script>
   <script src="../assets/js/visit.js" defer></script>
-  <script src="../assets/js/feedback.js" defer></script>
+  <script src="../assets/js/profile-options.js" defer></script>
+  <script src="../assets/js/analytics-page.js" defer></script>
 </head>
-<body data-firestore="1">
+<body>
 <a class="skip" href="#main">Μετάβαση στο περιεχόμενο</a>
 <header class="site-header">
   <div class="wrap">
@@ -53,7 +53,7 @@
     <div class="header-right">
       <nav class="nav" id="nav" aria-label="Κύριο μενού">
       <div class="nav-more">
-        <button class="nav-more-btn" type="button" aria-expanded="false" aria-controls="nav-more">Ο&nbsp;Σύλλογος<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="nav-more-btn is-here" type="button" aria-expanded="false" aria-controls="nav-more">Ο&nbsp;Σύλλογος<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="nav-more-panel" id="nav-more">
           <div class="nav-group" role="group" aria-labelledby="nav-g-club">
             <span class="nav-group-h" id="nav-g-club">Ο&nbsp;Σύλλογος</span>
@@ -70,7 +70,7 @@
           <div class="nav-group" role="group" aria-labelledby="nav-g-site">
             <span class="nav-group-h" id="nav-g-site">Ο&nbsp;ιστότοπος</span>
             <a href="../whats-new/">Τι νέο</a>
-            <a href="../analytics/">Στατιστικά</a>
+            <a href="../analytics/" aria-current="page">Στατιστικά</a>
           </div>
         </div>
       </div>
@@ -88,18 +88,23 @@
 <main id="main">
 <section class="page-hero">
   <div class="wrap">
-    <nav class="crumbs" aria-label="Διαδρομή"><a href="../">Αρχική</a><span aria-hidden="true">›</span><span>Σχόλια και προβλήματα</span></nav>
-    <span class="eyebrow">Μέλη</span>
-    <h1>Σχόλια και προβλήματα</h1>
-    <p class="lede">Βρήκατε κάτι που δεν λειτουργεί ή&nbsp;έχετε μια ιδέα; Γράψτε μας. Κάθε μήνυμα παίρνει αριθμό, και σας λέμε τι κάναμε.</p>
+    <nav class="crumbs" aria-label="Διαδρομή"><a href="../">Αρχική</a><span aria-hidden="true">›</span><span>Στατιστικά</span></nav>
+    <span class="eyebrow">Ο&nbsp;ιστότοπος</span>
+    <h1>Στατιστικά</h1>
+    <p class="lede">Πόσοι μας επισκέπτονται, από πού και πώς, και ποιοι είναι, ανώνυμα, όσοι έχουν εγγραφεί.</p>
     
-    <nav class="filters subnav" aria-label="Ενότητα" style="margin:22px 0 0"><a class="btn btn-sm btn-ghost" href="../account/">Ο&nbsp;λογαριασμός μου</a><a class="btn btn-sm btn-ghost" href="../members/">Περιοχή μελών</a><a class="btn btn-sm btn-primary" href="../feedback/" aria-current="page">Σχόλια</a></nav>
+    
   </div>
 </section>
 <section class="tight">
-  <div class="wrap" id="feedback-app">
-    <noscript><div class="notice warn"><strong>Χρειάζεται JavaScript</strong><p>Η&nbsp;φόρμα σχολίων λειτουργεί μόνο με ενεργοποιημένη JavaScript. Μπορείτε επίσης να μας γράψετε στο <a href="mailto:gradsemfe@gmail.com">gradsemfe@gmail.com</a>.</p></div></noscript>
-    <div class="loading"><span class="spinner" aria-hidden="true"></span>Φόρτωση…</div>
+  <div class="wrap">
+    <!-- drawn by assets/js/analytics-page.js from data/analytics.json (the
+         visits, rebuilt daily by tools/build-analytics.mjs) and from the
+         members' anonymous statistics (Firestore publicStats/members) -->
+    <div id="analytics-app">
+      <noscript><div class="notice warn"><strong>Χρειάζεται JavaScript</strong><p>Τα διαγράμματα σχεδιάζονται στον browser από το αρχείο <a href="../data/analytics.json">data/analytics.json</a>.</p></div></noscript>
+      <div class="loading"><span class="spinner" aria-hidden="true"></span>Φόρτωση…</div>
+    </div>
   </div>
 </section>
 </main>
