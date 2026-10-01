@@ -14,8 +14,13 @@
  *         recordVisit Cloud Function. Needs FIREBASE_SERVICE_ACCOUNT (the
  *         same key the feedback workflow uses).
  *   ga4   Google Analytics 4, read through its Data API. Needs
- *         GA4_SERVICE_ACCOUNT (a service-account key given "Viewer" on the
- *         property) and GA4_PROPERTY_ID (the property's number).
+ *         GA4_PROPERTY_ID (the property's number; the workflow names
+ *         361541833, "SEMFE Alumni - GA4", the property the old site already
+ *         reported to) and a service-account key given "Viewer" on that
+ *         property: GA4_SERVICE_ACCOUNT if set, else the FIREBASE_SERVICE_ACCOUNT
+ *         key itself, so one key can serve both. It reads the property's
+ *         WHOLE history: the old site lived at the same address with the
+ *         same page addresses, so its visits continue straight into ours.
  * Who answers for what is settled by what each one HAS:
  *   visits and page views per day   site, else GA4 (a day goes to one, never both)
  *   pages, devices, how they arrive site, else GA4
@@ -26,7 +31,10 @@
  * AN UNREACHABLE SOURCE CHANGES NOTHING. A source whose secret is missing is
  * simply left out; a source that is set up but fails to answer stops the
  * build before anything is written, so the committed file stands. A half
- * file is a blank dashboard.
+ * file is a blank dashboard. One exception: Google Analytics, until it has
+ * answered ONCE (the committed file names it in `sources`), is still being
+ * set up, so a refusal is a warning and the rest is published; leaving it
+ * out then loses nothing the page already shows.
  *
  * The members' statistics (publicStats/members) are recounted here too,
  * with the same function the memberStats Cloud Function uses
@@ -46,7 +54,7 @@ const req = createRequire(path.join(ROOT, 'functions', 'package.json'));
 
 export const WINDOWS = { 30: 30, 90: 90, 365: 365, all: null };
 const HOSTS = ['semfealumni.gr', 'www.semfealumni.gr'];
-const GA_START = '2026-09-01';               // the site moved to semfealumni.gr on 1 October 2026
+const GA_START = '2015-08-14';               // the earliest day the Data API serves: the property's whole history
 const TOP = { pages: 20, cities: 20, countries: 25, sources: 15, unis: 40, companies: 40 };
 
 /* ---------------------------------------------------------------- dates */
@@ -141,7 +149,12 @@ export function buildFile({ site, ga, titles, today, generated }) {
   const first = Object.keys(days)[0] || '';
   const file = { v: 1, about: 'The figures of the Στατιστικά page (analytics/), rebuilt daily by tools/build-analytics.mjs.',
     generated, sources: {}, days, windows: {} };
-  if (site) file.sources.site = { days: Object.keys(site.docs).length };
+  if (site) {
+    file.sources.site = { days: Object.keys(site.docs).length };
+    // the first day the site's own counter counted: the page says where the line changes source
+    const counted = Object.keys(site.docs).filter(d => (site.docs[d].seen || 0) + (site.docs[d].pv || 0) > 0).sort();
+    if (counted.length) file.sources.site.first = counted[0];
+  }
   if (ga) file.sources.ga4 = { days: Object.keys(ga.days || {}).length };
   if (!first || first > to) return file;                       // nothing measured yet
 
@@ -238,10 +251,22 @@ async function gaToken(sa) {
   return j.access_token;
 }
 
+/** Which secret reads Google Analytics: its own key, else the Firebase one. */
+export function gaKeyName(env) {
+  if (env.GA4_SERVICE_ACCOUNT) return 'GA4_SERVICE_ACCOUNT';
+  if (env.FIREBASE_SERVICE_ACCOUNT) return 'FIREBASE_SERVICE_ACCOUNT';
+  return '';
+}
+/** A Google Analytics failure stops the build only once it has answered
+    before; until then it is still being set up (see the header). */
+export function gaFailureStops(prev) { return !!(prev && prev.sources && prev.sources.ga4); }
+
 async function readGa(known) {
-  const sa = key('GA4_SERVICE_ACCOUNT');
+  const keyName = gaKeyName(process.env);
+  const sa = keyName ? key(keyName) : null;
   const property = String(process.env.GA4_PROPERTY_ID || '').trim();
   if (!sa || !property || /PASTE/.test(property)) return null;
+  console.log(`ga4: property ${property}, read with ${keyName} (${sa.client_email || 'no client_email'})`);
   if (!/^\d+$/.test(property)) throw new Error('GA4_PROPERTY_ID must be the property NUMBER (Admin > Property details), not the G-… Measurement ID');
   const token = await gaToken(sa);
   const hostFilter = { filter: { fieldName: 'hostName', inListFilter: { values: HOSTS } } };
@@ -256,7 +281,7 @@ async function readGa(known) {
   }
   const yesterday = addDays(athensDay(new Date()), -1);
   const daily = await report({ dateRanges: [{ startDate: GA_START, endDate: yesterday }], dimensions: [{ name: 'date' }],
-    metrics: [{ name: 'sessions' }, { name: 'screenPageViews' }], limit: 5000 });
+    metrics: [{ name: 'sessions' }, { name: 'screenPageViews' }], limit: 10000 });
   const days = {};
   for (const r of reportRows(daily)) {
     const d = r.dims[0];
@@ -294,6 +319,7 @@ async function publishMembers(fs) {
 /* ------------------------------------------------------------------ main */
 async function main() {
   const paths = JSON.parse(readFileSync(path.join(ROOT, 'functions/site-paths.json'), 'utf8'));
+  const prev = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : null;
   let fs = null, site = null, ga = null, failed = false;
   try { fs = await firestore(); } catch (e) { console.log('::error::' + e.message); failed = true; }
   if (!fs && !failed) console.log('::notice::FIREBASE_SERVICE_ACCOUNT is not set: the site\'s own counter and the members\' statistics are skipped (ANALYTICS-SETUP.md).');
@@ -303,9 +329,14 @@ async function main() {
   }
   try {
     ga = await readGa(paths.paths);
-    if (ga) console.log(`ga4: ${Object.keys(ga.days).length} day(s)`);
-    else console.log('::notice::GA4_SERVICE_ACCOUNT / GA4_PROPERTY_ID are not set: Google Analytics is skipped (ANALYTICS-SETUP.md).');
-  } catch (e) { console.log('::error::' + e.message); failed = true; }
+    if (ga) console.log(`ga4: ${Object.keys(ga.days).length} day(s)` + (Object.keys(ga.days).length ? `, from ${Object.keys(ga.days).sort()[0]}` : ''));
+    else console.log('::notice::GA4_PROPERTY_ID or a key is not set: Google Analytics is skipped (ANALYTICS-SETUP.md).');
+  } catch (e) {
+    ga = null;
+    if (gaFailureStops(prev)) { console.log('::error::' + e.message); failed = true; }
+    else console.log('::warning::Google Analytics did not answer, so it is left out and the rest is published: ' + e.message +
+      ' (ANALYTICS-SETUP.md, step 3: turn on the Google Analytics Data API, and give the key\'s e-mail "Viewer" on the property).');
+  }
 
   // the members' statistics: independent of the visits
   let membersFailed = false;
@@ -320,7 +351,6 @@ async function main() {
   if (failed) { console.log('::warning::a source that is set up did not answer: data/analytics.json is left as it is.'); return 1; }
 
   const today = athensDay(new Date());
-  const prev = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : null;
   const file = buildFile({ site, ga, titles: paths.titles, today, generated: today });
   // the date says when the figures last CHANGED, so an unchanged day writes nothing
   const same = prev && JSON.stringify(Object.assign({}, prev, { generated: null })) === JSON.stringify(Object.assign({}, file, { generated: null }));
@@ -400,6 +430,21 @@ async function selftest() {
     const f = buildFile({ site: { docs: {} }, ga: null, titles, today: '2026-10-03', generated: 'x' });
     assert.deepStrictEqual(f.windows, {});
     assert.deepStrictEqual(f.sources, { site: { days: 0 } });
+  });
+  t('Google Analytics reads with its own key, else the Firebase one', () => {
+    assert.strictEqual(gaKeyName({ GA4_SERVICE_ACCOUNT: '{}', FIREBASE_SERVICE_ACCOUNT: '{}' }), 'GA4_SERVICE_ACCOUNT');
+    assert.strictEqual(gaKeyName({ FIREBASE_SERVICE_ACCOUNT: '{}' }), 'FIREBASE_SERVICE_ACCOUNT');
+    assert.strictEqual(gaKeyName({}), '');
+  });
+  t('a Google Analytics refusal stops the build only once it has answered before', () => {
+    assert.strictEqual(gaFailureStops(null), false, 'no file yet');
+    assert.strictEqual(gaFailureStops({ sources: { site: { days: 3 } } }), false, 'still being set up');
+    assert.strictEqual(gaFailureStops({ sources: { ga4: { days: 900 } } }), true, 'it answered before: keep the committed file');
+  });
+  t('the file says where the site\'s own counter takes over', () => {
+    const f = buildFile({ site, ga, titles, today: '2026-10-03', generated: 'x' });
+    assert.deepStrictEqual(f.sources.site, { days: 2, first: '2026-10-01' });
+    assert.ok(!('first' in buildFile({ site: { docs: {} }, ga, titles, today: '2026-10-03', generated: 'x' }).sources.site));
   });
   t('dates are Greek time', () => {
     assert.strictEqual(athensDay(new Date('2026-10-01T22:30:00Z')), '2026-10-02');

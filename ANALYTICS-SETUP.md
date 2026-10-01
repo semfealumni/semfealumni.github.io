@@ -93,61 +93,76 @@ group of fewer than **3** people is merged into «Λοιπά», so with only a f
 registrations most questions say "not enough answers yet". That is on
 purpose: it is what keeps the statistics anonymous.
 
-## 3. Google Analytics 4 (20 minutes)
+## 3. Google Analytics 4 (10 minutes)
 
-This adds **countries, cities and the sites that send visitors**, and counts
-visitors whose browser blocks the site's own counter. It runs **without
+This adds **countries, cities and the sites that send visitors**, counts
+visitors whose browser blocks the site's own counter, and brings in **the old
+site's visits from the first day it was measured**. It runs **without
 cookies** (`assets/js/visit.js`): nothing is stored on the visitor's device,
 so no cookie banner is needed. Do not turn cookies on without adding one.
 
-### 3a. Create the property
+### 3a. The property (done)
 
-1. Go to https://analytics.google.com/ and sign in with the association's
-   Google account (or yours; you can add others later).
-2. **Admin** (gear, bottom left) > **Create** > **Property**.
-3. Property name: `SEMFE Alumni website`. Time zone: **Greece**. Currency:
-   **Euro**. Next, answer the two business questions any way you like, Create.
-4. Platform: **Web**. Website URL: `https://semfealumni.gr`. Stream name:
-   `semfealumni.gr`. Leave "Enhanced measurement" on. **Create stream**.
-5. The stream page shows the **Measurement ID**, `G-XXXXXXXXXX`. It is not a
-   secret. Either send it to me, or put it in `assets/js/config.js`
-   (`ANALYTICS: { ga4: 'G-XXXXXXXXXX', … }`), run `node tools/build.mjs` and
-   `node tools/check.mjs`, and push.
-6. **Admin** > **Data collection and modification** > **Data collection**:
-   leave **Google signals** OFF.
+We use the property the old site already reported to:
 
-From the moment the ID is on the site, Google Analytics counts visits.
+    Account      Semfe Alumni (47632222)
+    Property     SEMFE Alumni - GA4, Property ID 361541833
+    Stream       SEMFE Alumni - GA4, http://www.semfealumni.gr
+    Measurement  G-8SSJKNQNR1   (in assets/js/config.js, ANALYTICS.ga4)
+
+The old site lived at the same address with the same page addresses, so its
+history and ours line up page for page. The page reads the property from its
+first day: «Από την αρχή» goes back as far as this property does. (Google
+deleted the older "Universal Analytics" data in 2024, so nothing before this
+property can be brought back.)
+
+The other property in the account, "semfe-alumni" (556889763), is not used.
+You can leave it alone.
+
+Two settings to check in this property, once:
+
+1. **Admin** > **Property details** > **Reporting time zone**: **Greece**.
+   The page counts days in Greek time.
+2. **Admin** > **Data collection and modification** > **Data collection**:
+   **Google signals** OFF.
 
 ### 3b. Let the daily workflow read it
 
-The workflow reads the figures back through Google's **Data API**, as a
-"service account" (a robot user) that may only view the property.
+The workflow reads the figures back through Google's **Data API**. It uses the
+Firebase key that is already in GitHub (`FIREBASE_SERVICE_ACCOUNT`, from
+FEEDBACK-SETUP.md), and the property number is already in the workflow. So
+there is **no new key and nothing to add in GitHub**. Two things, both in
+Google's websites:
 
-1. **Turn on the API.** https://console.cloud.google.com/ > choose the project
-   **semfe-alumni** at the top > **APIs & Services** > **Library** > search
-   **Google Analytics Data API** > **Enable**.
-2. **Create the robot.** **IAM & Admin** > **Service accounts** >
-   **Create service account**. Name: `ga4-reader`. **Create and continue**.
-   Give it **no role** (skip), **Done**.
-3. **Its key.** Click `ga4-reader@semfe-alumni.iam.gserviceaccount.com` >
-   **Keys** > **Add key** > **Create new key** > **JSON** > **Create**. A
-   `.json` file downloads. Keep it private and do not send it to anyone.
-4. **Give it view access to the property.** Back in Google Analytics:
-   **Admin** > **Property access management** (under Property) > **+** >
-   **Add users**. E-mail: `ga4-reader@semfe-alumni.iam.gserviceaccount.com`.
-   Untick "Notify new users by email". Role: **Viewer**. **Add**.
-5. **The property number.** **Admin** > **Property details**: copy the
-   **Property ID** (digits only, e.g. `512345678`; NOT the `G-…` ID).
-6. **Give both to GitHub.** The `semfealumni` repository > **Settings** >
-   **Secrets and variables** > **Actions**:
-   * **Secrets** tab > **New repository secret**. Name `GA4_SERVICE_ACCOUNT`,
-     value: open the downloaded `.json` file in Notepad, select all, copy,
-     paste. **Add secret**.
-   * **Variables** tab > **New repository variable**. Name
-     `GA4_PROPERTY_ID`, value: the digits from step 5. **Add variable**.
-7. **Test.** **Actions** > **analytics** > **Run workflow**, and tick
+1. **Turn on the API.** Open
+   https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com?project=semfe-alumni
+   and press **Enable**.
+2. **Let the Firebase key view the property.**
+   * Its e-mail: Firebase console > the gear > **Project settings** >
+     **Service accounts**. It looks like
+     `firebase-adminsdk-xxxxx@semfe-alumni.iam.gserviceaccount.com`. Copy it.
+   * Google Analytics > **Admin** > **Property access management** (under
+     Property) > **+** > **Add users**. Paste the e-mail, untick "Notify new
+     users by email", Role: **Viewer**, **Add**.
+3. **Test.** GitHub > **Actions** > **analytics** > **Run workflow**, tick
    **"Only report what each source gives"**. The log should say
-   `ga4: N day(s)`. Run it once more without the tick to update the page.
+   `ga4: N day(s), from <the first day>`. Then run it once more without the
+   tick, to update the page.
+
+Until it answers, the run only shows a yellow **warning** naming Google's
+reason ("has not been used in project … or it is disabled" means step 1;
+"does not have sufficient permissions" means step 2) and still publishes the
+rest. Once Google Analytics has answered once, a later refusal stops the
+update instead, so a bad day never blanks the countries on the page.
+
+**A separate key instead (optional).** If you would rather not let the
+Firebase key read Analytics: Google Cloud > **IAM & Admin** > **Service
+accounts** > **Create service account** (`ga4-reader`, no role) > **Keys** >
+**Add key** > **JSON**; give its e-mail **Viewer** as in step 2; and add the
+whole `.json` file as the GitHub secret `GA4_SERVICE_ACCOUNT` (Settings >
+Secrets and variables > Actions). When that secret exists it is used instead.
+Never send the file to anyone. A different property would go in the GitHub
+variable `GA4_PROPERTY_ID` (digits only).
 
 The workflow then runs by itself every morning (06:37 Greek time in summer).
 
@@ -167,6 +182,13 @@ The workflow then runs by itself every morning (06:37 Greek time in summer).
   wrongly shown as a company is fixed by adding its name to `PROVIDER_NAME`
   in that file.
 * **The daily figures stop at yesterday**, which is complete.
+* **Long periods are averaged.** «12 μήνες» is drawn by week and «Από την
+  αρχή» by month, as the average visits per day in each, so a month that has
+  only just started never looks like a fall. «Τα νούμερα» under the chart
+  lists the totals.
+* **Two counters, one line.** Up to the day the site's own counter started,
+  the visits per day are Google Analytics' (the old site's, then ours); from
+  that day on, the counter's. The card says where it changes.
 
 ## If something looks wrong
 

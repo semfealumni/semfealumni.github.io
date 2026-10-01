@@ -122,12 +122,28 @@ Setup for the owner: `ANALYTICS-SETUP.md`. Two parts, two sources each:
   `--scan`, `--dry-run`, `--selftest`). Sources: the site's OWN counter
   (Firestore `siteVisits/{day}`, written only by the `recordVisit` Cloud
   Function from `assets/js/visit.js`'s one message per page view) and Google
-  Analytics 4 (Data API; secret `GA4_SERVICE_ACCOUNT`, variable
-  `GA4_PROPERTY_ID`). A day the site counted goes to the site, every other
-  to GA4; hours, universities and companies are the site's only; countries,
-  cities and referring sites GA4's only. An unreachable source that IS set
-  up leaves the committed file as it is (exit 1); a missing secret just
-  leaves that source out.
+  Analytics 4 (Data API). **The property is "SEMFE Alumni - GA4",
+  361541833, stream `G-8SSJKNQNR1` (www.semfealumni.gr): the one the OLD site
+  already reported to** (owner, 2026-10-01), so the builder reads its WHOLE
+  history (`GA_START` 2015-08-14, the Data API's earliest day) and the old
+  site's visits continue into ours; the old site had the same address and
+  the same page addresses. The workflow names the property
+  (`vars.GA4_PROPERTY_ID || '361541833'`, pinned against config.js by
+  check.mjs) and reads it with `GA4_SERVICE_ACCOUNT` if set, else the
+  `FIREBASE_SERVICE_ACCOUNT` key itself, once that key's e-mail has
+  "Viewer" on the property. A day the site counted goes to the site, every
+  other to GA4; hours, universities and companies are the site's only;
+  countries, cities and referring sites GA4's only. An unreachable source
+  that IS set up leaves the committed file as it is (exit 1); a missing
+  secret just leaves that source out; and Google Analytics, until it has
+  answered ONCE (`sources.ga4` in the committed file), only warns, so a
+  half-finished setup never stops the rest. The page draws more than 120
+  days by week and more than two years by month, as the average visits per
+  day (a part month at either end then never looks like a fall), and says
+  where the line changes from Google Analytics to the site's counter
+  (`sources.site.first`). GA4 without cookies cannot join the pages of one
+  visit, so its "sessions" for days after 1 Oct 2026 are close to page
+  views: the site's counter, which wins those days, is what counts visits.
 * **Members** = Firestore `publicStats/members` (public read, server write),
   recounted by the `memberStats` Cloud Function on every write to
   `members/{uid}` that touches a counted field, and by the daily workflow.

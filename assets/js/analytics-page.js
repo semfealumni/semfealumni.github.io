@@ -48,6 +48,38 @@
   function dayLong(d) { var p = String(d).split('-'); return (+p[2]) + ' ' + MONTHS_LONG[+p[1] - 1] + ' ' + p[0]; }
   function dayShort(d) { var p = String(d).split('-'); return (+p[2]) + ' ' + MONTHS[+p[1] - 1]; }
   function monthName(m) { var p = String(m).split('-'); return MONTH_NAMES[+p[1] - 1] + ' ' + p[0]; }
+  function dec(x) { return (x || 0).toLocaleString('el-GR', { maximumFractionDigits: 1 }); }
+  /** "3–9 Μαρτίου 2025", "29 Σεπτεμβρίου – 5 Οκτωβρίου 2025", or across a year end in full. */
+  function spanLabel(a, b) {
+    if (a === b) return dayLong(a);
+    var p = a.split('-'), q = b.split('-');
+    if (p[0] !== q[0]) return dayLong(a) + ' – ' + dayLong(b);
+    if (p[1] !== q[1]) return (+p[2]) + ' ' + MONTHS_LONG[+p[1] - 1] + ' – ' + dayLong(b);
+    return (+p[2]) + '–' + dayLong(b);
+  }
+  function addDay(d, k) { var x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + k); return x.toISOString().slice(0, 10); }
+  function weekStart(d) { var x = new Date(d + 'T00:00:00Z'); return addDay(d, -((x.getUTCDay() + 6) % 7)); }
+  /** A long period drawn by week (up to two years) or by month, as the
+      average visits per day in each: a part week or month at either end of
+      the period then never reads as a fall. Up to 120 days stay daily. */
+  function groupDays(rows) {
+    if (rows.length <= 120) return rows.map(function (r) { return { by: 'day', d: r.d, last: r.d, days: 1, v: r.v, pv: r.pv, tv: r.v, tpv: r.pv }; });
+    var by = rows.length <= 730 ? 'week' : 'month', out = [], cur = null;
+    rows.forEach(function (r) {
+      var k = by === 'month' ? r.d.slice(0, 7) : weekStart(r.d);
+      if (!cur || cur.k !== k) { cur = { k: k, by: by, d: r.d, last: r.d, days: 0, tv: 0, tpv: 0 }; out.push(cur); }
+      cur.days++; cur.tv += r.v; cur.tpv += r.pv; cur.last = r.d;
+    });
+    out.forEach(function (g) { g.v = Math.round(g.tv / g.days * 10) / 10; g.pv = Math.round(g.tpv / g.days * 10) / 10; });
+    return out;
+  }
+  function groupLabel(g) {
+    if (g.by === 'month') {
+      var full = g.d.slice(8) === '01' && addDay(g.last, 1).slice(8) === '01';
+      return monthName(g.d.slice(0, 7)) + (full ? '' : ' (' + spanLabel(g.d, g.last) + ')');
+    }
+    return g.by === 'week' ? 'Εβδομάδα ' + spanLabel(g.d, g.last) : dayLong(g.d);
+  }
   var regionNames = null;
   try { regionNames = new Intl.DisplayNames(['el'], { type: 'region' }); } catch (e) { regionNames = null; }
   function countryLabel(code) {
@@ -196,7 +228,7 @@
   }
 
   /** A line over time with the area under it, a crosshair that finds the
-      nearest day, and arrow keys that walk the days. rows: [{ d, v, pv }]. */
+      nearest point, and arrow keys that walk the points. rows: groupDays(). */
   function drawLine(el, rows) {
     el.textContent = '';
     var W = Math.max(260, el.clientWidth), H = 220, pad = { t: 12, r: 10, b: 26, l: 38 };
@@ -213,7 +245,7 @@
     for (var k = 0; k < ticks; k++) {
       var i = Math.round(k * (rows.length - 1) / Math.max(1, ticks - 1));
       var t = svgEl('text', { x: X(i), y: H - 8, 'text-anchor': k === 0 ? 'start' : k === ticks - 1 ? 'end' : 'middle' });
-      t.textContent = dayShort(rows[i].d);
+      t.textContent = rows[i].by === 'month' ? MONTHS[+rows[i].d.slice(5, 7) - 1] + ' ' + rows[i].d.slice(0, 4) : dayShort(rows[i].d);
       svg.appendChild(t);
     }
     var cross = svgEl('line', { y1: pad.t, y2: pad.t + ih, class: 'an-cross', visibility: 'hidden' });
@@ -227,8 +259,14 @@
       cross.setAttribute('x1', X(i)); cross.setAttribute('x2', X(i)); cross.setAttribute('visibility', 'visible');
       dot.setAttribute('cx', X(i)); dot.setAttribute('cy', Y(r.v)); dot.setAttribute('visibility', 'visible');
       var b = svg.getBoundingClientRect();
-      var lines = [n(r.v) + (r.v === 1 ? ' επίσκεψη' : ' επισκέψεις'), dayLong(r.d)];
-      if (r.pv) lines.push(n(r.pv) + ' προβολές σελίδων');
+      var lines;
+      if (r.by && r.by !== 'day') {
+        lines = [dec(r.v) + ' επισκέψεις την ημέρα (μέσος όρος)', groupLabel(r),
+          n(r.tv) + (r.tv === 1 ? ' επίσκεψη' : ' επισκέψεις') + ' και ' + n(r.tpv) + ' προβολές σελίδων συνολικά'];
+      } else {
+        lines = [n(r.v) + (r.v === 1 ? ' επίσκεψη' : ' επισκέψεις'), dayLong(r.d)];
+        if (r.pv) lines.push(n(r.pv) + ' προβολές σελίδων');
+      }
       showTip(lines, cx != null ? cx : b.left + X(i) * (b.width / W), cy != null ? cy : b.top + Y(r.v) * (b.height / H));
     }
     function off() { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); hideTip(); }
@@ -301,8 +339,11 @@
     h += '<div class="an-grid">';
     var rows = daysIn(w);
     if (rows.length > 1) {
-      h += card('Επισκέψεις ανά ημέρα', 'Κάθε επίσκεψη μετράει μία φορά, όσες σελίδες κι αν διαβάσει ο επισκέπτης.',
-        chartSlot('line', rows, 'Επισκέψεις ανά ημέρα') + daysTable(rows), 'an-wide');
+      var grouped = groupDays(rows), by = grouped[0].by;
+      var each = by === 'month' ? 'κάθε μήνα' : by === 'week' ? 'κάθε εβδομάδας' : '';
+      h += card('Επισκέψεις ανά ημέρα', (each ? 'Ο μέσος όρος ' + each + '. ' : '') +
+        'Κάθε επίσκεψη μετράει μία φορά, όσες σελίδες κι αν διαβάσει ο επισκέπτης.' + lineSource(w),
+        chartSlot('line', grouped, each ? 'Επισκέψεις ανά ημέρα, μέσος όρος ' + each : 'Επισκέψεις ανά ημέρα') + daysTable(grouped), 'an-wide');
     }
     if (w.pages) h += card('Οι πιο δημοφιλείς σελίδες', srcNote(w.pages.src, 'προβολές σελίδων'),
       bars(w.pages.items.map(function (p) { return { label: p.title || p.path, n: p.n }; }), { caption: 'Οι πιο δημοφιλείς σελίδες', what: 'Σελίδα', unit: 'Προβολές', total: views }));
@@ -364,8 +405,24 @@
       rows.map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(typeof r[1] === 'number' ? n(r[1]) : r[1]) + '</td></tr>'; }).join('') + '</tbody></table></div></details>';
   }
   function daysTable(rows) {
-    return '<details class="an-numbers"><summary>Τα νούμερα ανά ημέρα</summary><div class="an-scroll"><table class="data"><thead><tr><th scope="col">Ημέρα</th><th scope="col">Επισκέψεις</th><th scope="col">Προβολές σελίδων</th></tr></thead><tbody>' +
-      rows.slice().reverse().map(function (r) { return '<tr><td>' + esc(dayLong(r.d)) + '</td><td>' + n(r.v) + '</td><td>' + n(r.pv) + '</td></tr>'; }).join('') + '</tbody></table></div></details>';
+    var by = rows.length ? rows[0].by : 'day';
+    if (by === 'day') {
+      return '<details class="an-numbers"><summary>Τα νούμερα ανά ημέρα</summary><div class="an-scroll"><table class="data"><thead><tr><th scope="col">Ημέρα</th><th scope="col">Επισκέψεις</th><th scope="col">Προβολές σελίδων</th></tr></thead><tbody>' +
+        rows.slice().reverse().map(function (r) { return '<tr><td>' + esc(dayLong(r.d)) + '</td><td>' + n(r.v) + '</td><td>' + n(r.pv) + '</td></tr>'; }).join('') + '</tbody></table></div></details>';
+    }
+    var what = by === 'month' ? 'Μήνας' : 'Εβδομάδα';
+    return '<details class="an-numbers"><summary>Τα νούμερα ανά ' + (by === 'month' ? 'μήνα' : 'εβδομάδα') + '</summary><div class="an-scroll"><table class="data"><thead><tr><th scope="col">' + what + '</th><th scope="col">Επισκέψεις</th><th scope="col">Προβολές σελίδων</th><th scope="col">Επισκέψεις ανά ημέρα</th></tr></thead><tbody>' +
+      rows.slice().reverse().map(function (r) { return '<tr><td>' + esc(by === 'week' ? spanLabel(r.d, r.last) : groupLabel(r)) + '</td><td>' + n(r.tv) + '</td><td>' + n(r.tpv) + '</td><td>' + dec(r.v) + '</td></tr>'; }).join('') + '</tbody></table></div></details>';
+  }
+  /** Which counter the line comes from, and where it changes over. */
+  function lineSource(w) {
+    var src = (data && data.sources) || {}, first = src.site && src.site.first;
+    if (src.ga4 && first && w.from < first && first <= w.to) {
+      return ' Έως ' + esc(dayLong(addDay(first, -1))) + ' από το Google Analytics, από ' + esc(dayLong(first)) + ' από τον μετρητή του ιστότοπου.';
+    }
+    if (first && w.from >= first) return ' ' + srcNote('site') + '.';
+    if (src.ga4) return ' ' + srcNote('ga4') + '.';
+    return '';
   }
 
   /* ------------------------------------------------------ 2. the members */

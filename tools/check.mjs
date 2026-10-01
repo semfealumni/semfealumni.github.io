@@ -162,6 +162,11 @@ function jpegSize(b) {
   for (const h of A.hosts || []) if (!origins.includes('https://' + h)) fail(`VISIT_ORIGINS in functions/index.js must include https://${h} (ANALYTICS.hosts in config.js)`);
   ok(`«Στατιστικά»: profile answers match the rules, visit.js on ${tracked} public pages`);
   if (!/^G-[A-Z0-9]{4,}$/.test(A.ga4 || '')) note('Google Analytics is not set up yet: ANALYTICS.ga4 in assets/js/config.js still says PASTE_ (ANALYTICS-SETUP.md).');
+  // the daily workflow must read the property the tag reports to
+  const wf = read('.github/workflows/analytics.yml');
+  const prop = (wf.match(/GA4_PROPERTY_ID: \$\{\{ vars\.GA4_PROPERTY_ID \|\| '(\d+)' \}\}/) || [])[1];
+  if (!prop) fail('.github/workflows/analytics.yml: GA4_PROPERTY_ID must fall back to the property number (vars.GA4_PROPERTY_ID || \'<digits>\')');
+  else if (/^G-/.test(A.ga4 || '') && !read('assets/js/config.js').includes('(' + prop + ')')) fail(`config.js: the comment beside ANALYTICS.ga4 must name the property the workflow reads (${prop})`);
 }
 
 /* 4. the admin list: the page and the rules must agree */

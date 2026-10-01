@@ -2092,6 +2092,42 @@ await scenario('S2', '«Στατιστικά» before anything is measured: it s
   t(await page.locator('#analytics-app .an-chart, #analytics-app .an-card').count() === 0, '… and no chart or card is drawn');
 });
 
+await scenario('S3', '«Στατιστικά» over years: the old site\'s Google Analytics history, by month and by week', { cfg: 'oidc' }, async (page, env) => {
+  env.onExternal = async (route, url) => {
+    if (!url.startsWith('https://firestore.googleapis.com/')) return false;
+    await route.fulfill({ status: 404, contentType: 'application/json', body: '{"error":{"code":404,"status":"NOT_FOUND"}}' });
+    return true;
+  };
+  // Google Analytics from 10 March 2024 (the old site, same address) to 30 September 2026, the site's own counter after
+  const gaDays = {};
+  for (let d = new Date('2024-03-10T12:00:00Z'), i = 0; d <= new Date('2026-09-30T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1), i++) gaDays[d.toISOString().slice(0, 10)] = [5 + (i % 7), 12];
+  const file = buildFile({ site: { docs: anDocs }, titles: JSON.parse(read('functions/site-paths.json')).titles, today: AN_TODAY, generated: AN_TODAY,
+    ga: { days: gaDays, windows: { all: { countries: [{ k: 'GR', n: 900 }] }, 365: { countries: [{ k: 'GR', n: 300 }] }, 30: { countries: [{ k: 'GR', n: 40 }] } } } });
+  await anRoute(page, file);
+  await page.goto(URL_('analytics/'));
+  const app = page.locator('#analytics-app');
+  t(await waitFor(page, () => document.querySelectorAll('#analytics-app .an-line-svg').length === 1), 'the line is drawn');
+  t(await hasText(app, 'Έως 30 Σεπτεμβρίου 2026 από το Google Analytics, από 1 Οκτωβρίου 2026 από τον μετρητή του ιστότοπου'), 'a period that spans both counters says where the line changes source');
+  t(await hasText(app, 'Τα νούμερα ανά ημέρα') && !(await hasText(app, 'Ο μέσος όρος κάθε')), '30 days stay day by day');
+  await page.click('#analytics-app [data-range="365"]');
+  t(await waitFor(page, () => /Ο μέσος όρος κάθε εβδομάδας/.test(document.getElementById('analytics-app').textContent)) && await hasText(app, 'Τα νούμερα ανά εβδομάδα'), '12 months are drawn by week, as visits per day');
+  await page.click('#analytics-app [data-range="all"]');
+  t(await waitFor(page, () => /Ο μέσος όρος κάθε μήνα/.test(document.getElementById('analytics-app').textContent)) && await hasText(app, 'Τα νούμερα ανά μήνα'), '«Από την αρχή» (two and a half years) is drawn by month');
+  t(await hasText(page.locator('#analytics-app .an-period').first(), '10 Μαρτίου 2024'), '… from the first day Google Analytics measured');
+  const pts = await page.evaluate(() => (document.querySelector('#analytics-app .an-line').getAttribute('d').match(/[ML]/g) || []).length);
+  t(pts === 32, `one point per month, March 2024 to October 2026 (${pts})`);
+  const line = page.locator('#analytics-app .an-line-svg');
+  await line.scrollIntoViewIfNeeded();
+  await sleep(700);
+  await line.focus();
+  await page.keyboard.press('Home');
+  t(await waitFor(page, () => { const x = document.querySelector('.an-tip').textContent; return /Μάρτιος 2024 \(10–31 Μαρτίου 2024\)/.test(x) && /την ημέρα \(μέσος όρος\)/.test(x); }), 'a part month says which days it covers, and the value is visits per day');
+  await page.keyboard.press('ArrowRight');
+  t(await waitFor(page, () => { const x = document.querySelector('.an-tip').textContent; return /Απρίλιος 2024/.test(x) && !/Απρίλιος 2024 \(/.test(x) && /συνολικά/.test(x); }), 'a whole month is named alone, with its totals');
+  await page.keyboard.press('End');
+  t(await waitFor(page, () => /Οκτώβριος 2026 \(1–9 Οκτωβρίου 2026\)/.test(document.querySelector('.an-tip').textContent)), 'the last, part month ends yesterday');
+});
+
 await browser.close();
 console.log(`\n${passes} passed, ${fails} failed`);
 if (fails) { console.log('\nFailures:\n  ' + failed.join('\n  ')); }

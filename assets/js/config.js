@@ -79,7 +79,7 @@ window.SEMFE = {
   ADMIN_EMAILS: ['kstouras@gmail.com', 'gradsemfe@gmail.com'],
 
   ANALYTICS: {
-    ga4: 'PASTE_G-MEASUREMENT-ID',
+    ga4: 'G-8SSJKNQNR1',            // property "SEMFE Alumni - GA4" (361541833), stream www.semfealumni.gr
     visitUrl: 'https://europe-west1-semfe-alumni.cloudfunctions.net/recordVisit',
     hosts: ['semfealumni.gr', 'www.semfealumni.gr']
   },

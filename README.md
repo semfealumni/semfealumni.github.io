@@ -119,7 +119,8 @@ registered. Setup, step by step: **`ANALYTICS-SETUP.md`**.
   `analytics` GitHub Action): the site's own counter (the `recordVisit` Cloud
   Function: page views, visits, hours, devices, and the university or company
   a visitor's network is registered to) plus Google Analytics 4 without
-  cookies (countries, cities, referring sites). The visitor's address is
+  cookies (countries, cities, referring sites; property "SEMFE Alumni - GA4",
+  the old site's, read from its first day). The visitor's address is
   never stored; home and mobile connections are attributed to nobody.
 * **Members** (Firestore `publicStats/members`, recounted by the `memberStats`
   Cloud Function on every registration or edit): totals per question only;

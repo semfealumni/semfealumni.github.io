@@ -5,11 +5,17 @@
 # that secret is missing, so this runs harmlessly before anything is set up
 # (ANALYTICS-SETUP.md):
 #   secrets.FIREBASE_SERVICE_ACCOUNT  the site's own counter and the members
-#                                     (the same key the feedback workflow uses)
-#   secrets.GA4_SERVICE_ACCOUNT       a key with "Viewer" on the GA4 property
-#   vars.GA4_PROPERTY_ID              the property's NUMBER (not the G-… ID)
+#                                     (the same key the feedback workflow uses);
+#                                     it also reads Google Analytics once its
+#                                     e-mail has "Viewer" on the property
+#   secrets.GA4_SERVICE_ACCOUNT       optional: a separate key for Google
+#                                     Analytics, used instead when set
+#   vars.GA4_PROPERTY_ID              optional: the property's NUMBER (not the
+#                                     G-… ID); 361541833 ("SEMFE Alumni - GA4",
+#                                     stream G-8SSJKNQNR1) when not set
 # A source that is set up but does not answer leaves the committed file as
-# it is: a half-written file is a blank dashboard.
+# it is: a half-written file is a blank dashboard. Google Analytics, until it
+# has answered once, only warns (tools/build-analytics.mjs).
 name: analytics
 on:
   schedule:
@@ -50,7 +56,7 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           GA4_SERVICE_ACCOUNT: ${{ secrets.GA4_SERVICE_ACCOUNT }}
-          GA4_PROPERTY_ID: ${{ vars.GA4_PROPERTY_ID }}
+          GA4_PROPERTY_ID: ${{ vars.GA4_PROPERTY_ID || '361541833' }}
         run: node tools/build-analytics.mjs ${{ inputs.scan && '--scan' || '' }} ${{ inputs.dry_run && '--dry-run' || '' }}
       - name: Check the file before publishing it
         if: github.ref_name == 'main' && !inputs.dry_run && !inputs.scan
