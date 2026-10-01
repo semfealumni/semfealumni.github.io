@@ -7,7 +7,8 @@ from the association's MkDocs site
 with a modern look and **member sign-in** (Google, LinkedIn or e-mail)
 through Firebase. (The code also supports Facebook; it is left out for now.)
 
-Live at **https://www.stouras.com/semfealumni/**.
+Live at **https://semfealumni.gr/** (moved there on 1 October 2026 from the
+preview at https://www.stouras.com/semfealumni/).
 
 Plain HTML, CSS and a little JavaScript. GitHub Pages serves the files exactly
 as they are here; there is nothing to install to publish it.
@@ -103,10 +104,9 @@ Function (`functions/accounts.js`, FIREBASE-SETUP.md Part E).
 
 ## Search engines
 
-While this copy runs beside the association's own semfealumni.gr, every page
-carries `noindex` so the two copies do not compete in search results. When this
-becomes the official site, set `INDEXABLE = true` in `tools/build.mjs` and run
-the build.
+This is the official site, so search engines are allowed (`INDEXABLE = true`
+in `tools/build.mjs`; the build writes `robots.txt` and the sitemap). Set it
+back to `false` and build to hide every page again.
 
 ## Moving to semfealumni.gr
 
@@ -130,10 +130,13 @@ addresses keep working through small forwarding pages.
 
 The site lives in its own repository, `konstantinosStouras/semfealumni`.
 GitHub Pages publishes it from the `main` branch, root folder (Settings, Pages,
-Source: "Deploy from a branch", `main`, `/ (root)`). Because the owner's user
-site carries the custom domain `www.stouras.com`, this project site is served
-under it automatically at `https://www.stouras.com/semfealumni/`. A missing
-address under it shows this site's own `404.html`.
+Source: "Deploy from a branch", `main`, `/ (root)`), with the custom domain
+`semfealumni.gr` (the `CNAME` file, written by the build). The domain is
+VERIFIED in the owner's GitHub account (a TXT record
+`_github-pages-challenge-konstantinosstouras` at papaki, the registrar, which
+must stay), so no other account can claim it. DNS at papaki: four A and four
+AAAA records to GitHub Pages, `www` a CNAME to `konstantinosstouras.github.io`.
+A missing address shows this site's own `404.html`.
 
 Do **not** add a `.nojekyll` file: Jekyll is what keeps `_src/` off the web,
 and `_config.yml` keeps `tools/`, `functions/` and the Firebase files off it too.

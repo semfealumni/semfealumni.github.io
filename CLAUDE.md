@@ -1,8 +1,9 @@
 # SEMFE Alumni website: repository conventions
 
 The website of the Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ, served by GitHub Pages
-from `main` at **https://www.stouras.com/semfealumni/** (a project site under
-the owner's custom domain). Greek-language, plain HTML/CSS/JS, no framework.
+from `main` at **https://semfealumni.gr/** (custom domain, verified in the
+owner's GitHub account; it was a preview at www.stouras.com/semfealumni/ until
+1 October 2026). Greek-language, plain HTML/CSS/JS, no framework.
 Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
 
 ## Pages are generated
@@ -34,8 +35,10 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   `actions/setup-node@v5`). The Cloud Functions stay on Node 22
   (`functions/package.json` engines + `runtime` in `firebase.json`): Firebase
   does not offer Node 24 yet. Move them together when it does.
-* Every page is `noindex` (`INDEXABLE = false` in `tools/build.mjs`) while
-  semfealumni.gr is the official site. Flip it only when asked.
+* Search engines are allowed (`INDEXABLE = true` in `tools/build.mjs`): this is
+  the official site. Never delete `CNAME`, and never remove the
+  `_github-pages-challenge-konstantinosstouras` TXT record at papaki: either
+  one takes the site off its address.
 * **The move to semfealumni.gr** is prepared: `MIGRATION.md` and
   `tools/migrate.mjs` (`--plan`, `--rehearse`, `--prep-check`, `--apply`,
   `--verify`). Never hard-code the address: everything reads `siteUrl`, and

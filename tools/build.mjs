@@ -39,7 +39,7 @@ const SITE_URL = C.siteUrl.replace(/\/?$/, '/');
 /* While this copy is a preview beside the association's own semfealumni.gr,
    search engines are asked not to index it (two copies of one site compete
    in search results). Set to true when this becomes the official site. */
-const INDEXABLE = false;
+const INDEXABLE = true;
 const YEAR_NOW = 2026;       // the footer's copyright range ends here in the built page; site.js moves it on to the current year
 const OG_W = 1200, OG_H = 630;
 

@@ -29,7 +29,7 @@
  */
 window.SEMFE = {
   siteName: 'Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ',
-  siteUrl: 'https://www.stouras.com/semfealumni/',
+  siteUrl: 'https://semfealumni.gr/',
   contactEmail: 'gradsemfe@gmail.com',
   contactFormUrl: 'https://docs.google.com/forms/viewform?hl=el&id=1rZeseSmD0GuyX7PXSSkZcFyuDejSqNe7hMxCUdFja-8',
   /* The association's old Google Form. Shown as the way to apply only while
