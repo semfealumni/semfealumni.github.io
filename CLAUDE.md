@@ -12,6 +12,10 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   `node tools/build.mjs` and commit the regenerated HTML WITH the source.
   `node tools/check.mjs` fails when the two differ (CI runs it on every push).
 * Header, footer, menu and page heads come from `tools/build.mjs`.
+* **The logo's name is never cut short.** "ΣΥΛΛΟΓΟΣ ΔΙΠΛΩΜΑΤΟΥΧΩΝ" above
+  "ΣΕΜΦΕ ΕΜΠ" is part of the logo: when the header slims on scroll
+  (`html.hdr-small`) it may only get smaller, never hidden, at any screen
+  width (owner, 2026-10-01; smoke.mjs checks it at 1440, 1101, 390 and 320px).
 * **The top menu is kept short on purpose** (owner, like operationsacademia.org):
   the logo is the way home (no «Αρχική» link), the pages ABOUT the association
   and the site sit in one «Ο Σύλλογος ▾» drop-down (`NAV_GROUPS`, three

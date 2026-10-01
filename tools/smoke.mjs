@@ -649,7 +649,7 @@ try {
     await ctx.close();
   }
   // the header slims down once the page scrolls, and comes back at the top  // the header slims down once the page scrolls, and comes back at the top
-  for (const [w, h] of [[1440, 900], [1101, 800], [390, 844]]) {
+  for (const [w, h] of [[1440, 900], [1101, 800], [390, 844], [320, 568]]) {
     const phone = isPhone(w, h);
     const { ctx, page, log } = await open(SUB + 'blog/', { width: w, height: h, phone, touch: phone });
     const hs = () => page.evaluate(() => {
@@ -664,8 +664,8 @@ try {
     await scrollTo(24); const c = await hs();
     await scrollTo(0); const d = await hs();
     t(!a.small && a.h >= 64 && a.topH > 5 && a.topO > .5, `${w}px: at the top, the full header (${Math.round(a.h)}px, the ΣΥΛΛΟΓΟΣ line shown)`);
-    t(b.small && b.h <= 58 && Math.abs(b.hTop) < 1 && b.topH < 1 && b.topO < .1 && b.mark <= 35 && !b.over,
-      `${w}px: scrolled, it slims to ${Math.round(b.h)}px, stays on top, logo ${Math.round(b.mark)}px, the ΣΥΛΛΟΓΟΣ line folded away`);
+    t(b.small && b.h <= 58 && Math.abs(b.hTop) < 1 && b.topH > 5 && b.topO > .5 && b.mark <= 35 && !b.over,
+      `${w}px: scrolled, it slims to ${Math.round(b.h)}px, stays on top, logo ${Math.round(b.mark)}px, and the ΣΥΛΛΟΓΟΣ ΔΙΠΛΩΜΑΤΟΥΧΩΝ line STAYS (part of the logo)`);
     t(b.nav === a.nav, `${w}px: the links keep their style while it slims (${a.nav || 'one row'} → ${b.nav || 'one row'})`);
     t(c.small && !d.small && d.h >= 64, `${w}px: near the top it stays slim (no flicker); at the very top it is full size again`);
     await scrollTo(700);

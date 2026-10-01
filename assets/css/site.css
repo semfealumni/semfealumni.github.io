@@ -321,27 +321,32 @@ html.js.nav-tight .nav .nav-more-panel a[aria-current="page"] { color: #fff; bac
   .brand-text .bottom, html.hdr-small .brand-text .bottom { font-size: .86rem; letter-spacing: .02em; }
   .acct-signin { padding-left: 10px; padding-right: 10px; }
 }
-@media (max-width: 350px) {
-  .brand-text .top { display: none; }
-}
 
 /* ---- the header slims down once the page is scrolled ----
    html.hdr-small is set by site.js past the first few pixels of a page and
-   removed again back at the top: a slimmer bar, a smaller logo, the
-   "ΣΥΛΛΟΓΟΣ ΔΙΠΛΩΜΑΤΟΥΧΩΝ" line folded away, a shadow to lift it off the page.
+   removed again back at the top: a slimmer bar, a slightly smaller logo and
+   name, a shadow to lift it off the page. The name stays WHOLE: the
+   "ΣΥΛΛΟΓΟΣ ΔΙΠΛΩΜΑΤΟΥΧΩΝ" line is part of the logo and is never hidden, at
+   any scroll position or screen width (owner, 2026-10-01).
    Buttons keep their 44px touch height. site.js measures whether the row fits
    in the FULL-size state (html.hdr-measure switches the transitions off for
    that one measurement), so the links never change style as the page scrolls. */
 .site-header { transition: background-color .25s ease, box-shadow .25s ease; }
 .site-header .wrap { transition: min-height .25s ease; }
 .brand-mark { transition: width .25s ease, height .25s ease; }
-.brand-text .top { transition: max-height .25s ease, opacity .2s ease, margin .25s ease; }
+.brand-text .top { transition: font-size .25s ease, letter-spacing .25s ease; }
 .brand-text .bottom { transition: font-size .25s ease; }
 html.hdr-small { --header-h: 56px; }
 html.hdr-small .site-header { background: #0a2240; background: rgba(10, 34, 64, .97); box-shadow: 0 6px 22px rgba(3, 12, 26, .28); }
 html.hdr-small .brand-mark { width: 34px; height: 34px; }
-html.hdr-small .brand-text .top { max-height: 0; opacity: 0; margin: 0; }
+html.hdr-small .brand-text .top { font-size: .62rem; letter-spacing: .18em; }
 html.hdr-small .brand-text .bottom { font-size: .98rem; }
+@media (max-width: 420px) {
+  html.hdr-small .brand-text .top { font-size: .58rem; letter-spacing: .1em; }
+}
+@media (max-width: 380px) {
+  html.hdr-small .brand-text .top { font-size: .54rem; letter-spacing: .06em; }
+}
 @media (min-width: 1101px) {
   html.hdr-small:not(.nav-tight) .nav > a, html.hdr-small:not(.nav-tight) .nav-more-btn { padding-top: 8px; padding-bottom: 8px; }
 }
