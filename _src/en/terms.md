@@ -15,7 +15,7 @@ crumbs:
 
 <div class="notice"><p>This is an English translation provided for convenience. If it differs from the Greek text, the Greek text applies.</p></div>
 
-Last updated: 5 October 2026
+Last updated: 6 October 2026
 { .muted }
 
 ## 1. Who we are { #poioi }
@@ -26,18 +26,20 @@ The website provides information about the Association's purposes, bodies, activ
 
 ## 2. Acceptance of the terms { #apodochi }
 
-By using the website you accept these terms. When you create an account, you accept them expressly. If you do not agree, do not use the website.
+By using the website you accept these terms. When you create an account or sign in, the sign-in window tells you, with a link to this page, that by continuing you accept them. If you do not agree, do not create an account and do not use the website.
 
 How we handle your personal data is described in the [privacy policy]({{root}}privacy/), which is information provided under the GDPR and not part of this agreement.
 
 ## 3. Statute and membership { #melos }
 
-Membership and the rights and obligations of members are governed by the Association's [Statute]({{root}}assets/docs/foundation/katastatiko.pdf){ newtab } (PDF, in Greek), the Greek Civil Code and the decisions of its bodies. These terms concern only the use of the website. If anything here conflicts with the Statute, the Statute applies.
+Membership and the rights and obligations of members are governed by the Association's [Statute]({{root}}assets/docs/foundation/katastatiko.pdf){ newtab } (PDF, in Greek), the Greek Civil Code and the decisions of the Association's bodies. These terms concern only the use of the website. If anything here conflicts with the Statute, the Statute applies.
 
-- An account on the website does not make anyone a member automatically. Membership is activated by the Board of Directors, in accordance with the Statute, once the details of the application have been checked and the membership fee has been paid where required.
+- An account on the website does not make anyone a member automatically. Under Article 6 of the Statute, graduates of SEMFE NTUA are enrolled as regular members on their application. The Board of Directors decides within fifteen days of the application; if it does not answer within that time, the application is deemed approved. If it refuses, it gives full reasons for its decision, and you may bring the refusal before the General Assembly.
+- If you apply as a final-year student or a faculty member, the Board of Directors decides, in accordance with the Statute, whether you will be enrolled as a member or will only be given access to the Members' area.
+- Access to the Members' area of the website opens when the Board of Directors marks your application as active, once its details have been checked and the membership fee has been paid where required.
 - The details you give in the membership application must be true, accurate and up to date. If they change, update them from your account.
 - The amount of the annual membership fee is set by the Board of Directors and is shown on the [Membership and Donations]({{root}}support/) page. Under Article 7 of the Statute, those who leave are not entitled to a refund of their contributions, and members who do not pay their fee for two years are struck off by decision of the Board of Directors.
-- Deleting your account deletes your details from the website. If you also want to leave the Association, let the Board of Directors know at [gradsemfe@gmail.com](mailto:gradsemfe@gmail.com).
+- The Association's register of members is kept on this website. If you delete your account, your application, the status of your membership and the recorded years of your fee are also deleted from the register. If you want to remain a member, tell the Board of Directors first at [gradsemfe@gmail.com](mailto:gradsemfe@gmail.com). If you also want to leave the Association, let them know as well.
 
 ## 4. Membership fees and donations { #pliromes }
 
@@ -87,10 +89,10 @@ If you consider that some content on the website is illegal or breaches these te
 
 1. the exact address (URL) of the page and the content concerned,
 2. a short explanation of why you consider it illegal,
-3. your name and e-mail, and
+3. your name and e-mail (not needed if the report concerns child sexual abuse material), and
 4. a statement that what you report is accurate and that you write in good faith.
 
-We will confirm that we received the report, examine it in a timely, diligent and objective manner, and let you know our decision. We do not use automated means to review or remove content. If we remove or restrict content or an account, we will inform the user affected, explaining the reasons, and they may ask us to review the decision. This is without prejudice to each party's right to go to court or to the competent authority.
+We will confirm that we received the report, examine it in a timely, diligent and objective manner, and let you know our decision. We do not use automated means to review or remove content. If we remove or restrict content or an account, we will inform the user affected, explaining the reasons (Article 17 of Regulation (EU) 2022/2065), and they may ask us to review the decision. This is without prejudice to each party's right to go to court or to the competent authority.
 
 This e-mail address is also our single point of contact for authorities and users under Articles 11 and 12 of Regulation (EU) 2022/2065 on digital services, where it applies. You can write to us in Greek or in English.
 
@@ -100,7 +102,7 @@ The texts, photographs, videos, documents, logo and design of the website belong
 
 You may read, print and share pages or extracts of the website for personal, non-commercial use, with a reference to the source and a link to the page, without altering them and without giving the impression that the Association endorses you. Any other use, and in particular any use of the name or the logo, requires our written permission. When you share photographs in which people appear, respect their rights to their image and their private life.
 
-The Association expressly reserves its right regarding text and data mining of the website (Article 4 of Directive (EU) 2019/790): automated collection of the content, in particular for training artificial intelligence systems, is not allowed without our permission, subject to what the law allows for scientific research. This does not prevent search engines from indexing the website.
+The Association expressly reserves its right regarding text and data mining of the website (Article 21B of Greek Law 2121/1993, added by Greek Law 4996/2022, which transposes Article 4 of Directive (EU) 2019/790): automated collection of the content, in particular for training artificial intelligence systems, is not allowed without our permission, subject to what the law allows for scientific research. This does not prevent search engines from indexing the website.
 
 ## 11. Third-party links and services { #tritoi }
 
@@ -108,7 +110,7 @@ The website has links to third-party websites and services (e.g. LinkedIn, YouTu
 
 ## 12. Announcements and information { #plirofories }
 
-The information on the website is general and informative and does not constitute legal, financial or professional advice. Announcements of jobs, events or opportunities that come from third parties are published to inform the members. The Association does not act as an employment agency, does not check or guarantee their accuracy, and does not take part in your dealings with those who publish them.
+The information on the website is general and informative and does not constitute legal, financial or professional advice. Announcements of jobs, events or opportunities that come from third parties are published to inform the members. The Association does not act as an employment agency, does not check or guarantee their accuracy, and does not take part in your dealings with the third parties they come from.
 
 ## 13. Availability and changes to the website { #diathesimotita }
 
@@ -126,13 +128,13 @@ You are liable, in accordance with the law, for any damage you cause to the Asso
 
 ## 16. Restriction and termination of accounts { #termatismos }
 
-The Association may restrict, suspend or deactivate an account, or remove content, if it is used abusively, in breach of these terms or of the law, or if it puts the security of the website or of other users at risk. These measures are proportionate to the seriousness of the breach. We will inform you, explaining the reasons, unless the law prohibits it or informing you would put security at risk, and you may ask us to review the decision. Membership is not affected in this way; for membership only the Statute applies.
+The Association may restrict, suspend or deactivate an account, or remove content, if it is used abusively, in breach of these terms or of the law, or if it puts the security of the website or of other users at risk. These measures are proportionate to the seriousness of the breach. We will inform you, explaining the reasons (Article 17 of Regulation (EU) 2022/2065), unless an authority prohibits us from doing so, and you may ask us to review the decision. Membership is not affected in this way; for membership only the Statute applies.
 
 You can stop using the website and delete your account at any time.
 
 ## 17. Changes to the terms { #allages }
 
-We may change these terms, for example when we add something new to the website or when the law changes. The new version is published on this page with a new date and applies from its publication. For significant changes we will inform account holders with an announcement on the website or by e-mail before they take effect. If you do not agree with the new version, you can delete your account; if you continue to use the website, you accept it.
+We may change these terms, for example when we add something new to the website or when the law changes. The new version is published on this page with a new date. Minor changes (e.g. corrections of wording or of contact details) apply from their publication. For significant changes we will inform account holders with an announcement on the website or by e-mail, and they will apply from the date we state, at least 15 days after the notice, unless a change is required by law with immediate effect. If you do not agree with the new version, you can delete your account; if you continue to use the website, you accept it.
 
 ## 18. Applicable law and disputes { #dikaio }
 
