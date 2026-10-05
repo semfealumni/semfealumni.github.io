@@ -6,10 +6,13 @@ account. It was built in `konstantinosStouras/semfealumni` and moved here with
 its whole history. The association's earlier website, which used this
 repository before, is kept in `_past-website-versions/mkdocs-material-site/`.
 
-> **State (5 October 2026):** the code is here (Part A is done), but
-> **https://semfealumni.gr/ is still served by `konstantinosStouras/semfealumni`**
-> until Part C is finished. Delete this note, and the same note in `DOMAIN.md`,
-> `README.md` and `CLAUDE.md`, in Part C, On the day, step 8.
+> **Done on 5 October 2026.** The code moved first (Part A). The domain was
+> switched in the afternoon (Part C: the organisation's Verify at about 14:38 UTC,
+> then the Pages source and the custom domain on this repository): since then
+> **https://semfealumni.gr/ is served by this repository**, and
+> `https://semfealumni.github.io/` forwards to it. What is left is "A week later"
+> below. The rest of this file is kept as the record of how it was done, and as
+> the way back.
 
 **Nothing changes for visitors or members:** the address is still
 https://semfealumni.gr/, the sign-in, the database, the functions and the e-mails
@@ -128,7 +131,7 @@ depend on GitHub.
    new repository: the lists of `items` must be the same. (Both test announcements made on 5 October 2026 were deleted again; if a
    test announcement shows up as the difference, delete its `.md` file in
    `_src/posts/` and any picture it brought in `assets/img/posts/` in the new
-   repository first; ANNOUNCE-SETUP.md, "Order".) Do not make new announcements before the switch.
+   repository first; ANNOUNCE-SETUP.md, "Where an announcement appears".) Do not make new announcements before the switch.
 
 ### On the day (about 45 minutes; a quiet hour)
 
@@ -177,9 +180,8 @@ depend on GitHub.
      checks that the site works, not which repository serves it: it also passes
      before the switch.
 8. **Write it down.** Put the TXT code from the organisation's page into
-   `DOMAIN.md` (the row for `_github-pages-challenge-semfealumni`), delete the
-   "State" notes in this file, `DOMAIN.md`, `README.md` and `CLAUDE.md`, commit and
-   push. (Claude can do this: give it the code.)
+   `DOMAIN.md` (the row for `_github-pages-challenge-semfealumni`) and remove the
+   "State" notes. (Done on 5 October 2026.)
 
 ### A week later, when all is well
 
@@ -188,9 +190,15 @@ depend on GitHub.
   stop a Pages site, so first **Settings > Pages**, the three dots next to the
   live address, **Unpublish site**. Delete its Actions secrets
   `FIREBASE_SERVICE_ACCOUNT`, `FEEDBACK_LOG_TOKEN` and any `GA4_*` (an archived
-  repository keeps them). Then **archive** it (not delete). After that
-  `konstantinosStouras.github.io/semfealumni/` stops answering; nothing public
-  pointed there.
+  repository keeps them). Then **archive** it (not delete).
+* **The old preview address `www.stouras.com/semfealumni/...`** used to forward
+  to semfealumni.gr (through the old repository's custom domain). Since the
+  switch it shows a frozen copy of the site (its canonical address says
+  semfealumni.gr, so nothing breaks). After "Unpublish site" it would answer
+  "not found". To keep old links working, first add small forwarding pages for
+  `semfealumni/` to the homepage repository (`konstantinosStouras.github.io`), as
+  a deliberate exception to its rule that the first version of the site stays
+  under an underscore folder.
 * **Keep the branch `gh-pages` of the new repository.** It holds the finished
   pages of the old site (`_past-website-versions/README.md` says so) and is not
   part of `main`'s history. If you ever want it gone, keep a copy first:
@@ -220,11 +228,10 @@ step 2 of the day deleted).
 ## Part D: after the move
 
 * **Announcements from the website**: the editor commits into `PUBLISH_REPO`
-  (default `semfealumni/semfealumni.github.io`, `functions/index.js`), so an
-  announcement written **before Part C is finished** is built in the new repository,
-  does not appear on the site, and appears (and is e-mailed to the members who
-  chose that kind) the moment the switch is done. The token must be one for the
-  organisation's repository: ANNOUNCE-SETUP.md, step 1 with the **semfealumni**
+  (default `semfealumni/semfealumni.github.io`, `functions/index.js`), and the
+  site is served from that repository, so an announcement appears 2 to 4 minutes
+  after the button and is e-mailed to the members who chose that kind. The token
+  must be one for the organisation's repository: ANNOUNCE-SETUP.md, step 1 with the **semfealumni**
   organisation as the resource owner, then
   `firebase deploy --only functions --project semfe-alumni`. The folder you deploy
   from must pull from the organisation: `git remote -v` shows

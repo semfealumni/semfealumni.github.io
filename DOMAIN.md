@@ -1,11 +1,5 @@
 # The domain semfealumni.gr: where it lives and what keeps it working
 
-> **State (5 October 2026):** the code is in this repository, but
-> **https://semfealumni.gr/ is still served by `konstantinosStouras/semfealumni`**
-> until `MOVE-TO-ORG.md`, Part C is finished. The text below describes the state
-> after that switch. Delete this note, and the same note in `README.md` and
-> `CLAUDE.md`, in `MOVE-TO-ORG.md`, Part C, On the day, step 8.
-
 The site is served by GitHub Pages from this repository
 (`semfealumni/semfealumni.github.io`) at **https://semfealumni.gr/** (since
 1 October 2026; in this organisation's repository since the move in `MOVE-TO-ORG.md`). Three things keep it there:
@@ -43,7 +37,7 @@ The site is served by GitHub Pages from this repository
 | `semfealumni.gr` | AAAA | `2606:50c0:8002::153` | GitHub Pages (IPv6) |
 | `semfealumni.gr` | AAAA | `2606:50c0:8003::153` | GitHub Pages (IPv6) |
 | `www.semfealumni.gr` | CNAME | `semfealumni.github.io` | www forwards to semfealumni.gr |
-| `_github-pages-challenge-semfealumni.semfealumni.gr` | TXT | the code GitHub shows under the organisation's Settings > Pages > Verified domains (the record is added at papaki in `MOVE-TO-ORG.md`, Part C, Before the day, step 3; its code is written here in Part C, On the day, step 8) | **keeps the domain verified: never delete** |
+| `_github-pages-challenge-semfealumni.semfealumni.gr` | TXT | `7d5f8d17905547418d153d0d83fb96` (the code GitHub shows under the organisation's Settings > Pages > Verified domains; added at papaki on 5 October 2026) | **keeps the domain verified: never delete** |
 | `_github-pages-challenge-konstantinosstouras.semfealumni.gr` | TXT | `a6cf7a889ca6a1f58955428cd298d1` | the earlier verification, in the account `konstantinosStouras`: delete it a week after the cutover (`MOVE-TO-ORG.md`, Part C, A week later) |
 
 TTL: 1 hour (3600) for all. papaki shows the TXT value in quotes; that is how

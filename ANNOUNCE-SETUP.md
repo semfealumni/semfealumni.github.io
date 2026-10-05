@@ -36,9 +36,7 @@ closed tab does not lose it.
    (see `_src/README.md`) in **one commit** with its pictures.
 2. The workflow `.github/workflows/publish.yml` builds the pages from it and
    commits them. GitHub Pages publishes. It is on the site **2 to 4 minutes**
-   after the button (once the site is served from the organisation's
-   repository: see "Order: after the switch to the organisation, not before"
-   below); the editor says so and shows a link when the page exists.
+   after the button; the editor says so and shows a link when the page exists.
 3. The e-mail alerts pick it up from `feed.json` within two hours like any
    other announcement.
 
@@ -54,20 +52,22 @@ the built site) the workflow **takes the announcement back**: a second commit
 back the next ones. Nobody is e-mailed about it. The editor then shows
 «Δεν εμφανίστηκε ακόμα»; look at **Actions > publish** to see why.
 
-## Order: after the switch to the organisation, not before
+## Where an announcement appears, and who is e-mailed
 
 The editor commits into the repository named by `PUBLISH_REPO`, which is
-`semfealumni/semfealumni.github.io`. Until MOVE-TO-ORG.md, Part C, is finished,
-https://semfealumni.gr/ is still served from the old repository
-(`konstantinosStouras/semfealumni`). So an announcement sent before then is
-built in the new repository and does **not** appear on the site (the editor ends
-with «Δεν εμφανίστηκε ακόμα» after about 8 minutes). It would appear, and be
-e-mailed to the members who chose that kind, the moment the switch is done.
+`semfealumni/semfealumni.github.io`, and since 5 October 2026 https://semfealumni.gr/
+is served from that repository. So an announcement is on the site 2 to 4 minutes
+after the button, and **it is real**: the members who chose that kind of alert
+are e-mailed about it within two hours. A **test announcement** therefore reaches
+people too: make one only if you accept that. Delete it at once if it was a test
+(its `.md` file in `_src/posts/` and its pictures in `assets/img/posts/`: see
+"It is an ordinary file in the repository" above); an e-mail already sent cannot
+be recalled.
 
-So do step 4 (Try it) only after the switch. If a test announcement was made
-before it, **delete it before the switch**: its `.md` file in `_src/posts/` and
-its pictures in `assets/img/posts/` (how: the paragraph "It is an ordinary file
-in the repository" above).
+If an announcement is sent, the **publish** run is green and the page still does
+not appear, check **Settings > Pages** of the repository: the source must be
+`main`, folder `/ (root)`, and the custom domain `semfealumni.gr`
+(MOVE-TO-ORG.md, Part C).
 
 ## Switching it on (15 minutes, once)
 
@@ -176,10 +176,6 @@ publishing still works. Nothing else is needed: there is no secret for it.
 
 ### 4. Try it
 
-Do this only **after** the switch to the organisation is finished
-(MOVE-TO-ORG.md, Part C; see "Order" above): before it, the commit appears in
-the new repository but not on the site.
-
 Open https://semfealumni.gr/blog/ signed in as an admin, press **«Νέα
 ανακοίνωση»**. With no notice about the setup you are ready: write a title and a
 line, tick **Ανακοινώσεις**, **Δημοσίευση**, **Ναι**. After a few minutes the page
@@ -200,7 +196,7 @@ The editor says in Greek what failed; the codes behind the messages:
 | «Το GitHub είναι απασχολημένο» | someone pushed at the same moment four times in a row, or GitHub's rate limit | wait a minute and press again |
 | «Οι σύνδεσμοι πρέπει να ξεκινούν με https://» | a link such as `[text](support/)`: a relative address would be wrong at the announcement's depth | write the whole address |
 | «Μόνο οι διαχειριστές …» | the signed-in address is not a verified admin | sign in with an address of `ADMIN_EMAILS` |
-| it was sent, but never appears, and the **publish** run in **Actions** is green | the site is not yet served from this repository: the switch is not finished | MOVE-TO-ORG.md, Part C ("Order" above) |
+| it was sent, but never appears, and the **publish** run in **Actions** is green | the site is not served from this repository: **Settings > Pages** is not `main` / root with the custom domain | MOVE-TO-ORG.md, Part C |
 | it was sent, but never appears | the build failed: open **Actions** > **publish** in the repository and read the red step | fix the file in `_src/posts/`, the workflow rebuilds |
 
 An announcement that was sent is a commit titled `Announcement: <slug>` on `main`.

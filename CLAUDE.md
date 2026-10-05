@@ -1,11 +1,5 @@
 # SEMFE Alumni website: repository conventions
 
-> **State (5 October 2026):** the code is in this repository, but
-> **https://semfealumni.gr/ is still served by `konstantinosStouras/semfealumni`**
-> until `MOVE-TO-ORG.md`, Part C is finished. The text below describes the state
-> after that switch. Delete this note, and the same note in `DOMAIN.md` and
-> `README.md`, in `MOVE-TO-ORG.md`, Part C, On the day, step 8.
-
 The website of the Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ, served by GitHub Pages
 from `main` at **https://semfealumni.gr/** (custom domain, verified in the GitHub
 organisation `semfealumni`; the repository is `semfealumni/semfealumni.github.io`,

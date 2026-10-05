@@ -195,12 +195,6 @@ AAAA records to GitHub Pages, `www` a CNAME to `semfealumni.github.io`.
 A missing address shows this site's own `404.html`. Every DNS record, the
 verification code and what to do if one goes missing: **`DOMAIN.md`**.
 
-> **State (5 October 2026):** the code is in this repository, but
-> **https://semfealumni.gr/ is still served by `konstantinosStouras/semfealumni`**
-> until `MOVE-TO-ORG.md`, Part C is finished. The paragraph above describes the
-> state after that switch. Delete this note, and the same note in `DOMAIN.md` and
-> `CLAUDE.md`, in `MOVE-TO-ORG.md`, Part C, On the day, step 8.
-
 Do **not** add a `.nojekyll` file: Jekyll is what keeps `_src/` off the web,
 and `_config.yml` keeps `tools/`, `functions/` and the Firebase files off it too.
 
