@@ -164,7 +164,7 @@ const SOCIAL = [
 /* ---- the site's own words, in both languages --------------------------------
    Everything the layout writes around a page's text. The English site name is
    also in assets/js/i18n.js (siteName), for the scripts. */
-const SITE_NAME = { el: C.siteName, en: 'Association of SEMFE NTUA Graduates' };
+const SITE_NAME = { el: C.siteName, en: 'SEMFE Alumni Association' };
 const STR = {
   el: {
     skip: 'Μετάβαση στο περιεχόμενο', menuOpen: 'Άνοιγμα μενού', brandAria: 'Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ, αρχική σελίδα',
@@ -180,16 +180,16 @@ const STR = {
     langs: 'Γλώσσα', postLang: ''
   },
   en: {
-    skip: 'Skip to content', menuOpen: 'Open menu', brandAria: 'Association of SEMFE NTUA Graduates, home page',
-    brandTop: 'ASSOCIATION OF GRADUATES', brandBottom: 'SEMFE NTUA', mainNav: 'Main menu', signin: 'Sign in',
+    skip: 'Skip to content', menuOpen: 'Open menu', brandAria: 'SEMFE Alumni Association, home page',
+    brandTop: 'Association', brandBottom: 'SEMFE Alumni', mainNav: 'Main menu', signin: 'Sign in',
     crumbs: 'Breadcrumb', home: 'Home', section: 'Section', readMore: 'Read more →',
     otherPosts: 'Other announcements', prev: '← Previous', next: 'Next →', edit: 'Edit', del: 'Delete',
-    announcements: 'Announcements', ogAlt: 'Association of SEMFE NTUA Graduates',
-    footerName: 'Association of<br>SEMFE&nbsp;NTUA Graduates',
+    announcements: 'Announcements', ogAlt: 'SEMFE Alumni Association',
+    footerName: 'SEMFE Alumni<br>Association',
     footerAbout: 'The official body of the graduates of the School of Applied Mathematical and Physical Sciences of NTUA, since 2013.',
     fClub: 'The Association', fHistory: 'History', fMembers: 'Members', statute: 'Statute (PDF, in Greek)',
     myAccount: 'My account', membersArea: 'Members\' area', feedback: 'Feedback and problems', whatsNew: 'What\'s new on the website',
-    copyright: 'Association of SEMFE NTUA Graduates', privacy: 'Privacy policy', terms: 'Terms of use', dataDeletion: 'Data deletion',
+    copyright: 'SEMFE Alumni Association', privacy: 'Privacy policy', terms: 'Terms of use', dataDeletion: 'Data deletion',
     langs: 'Language', postLang: 'Announcements are shown as the Association published them, in Greek.'
   }
 };
@@ -282,7 +282,8 @@ function head(page, root) {
   const lang = page.lang || 'el';
   // 404.html gets its own address: two pages sharing one og:url share one link preview
   const url = SITE_URL + (page.meta.file || page.path);
-  const title = page.meta.path === '' && !page.meta.file ? SITE_NAME[lang] + ' · SEMFE Alumni' : `${page.meta.title} · ${SITE_NAME[lang]}`;
+  // the home page is the Association's name (the English name already says "SEMFE Alumni")
+  const title = page.meta.path === '' && !page.meta.file ? SITE_NAME[lang] + (lang === 'en' ? '' : ' · SEMFE Alumni') : `${page.meta.title} · ${SITE_NAME[lang]}`;
   const desc = page.meta.description;
   const noindex = !INDEXABLE || page.meta.noindex;
   // the same page in the other language (hreflang): search engines show each reader their own
@@ -358,6 +359,10 @@ function langBar(page, root) {
 function header(page, root) {
   const lang = page.lang || 'el', S = STR[lang];
   const cur = page.meta.nav;
+  // the logo's name: Greek, the small line «ΣΥΛΛΟΓΟΣ ΔΙΠΛΩΜΑΤΟΥΧΩΝ» above the bold «ΣΕΜΦΕ ΕΜΠ»;
+  // English (owner, 2026-10-05), the bold "SEMFE Alumni" above the small "Association"
+  const top = `<span class="top">${S.brandTop}</span>`, bottom = `<span class="bottom">${S.brandBottom}</span>`;
+  const brandLines = lang === 'en' ? bottom + top : top + bottom;
   // the page itself is marked inside the drop-down (by its address, so the
   // three «history» pages are told apart), the drop-down's button as "here"
   const here = href => href && href === page.meta.path;
@@ -376,7 +381,7 @@ function header(page, root) {
     </button>
     <a class="brand" href="${root}" aria-label="${S.brandAria}">
       <img class="brand-mark" src="${root}assets/img/logos/semfe_alumni_logo.jpg" alt="" width="42" height="42">
-      <span class="brand-text"><span class="top">${S.brandTop}</span><span class="bottom">${S.brandBottom}</span></span>
+      <span class="brand-text">${brandLines}</span>
     </a>
     <div class="header-right">
       <nav class="nav" id="nav" aria-label="${S.mainNav}">

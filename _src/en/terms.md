@@ -4,7 +4,7 @@ layout: text
 title: Terms of use
 description: >-
   The terms of use of the website semfealumni.gr, of the accounts and of the Members' area
-  of the Association of SEMFE NTUA Graduates.
+  of the SEMFE Alumni Association.
 hero:
   eyebrow: Legal
   title: Terms of use
@@ -20,7 +20,7 @@ Last updated: 5 October 2026
 
 ## 1. Who we are { #poioi }
 
-The website semfealumni.gr (“the website”) belongs to and is run by the association registered under the name **“Association of Graduates of the School of Applied Mathematical and Physical Sciences of the National Technical University of Athens”** (in its Statute's own English version, “School of Applied Mathematics and Physical Sciences Graduates Association, National Technical University of Athens”; “the Association”), a non-profit association with its seat in the Municipality of Zografou, Attica, Greece. Contact: [gradsemfe@gmail.com](mailto:gradsemfe@gmail.com).
+The website semfealumni.gr (“the website”) belongs to and is run by the **SEMFE Alumni Association** (“the Association”), the non-profit association of the graduates of the School of Applied Mathematical and Physical Sciences of the National Technical University of Athens, registered in Greece as <span lang="el">«Σύλλογος Διπλωματούχων Σχολής Εφαρμοσμένων Μαθηματικών και Φυσικών Επιστημών Εθνικού Μετσόβιου Πολυτεχνείου»</span> (in its Statute's own English version, “School of Applied Mathematics and Physical Sciences Graduates Association, National Technical University of Athens”), with its seat in the Municipality of Zografou, Attica, Greece. Contact: [gradsemfe@gmail.com](mailto:gradsemfe@gmail.com).
 
 The website provides information about the Association's purposes, bodies, activities and announcements, and allows those who create an account to apply for membership, to contact the Association and, as members, to use the Members' area. Its use is free of charge.
 

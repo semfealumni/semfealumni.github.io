@@ -3,7 +3,7 @@ path: blog/
 nav: blog
 scripts: [announce-text.js, announce.js]
 title: Announcements
-description: Announcements, invitations and events of the Association of SEMFE NTUA Graduates.
+description: Announcements, invitations and events of the SEMFE Alumni Association.
 hero:
   eyebrow: News
   title: Announcements

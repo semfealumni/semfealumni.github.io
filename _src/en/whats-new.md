@@ -4,7 +4,7 @@ nav: ""
 scripts: [news.js, news-page.js]
 title: What's new
 description: >-
-  The changes and new features of the website of the Association of SEMFE NTUA Graduates,
+  The changes and new features of the website of the SEMFE Alumni Association,
   newest first.
 hero:
   eyebrow: The website

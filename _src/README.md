@@ -193,6 +193,8 @@ browser remembers the choice), until they pick Greek again.
   that has an English copy at that copy (`en/contact/`); files keep theirs.
   Keep ids, classes, `data-*` attributes and placeholders (`{{signin}}` reads
   "Google, LinkedIn or e-mail" in English).
+* **The Association's English name is "SEMFE Alumni Association"** (the
+  "Association" for short), never "Association of SEMFE NTUA Graduates".
 * In a YAML block translate the text fields (`name` in Latin letters, `role`,
   `caption`…), never `id`, `img`, `file`, `photo`. The words a block writes
   itself (Open / Download) follow the page's language.

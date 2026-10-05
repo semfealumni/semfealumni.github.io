@@ -3,9 +3,9 @@ path: privacy/
 layout: text
 title: Privacy policy
 description: >-
-  What personal data the Association of SEMFE NTUA Graduates processes through its
-  website, for what purpose and on what legal basis, where it is stored, for how long,
-  and what rights you have.
+  What personal data the SEMFE Alumni Association processes through its website,
+  for what purpose and on what legal basis, where it is stored, for how long, and
+  what rights you have.
 hero:
   eyebrow: Legal
   title: Privacy policy
@@ -31,7 +31,7 @@ This policy explains how the Association processes personal data through the web
 
 ## Who is responsible { #ypeythynos }
 
-The data controller is the association registered under the name **“Association of Graduates of the School of Applied Mathematical and Physical Sciences of the National Technical University of Athens”** (in its Statute's own English version, “School of Applied Mathematics and Physical Sciences Graduates Association, National Technical University of Athens”; “the Association”), a non-profit association with its seat in the Municipality of Zografou, Attica, Greece.
+The data controller is the **SEMFE Alumni Association** (“the Association”), the non-profit association of the graduates of the School of Applied Mathematical and Physical Sciences of the National Technical University of Athens, registered in Greece as <span lang="el">«Σύλλογος Διπλωματούχων Σχολής Εφαρμοσμένων Μαθηματικών και Φυσικών Επιστημών Εθνικού Μετσόβιου Πολυτεχνείου»</span> (in its Statute's own English version, “School of Applied Mathematics and Physical Sciences Graduates Association, National Technical University of Athens”), with its seat in the Municipality of Zografou, Attica, Greece.
 
 For any matter concerning your personal data, write to us at [gradsemfe@gmail.com](mailto:gradsemfe@gmail.com).
 

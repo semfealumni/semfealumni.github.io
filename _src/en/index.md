@@ -1,7 +1,7 @@
 ---
 path: ""
 nav: home
-title: Association of SEMFE NTUA Graduates
+title: SEMFE Alumni Association
 description: >-
   The official body of the graduates of the School of Applied Mathematical and Physical
   Sciences of NTUA. Vision, purpose, announcements and membership.
@@ -14,7 +14,7 @@ description: >-
 <div class="chips">
   <span class="chip">{{icon:pin}}Zografou, Attica</span>
 </div>
-<h1>Association of<br><span class="accent">SEMFE NTUA Graduates</span></h1>
+<h1><span class="accent">SEMFE Alumni</span><br>Association</h1>
 
 The official body of the graduates of the School of Applied Mathematical and Physical Sciences of the National Technical University of Athens, working to widen the professional rights of its members.
 { .lede }
@@ -27,7 +27,7 @@ The official body of the graduates of the School of Applied Mathematical and Phy
 <div class="hero-art">
 <div class="hero-logo">
 
-![The logo of the Association of SEMFE NTUA Graduates]({{root}}assets/img/logos/logo.png){ width=640 height=640 }
+![The logo of the SEMFE Alumni Association]({{root}}assets/img/logos/logo.png){ width=640 height=640 }
 
 </div>
 </div>
@@ -64,7 +64,7 @@ The official body of the graduates of the School of Applied Mathematical and Phy
 </div>
 <div>
 
-The Association of SEMFE Graduates works to widen the professional rights of its members and to strengthen the ties of graduates with one another, with the School and with the wider bodies of society and the state.
+The SEMFE Alumni Association works to widen the professional rights of its members and to strengthen the ties of graduates with one another, with the School and with the wider bodies of society and the state.
 
 We envision a united network of SEMFE graduates, undergraduate students and professors who keep in active contact on scientific and professional matters, adding value to the School and to NTUA.
 
@@ -82,7 +82,7 @@ We envision a united network of SEMFE graduates, undergraduate students and prof
 
 ## What the Association does
 
-The Association of Graduates of the School of Applied Mathematical and Physical Sciences of the National Technical University of Athens is a public-benefit, scientific and broadly research-oriented association, with no profit-making or political character. Its aims are:
+The SEMFE Alumni Association, the association of the graduates of the School of Applied Mathematical and Physical Sciences of the National Technical University of Athens, is a public-benefit, scientific and broadly research-oriented association, with no profit-making or political character. Its aims are:
 
 </div>
 <!-- The statute's eleven aims, opened one at a time like the questions on

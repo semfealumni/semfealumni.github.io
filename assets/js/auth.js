@@ -590,7 +590,7 @@
     wrap.innerHTML =
       '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">' +
       '<button type="button" class="modal-x" data-close aria-label="' + T('Κλείσιμο', 'Close') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
-      '<div class="modal-head"><h2 id="auth-title">' + T('Σύνδεση', 'Sign in') + '</h2><p id="auth-sub">' + T('Για τα μέλη και τους φίλους του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ.', 'For the members and friends of the Association of SEMFE NTUA Graduates.') + '</p></div>' +
+      '<div class="modal-head"><h2 id="auth-title">' + T('Σύνδεση', 'Sign in') + '</h2><p id="auth-sub">' + T('Για τα μέλη και τους φίλους του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ.', 'For the members and friends of the SEMFE Alumni Association.') + '</p></div>' +
       '<div class="modal-body">' +
       '<div class="auth-main" data-auth-main>' +
       '<div class="tabs2" role="group" aria-label="' + T('Σύνδεση ή εγγραφή', 'Sign in or register') + '">' +
@@ -685,7 +685,7 @@
     $('#auth-title').textContent = reg ? T('Νέος λογαριασμός', 'New account') : T('Σύνδεση', 'Sign in');
     $('#auth-sub').textContent = reg
       ? T('Δημιουργήστε λογαριασμό για να κάνετε αίτηση μέλους και να μπείτε στην περιοχή μελών.', "Create an account to apply for membership and to enter the members' area.")
-      : T('Για τα μέλη και τους φίλους του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ.', 'For the members and friends of the Association of SEMFE NTUA Graduates.');
+      : T('Για τα μέλη και τους φίλους του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ.', 'For the members and friends of the SEMFE Alumni Association.');
     $('#tab-signin').setAttribute('aria-pressed', reg ? 'false' : 'true');
     $('#tab-register').setAttribute('aria-pressed', reg ? 'true' : 'false');
     describe($('#auth-pass'), reg ? 'auth-pass-hint' : '');
