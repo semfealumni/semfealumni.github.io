@@ -691,7 +691,7 @@ await scenario('F2', 'account page: the application (validate, refused write, cr
   const msg = page.locator('#account-app [data-form-msg]');
   const boxes = () => page.evaluate(() => ['consentNewsletter', 'consentJobs', 'consentDirectory', 'acceptedPrivacy'].map(k => k + '=' + document.getElementById('f-' + k).checked));
   const fresh = await boxes();
-  t(fresh.every(x => x.endsWith('=true')), 'a first application starts with the four boxes ticked (the applicant may untick them)' + list(fresh));
+  t(fresh.every(x => x.endsWith('=false')), 'a first application starts with the four boxes UNticked (consent is never pre-ticked)' + list(fresh));
   const submit = () => page.click('#account-app form[data-apply] [type=submit]');
   const good = { firstName: 'Μαρία', lastName: 'Παπαδοπούλου', email: MARIA.email, phone: '6900000000', stage: 'graduate', direction: 'Εφαρμοσμένα Μαθηματικά',
     entryYear: '2008', gradYear: '2013', position: 'Data Scientist', employer: 'ACME', city: 'Αθήνα', linkedin: 'linkedin.com/in/maria-p', note: 'Γεια σας' };

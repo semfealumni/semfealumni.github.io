@@ -620,8 +620,8 @@
       '<button type="submit" class="btn btn-dark btn-block" data-submit' + (configured ? '' : ' disabled') + '>' + T('Σύνδεση', 'Sign in') + '</button>' +
       '<div style="text-align:center" data-signin-only><button type="button" class="link-btn" data-forgot>' + T('Ξεχάσατε τον κωδικό;', 'Forgot your password?') + '</button></div>' +
       '</form>' +
-      '<p class="small" style="margin:0">' + T('Συνεχίζοντας, αποδέχεστε τους ' + termsA + 'Όρους χρήσης</a> και επιβεβαιώνετε ότι διαβάσατε την ' + privacyA + 'Πολιτική απορρήτου</a> του Συλλόγου. Από τον πάροχο που επιλέγετε λαμβάνουμε μόνο το όνομα, το e-mail και τη φωτογραφία σας.',
-        'By continuing, you accept the Association\'s ' + termsA + 'Terms of use</a> and confirm that you have read its ' + privacyA + 'Privacy policy</a>. From the provider you choose we receive only your name, e-mail address and photo.') + '</p>' +
+      '<p class="small" style="margin:0">' + T('Συνεχίζοντας, αποδέχεστε τους ' + termsA + 'Όρους χρήσης</a> και επιβεβαιώνετε ότι διαβάσατε την ' + privacyA + 'Πολιτική απορρήτου</a> του Συλλόγου. Από τον πάροχο που επιλέγετε λαμβάνουμε μόνο το όνομα, το e-mail, τη φωτογραφία σας και ένα αναγνωριστικό του λογαριασμού σας εκεί.',
+        'By continuing, you accept the Association\'s ' + termsA + 'Terms of use</a> and confirm that you have read its ' + privacyA + 'Privacy policy</a>. From the provider you choose we receive only your name, e-mail address, photo and an identifier of your account there.') + '</p>' +
       '</div>' +
       // the card of a pending account (an e-mail + password account whose address is not confirmed yet)
       '<div class="verify-box" data-verify hidden>' +

@@ -389,10 +389,11 @@
     var nameHint = frozen ? T('Για αλλαγή ονόματος <a href="' + A.home + 'contact/">επικοινωνήστε με τον Σύλλογο</a>.', 'To change your name, <a href="' + A.home + 'contact/">contact the Association</a>.') : '';
     var msg = formErr;
     var active = !!member && member.status === 'active';
-    // a first application starts with the four boxes ticked (owner,
-    // 2026-10-05); the applicant may untick any. A saved application shows
-    // what was saved, so a missing answer is never turned into a yes.
-    var tick = function (v) { return member ? !!v : v !== false; };
+    // every box starts unticked: consent must be an act of the applicant
+    // (GDPR Recital 32: "pre-ticked boxes ... should not ... constitute
+    // consent"; CJEU C-673/17, Planet49). A saved application shows what was
+    // saved, so a missing answer is never turned into a yes.
+    var tick = function (v) { return !!v; };
     var optional = T('Προαιρετικό', 'Optional');
     return '<div class="panel" id="apply"><h2 tabindex="-1">' + (member ? T('Επεξεργασία στοιχείων', 'Edit details') : T('Αίτηση μέλους', 'Membership application')) + '</h2>' +
       (member ? '' : '<p class="muted intro">' + T('Συμπληρώστε τα στοιχεία σας. Τα πεδία με <span class="req">*</span> είναι υποχρεωτικά. Θα τα ελέγξουμε και θα ενεργοποιήσουμε την ιδιότητα μέλους μόλις λάβουμε τη συνδρομή των ' + esc(fee()) + ' (δεν ισχύει για μέλη ΔΕΠ).',
