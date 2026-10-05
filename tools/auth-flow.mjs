@@ -2662,8 +2662,11 @@ await scenario('P15', 'an announcement\'s page: «Επεξεργασία» for a
   const posts = readdirSync(path.join(ROOT, '_src/posts')).filter(f => f.endsWith('.md')).sort();
   const file = posts[posts.length - 1], m = file.match(/^(\d{4})-(\d{2})-(\d{2})-(.+)\.md$/);
   await page.goto(URL_(`blog/${m[1]}/${m[2]}/${m[3]}/${m[4]}/`));
-  t(await visible(page.locator('.post-admin a'), 8000), 'an admin sees «Επεξεργασία» under the announcement');
-  t((await page.getAttribute('.post-admin a', 'href')).endsWith('blog/?edit=' + file), '… leading to blog/?edit=' + file);
+  t(await visible(page.locator('.post-admin a').first(), 8000), 'an admin sees «Επεξεργασία» under the announcement');
+  t((await page.getAttribute('.post-admin a >> nth=0', 'href')).endsWith('blog/?edit=' + file), '… leading to blog/?edit=' + file);
+  const del = page.locator('.post-admin a.btn-danger');
+  t(await del.count() === 1 && await hasText(del, 'Διαγραφή') && (await del.getAttribute('href')).endsWith('blog/?delete=' + file), '… and «Διαγραφή» beside it, leading to blog/?delete=' + file + ' (which asks first)');
+  t(/^[0-9a-f]{40}$/.test(await page.getAttribute('meta[name="semfe-source"]', 'content') || ''), 'the page carries the Git blob id of its source (how the editor sees the new version is online)');
 });
 await scenario('P16', 'an announcement\'s page: a visitor sees no «Επεξεργασία», and loads no sign-in library', { cfg: 'oidc' }, async (page, env) => {
   const posts = readdirSync(path.join(ROOT, '_src/posts')).filter(f => f.endsWith('.md')).sort();
@@ -2672,6 +2675,100 @@ await scenario('P16', 'an announcement\'s page: a visitor sees no «Επεξερ
   await sleep(600);
   t(await page.locator('.post-admin').isHidden(), 'no «Επεξεργασία» for a visitor');
   t(env.sdkUrls.length === 0, '… and the page did not load the sign-in library for it' + list(env.sdkUrls));
+});
+
+await scenario('P17', 'blog/?delete=FILE: it asks first, deletes on «Ναι», the card leaves the list at once, and the panel says when the page is gone', ADMIN_OPTS(), async (page, env) => {
+  const posts = readdirSync(path.join(ROOT, '_src/posts')).filter(f => f.endsWith('.md')).sort();
+  const FILE = posts[posts.length - 1], m = FILE.match(/^(\d{4})-(\d{2})-(\d{2})-(.+)\.md$/);
+  const REL = `blog/${m[1]}/${m[2]}/${m[3]}/${m[4]}/`, PAGE = ORIGIN + SUB + REL;
+  let mode = 'ok';
+  publishServer(env, async b => {
+    if (b.action === 'status') return { json: { ok: true, ready: true } };
+    if (b.action === 'load') {
+      if (mode === 'old') return { json: { ok: true, editable: false, file: b.file, url: PAGE, github: 'https://github.com/o/r/edit/main/_src/posts/' + b.file } };   // an older function: no version
+      return { json: { ok: true, editable: false, file: b.file, sha: 'sha-9', title: 'Η ανακοίνωση «δοκιμή»', url: PAGE, github: 'https://github.com/x' } };
+    }
+    if (b.action === 'delete') {
+      if (mode === 'changed') return { status: 409, json: { error: 'post-changed' } };
+      return { json: { ok: true, deleted: true, url: PAGE, file: b.file, removed: ['_src/posts/' + b.file], commit: 'c9', blob: null } };
+    }
+    return { status: 400, json: { error: 'bad-request' } };
+  });
+  await page.goto(URL_('blog/?delete=' + FILE));
+  t(await waitFor(page, () => !!document.querySelector('[data-del-yes]'), null, 9000), 'blog/?delete=FILE opens a question, not a deletion');
+  t(await hasText(page.locator('#ed-h'), 'Διαγραφή ανακοίνωσης') && await hasText(page.locator('[data-announce-box] .notice.warn'), 'Η ανακοίνωση «δοκιμή»'), '… naming the announcement by its title');
+  t(await hasText(page.locator('[data-announce-box] .notice.warn'), 'δεν ανακαλούνται') && await hasText(page.locator('[data-announce-box] .notice.warn'), 'ιστορικό του GitHub'), '… saying e-mails already sent stay sent, and how it comes back');
+  t(env.pubCalls.filter(c => c.body.action === 'delete').length === 0, '… and nothing is deleted yet');
+  t(!/[?&]delete=/.test(page.url()), '… the address no longer asks for it (a reload cannot delete)');
+  await page.click('[data-announce-box] [data-close]');
+  t(await page.locator('[data-announce-box]').isHidden() && env.pubCalls.filter(c => c.body.action === 'delete').length === 0, '«Όχι, ακύρωση» closes it, nothing deleted');
+
+  // the function says it changed meanwhile
+  mode = 'changed';
+  await page.goto(URL_('blog/?delete=' + FILE));
+  await waitFor(page, () => !!document.querySelector('[data-del-yes]'), null, 9000);
+  await page.click('[data-del-yes]');
+  t(await waitFor(page, () => /άλλαξε από άλλον στο μεταξύ, και δεν διαγράφηκε/.test(document.querySelector('[data-announce-box]').textContent)), 'changed by someone else meanwhile: it says so, and nothing was deleted');
+  t(await page.locator('a.post-card[href$="' + REL + '"]').count() === 1, '… its card is still listed');
+
+  // yes
+  mode = 'ok';
+  const earlier = env.pubCalls.filter(c => c.body.action === 'delete').length;   // the refused one above
+  let checks = 0;
+  await page.route(u => u.href.startsWith(PAGE + '?check='), r => { checks++; return checks < 2 ? r.fulfill({ status: 200, contentType: 'text/html', body: '<p>still there</p>' }) : r.fulfill({ status: 404, contentType: 'text/html', body: 'not found' }); });
+  await page.goto(URL_('blog/?delete=' + FILE));
+  await waitFor(page, () => !!document.querySelector('[data-del-yes]'), null, 9000);
+  t(await page.locator('a.post-card[href$="' + REL + '"]').count() === 1, 'before: its card is in the list');
+  await page.click('[data-del-yes]');
+  t(await waitFor(page, () => /διαγράφηκε/.test(document.querySelector('[data-announce-box]').textContent)), 'after «Ναι, διαγραφή» the panel says it is deleted');
+  const d = env.pubCalls.filter(c => c.body.action === 'delete').slice(earlier);
+  t(earlier === 1 && d.length === 1 && d[0].body.file === FILE && d[0].body.sha === 'sha-9' && /^Bearer /.test(d[0].auth), 'one delete request, naming the file and the version that was shown, with the ID token');
+  t(await page.locator('a.post-card[href$="' + REL + '"]').count() === 0, 'its card left the list on this page at once');
+  t(await waitFor(page, () => /Η σελίδα αφαιρέθηκε από τον ιστότοπο/.test(document.querySelector('[data-announce-box]').textContent), null, 15000), '… and the panel says the moment the page answers «not found»');
+  await page.unroute(u => u.href.startsWith(PAGE + '?check='));
+
+  // an older function cannot say which version it is
+  mode = 'old';
+  await page.goto(URL_('blog/?delete=' + FILE));
+  t(await waitFor(page, () => /firebase deploy --only functions/.test((document.querySelector('[data-announce-box]') || {}).textContent || ''), null, 9000), 'a function not updated yet: it says what to run, and offers no «Ναι»');
+  t(await page.locator('[data-del-yes]').count() === 0, '… nothing to press');
+});
+await scenario('P18', 'the edit form has «Διαγραφή» too; and after a save the panel watches the real page until it is the new version', ADMIN_OPTS(), async (page, env) => {
+  const FILE = '2026-10-01-kopi-pitas-2026.md', URL1 = ORIGIN + SUB + 'blog/2026/10/01/kopi-pitas-2026/', BLOB = 'a'.repeat(40);
+  const POST = { title: 'Κοπή πίτας 2026', category: 'Εκδηλώσεις', description: '', body: 'Η πίτα.', date: '2026-10-01', slug: 'kopi-pitas-2026', cover: 0, figures: [] };
+  publishServer(env, async b => {
+    if (b.action === 'status') return { json: { ok: true, ready: true } };
+    if (b.action === 'load') return { json: { ok: true, editable: true, file: FILE, sha: 'sha-1', url: URL1, raw: ORIGIN + SUB, post: POST, title: POST.title } };
+    if (b.action === 'update') return { json: { ok: true, edited: true, url: URL1, file: FILE, path: '_src/posts/' + FILE, slug: 'kopi-pitas-2026', date: '2026-10-01', commit: 'c2', blob: BLOB } };
+    if (b.action === 'delete') return { json: { ok: true, deleted: true, url: URL1, file: FILE, removed: ['_src/posts/' + FILE], commit: 'c3', blob: null } };
+    return { status: 400, json: { error: 'bad-request' } };
+  });
+  let served = 0;
+  await page.route(u => u.href.startsWith(URL1), r => {
+    served++;
+    const fresh = served >= 3;          // the old version twice, then the new one
+    return r.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><meta name="semfe-source" content="' + (fresh ? BLOB : 'b'.repeat(40)) + '"><p>x</p>' });
+  });
+  await page.goto(URL_('blog/?edit=' + FILE));
+  await waitFor(page, () => document.querySelector('#ed-title') && document.querySelector('#ed-title').value === 'Κοπή πίτας 2026', null, 9000);
+  t(await visible(page.locator('[data-delete-ask]')) && await hasText(page.locator('[data-delete-ask]'), 'Διαγραφή'), 'the edit form offers «Διαγραφή»');
+  await page.fill('#ed-title', 'Κοπή πίτας 2026: νέα ώρα');
+  await page.click('[data-delete-ask]');
+  t(await hasText(page.locator('[data-actions]'), 'Να διαγραφεί αυτή η ανακοίνωση;'), '… which asks first');
+  await page.click('[data-no]');
+  t(await page.$eval('#ed-title', i => i.value) === 'Κοπή πίτας 2026: νέα ώρα' && env.pubCalls.filter(c => c.body.action === 'delete').length === 0, '«Όχι, πίσω» returns to the form as it was, nothing deleted');
+  await page.click('[data-send]'); await page.click('[data-yes]');
+  t(await waitFor(page, () => /Οι αλλαγές αποθηκεύτηκαν/.test(document.querySelector('[data-announce-box]').textContent)), 'saved');
+  t(await hasText(page.locator('[data-announce-box] .notice.ok'), 'λίγα δευτερόλεπτα'), 'the panel promises seconds, not minutes');
+  t(await page.locator('[data-wait]').count() === 1, '… and watches the page');
+  t(await waitFor(page, () => /Οι αλλαγές είναι online/.test(document.querySelector('[data-announce-box]').textContent), null, 20000), '… until the page carries the version just saved');
+  t(served >= 3, 'the old version did not count as done (' + served + ' requests)');
+  t(await page.locator('[data-announce-box] [data-delete-file="' + FILE + '"]').count() === 1, 'the success panel offers «Διαγραφή» too');
+  await page.click('[data-announce-box] [data-delete-file="' + FILE + '"]');
+  t(await waitFor(page, () => !!document.querySelector('[data-del-yes]'), null, 9000), '… which opens the question');
+  await page.click('[data-del-yes]');
+  t(await waitFor(page, () => /διαγράφηκε/.test(document.querySelector('[data-announce-box]').textContent)), 'deleted');
+  t(env.pubCalls.filter(c => c.body.action === 'delete').length === 1 && env.pubCalls.find(c => c.body.action === 'delete').body.sha === 'sha-1', 'one delete request with the version it showed');
 });
 
 await scenario('P8', 'blog/: while publishing is not set up the editor still opens, and says so before anyone writes', ADMIN_OPTS(), async (page, env) => {

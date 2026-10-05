@@ -18,6 +18,8 @@ It opens a box like a forum post:
   the new page's address as a link.
 * **«Επεξεργασία»**: right after sending, and under every announcement on its own
   page (for an admin), to correct it later in the same box (below).
+* **«Διαγραφή»**: beside «Επεξεργασία», to remove an announcement (below). It
+  always asks first.
 
 The text is kept on the admin's own computer while it is being written, so a
 closed tab does not lose it.
@@ -30,18 +32,21 @@ closed tab does not lose it.
                                                               │   assets/img/posts/
                                                               ▼
                           workflow "publish": node tools/build.mjs ──► the page, the
-                          home page cards, the feeds, the sitemap ──► GitHub Pages
+                          home page cards, the feeds, the sitemap ──► the site, from
+                          the same workflow (step 5 below)
 
 1. The function checks that the caller is a **verified admin address** (the same
    list as everywhere else, `ADMIN_EMAILS`), cleans the text (no HTML, no
    `{{placeholders}}`), checks every picture by its first bytes and its size, and
    writes the announcement as an ordinary `_src/posts/YYYY-MM-DD-slug.md`
    (see `_src/README.md`) in **one commit** with its pictures.
-2. The workflow `.github/workflows/publish.yml` builds the pages from it and
-   commits them. GitHub Pages publishes. It is on the site **2 to 4 minutes**
-   after the button. The editor shows the address as a link at once (until the
-   page is built it may say "not found"), says when the page exists, and offers
-   «Επεξεργασία».
+2. The workflow `.github/workflows/publish.yml` builds the pages from it,
+   commits them, and **publishes the site itself**: the announcement is online
+   usually **20 to 40 seconds** after the button (this needs Pages' source set to
+   "GitHub Actions", step 5; before that GitHub publishes it on its own, about
+   two minutes later). The editor shows the address as a link at once, then asks
+   the real page every few seconds and says **«✓ … είναι online»** the moment it
+   is the version just saved; it offers «Επεξεργασία» and «Διαγραφή».
 3. The e-mail alerts pick it up from `feed.json` within two hours like any
    other announcement.
 
@@ -68,10 +73,34 @@ offered. **Editing needs the functions deployed after 5 October 2026**
 (`firebase deploy --only functions --project semfe-alumni`); until then the
 editor says exactly that.
 
-It is an ordinary file in the repository: to **remove** an announcement, delete
-its file in `_src/posts/` on github.com (the workflow rebuilds the pages: a
-deleted file takes its page, and the page's folders, with it; delete its
-pictures in `assets/img/posts/` too), or in a clone and `node tools/build.mjs`.
+**To delete an announcement**, press «Διαγραφή»: under the announcement on its
+own page (an admin sees it beside «Επεξεργασία»; it opens `blog/?delete=<its
+file>`), in the edit form, or on the panel right after sending. Nothing is
+deleted until you answer the question that names it. Then its file and its own
+pictures (`assets/img/posts/<date>-<slug>-N.*`) go in ONE commit titled
+`Announcement: delete <slug>`, and the build removes its page, its card and its
+lines in the feeds. Its card leaves the list on the page at once, and the panel
+says the moment the page answers "not found". Any announcement can be deleted,
+the older ones written by hand too. Two things it cannot undo: **e-mails already
+sent** stay sent, and a reader who saved the page keeps it. If somebody changed
+the announcement after you opened it, nothing is deleted and the editor says so.
+**Deleting needs the functions deployed after this change**
+(`firebase deploy --only functions --project semfe-alumni`); until then the
+editor says exactly that.
+
+**To bring a deleted announcement back**, revert that commit. In GitHub Desktop:
+**History**, right-click `Announcement: delete <slug>` > **Revert changes in
+commit** > **Push origin**. Or in a terminal, in the repository folder:
+
+    git pull
+    git log --oneline --grep "Announcement: delete"
+    git revert <the commit's number>
+    git push
+
+The page, its card and its pictures come back at the same address within a
+minute. It is an ordinary file in the repository, so deleting its file in
+`_src/posts/` on github.com works too (delete its pictures in
+`assets/img/posts/` as well).
 
 **If the build stops** (it should not: the text is made safe, and the checks run on
 the built site) the workflow **takes the announcement back**: a second commit
@@ -83,18 +112,16 @@ back the next ones. Nobody is e-mailed about it. The editor then shows
 
 The editor commits into the repository named by `PUBLISH_REPO`, which is
 `semfealumni/semfealumni.github.io`, and since 5 October 2026 https://semfealumni.gr/
-is served from that repository. So an announcement is on the site 2 to 4 minutes
-after the button, and **it is real**: the members who chose that kind of alert
+is served from that repository. So an announcement is on the site within a
+minute of the button, and **it is real**: the members who chose that kind of alert
 are e-mailed about it within two hours. A **test announcement** therefore reaches
 people too: make one only if you accept that. Delete it at once if it was a test
-(its `.md` file in `_src/posts/` and its pictures in `assets/img/posts/`: see
-"It is an ordinary file in the repository" above); an e-mail already sent cannot
-be recalled.
+(«Διαγραφή» under it, see above); an e-mail already sent cannot be recalled.
 
 If an announcement is sent, the **publish** run is green and the page still does
 not appear, check **Settings > Pages** of the repository: the source must be
-`main`, folder `/ (root)`, and the custom domain `semfealumni.gr`
-(MOVE-TO-ORG.md, Part C).
+**GitHub Actions** (step 5; or, the older way, "Deploy from a branch", `main`,
+folder `/ (root)`), and the custom domain `semfealumni.gr` (MOVE-TO-ORG.md, Part C).
 
 ## Switching it on (15 minutes, once)
 
@@ -139,8 +166,8 @@ On your computer, in the repository folder. Check two things first.
 
 **Where the folder pulls from.** `git remote -v` must show
 `https://github.com/semfealumni/semfealumni.github.io` for `origin`. If it shows
-the old repository (`konstantinosStouras/semfealumni`), point it at the
-organisation:
+the old repository (`konstantinosStouras/semfealumni`, deleted on 5 October
+2026, so a pull from it fails), point it at the organisation:
 
     git remote set-url origin https://github.com/semfealumni/semfealumni.github.io
 
@@ -205,10 +232,37 @@ publishing still works. Nothing else is needed: there is no secret for it.
 
 Open https://semfealumni.gr/blog/ signed in as an admin, press **«Νέα
 ανακοίνωση»**. With no notice about the setup you are ready: write a title and a
-line, tick **Ανακοινώσεις**, **Δημοσίευση**, **Ναι**. After a few minutes the page
-exists and the editor links to it. **Delete the test announcement** afterwards
-(its `.md` file in `_src/posts/` and its pictures), because members who chose
-the alert will get an e-mail about it.
+line, tick **Ανακοινώσεις**, **Δημοσίευση**, **Ναι**. Within a minute the editor
+says «✓ Η ανακοίνωση είναι online» and links to it. **Delete the test
+announcement** right away («Διαγραφή» on its page), because members who chose
+the alert get an e-mail about it at the next run of the alerts (every two hours).
+
+### 5. Publishing in seconds: Pages' source (one setting, once)
+
+Until this is set, GitHub publishes the site by itself after every push, with a
+build of its own that queues twice: about two minutes. The `publish` workflow can
+publish the site straight away instead, in the same run that builds it:
+
+1. The repository > **Settings** > **Pages**.
+2. **Build and deployment** > **Source**: choose **GitHub Actions**.
+3. GitHub may suggest a ready-made workflow ("Static HTML", "Jekyll"):
+   **ignore it**, do not add one. The repository's own `publish` workflow is the
+   one that publishes.
+4. Nothing else changes: the custom domain `semfealumni.gr` and **Enforce HTTPS**
+   stay as they are.
+
+Check: push anything, or press «Δημοσίευση»: **Actions** > **publish** > the run
+has a green step **Publish the site**, and the run's page shows the site's
+address. Before the switch the same run says, in a note, that GitHub publishes
+the branch itself; it reads the setting on every run, so nothing in the
+repository has to change when you switch. **To go back**: Source **Deploy from a
+branch**, branch `main`, folder `/ (root)`, **Save**.
+
+What it publishes is exactly what GitHub's own build published: every file of
+the repository except names starting with `_` or `.` and the files listed under
+`exclude:` in `_config.yml` (`tools/site-files.mjs`; `node tools/site-files.mjs
+--list` prints them). The `analytics` workflow starts the `publish` workflow after
+it commits new figures, so the «Στατιστικά» page is published too.
 
 ## If something goes wrong
 
@@ -223,10 +277,13 @@ The editor says in Greek what failed; the codes behind the messages:
 | «Το GitHub είναι απασχολημένο» | someone pushed at the same moment four times in a row, or GitHub's rate limit | wait a minute and press again |
 | «Οι σύνδεσμοι πρέπει να ξεκινούν με https://» | a link such as `[text](support/)`: a relative address would be wrong at the announcement's depth | write the whole address |
 | «Μόνο οι διαχειριστές …» | the signed-in address is not a verified admin | sign in with an address of `ADMIN_EMAILS` |
-| it was sent, but never appears, and the **publish** run in **Actions** is green | the site is not served from this repository: **Settings > Pages** is not `main` / root with the custom domain | MOVE-TO-ORG.md, Part C |
+| it was sent, but never appears, and the **publish** run in **Actions** is green | the site is not served from this repository, or the run's **Publish the site** step was skipped because **Settings > Pages** is not "GitHub Actions" and GitHub's own run failed | step 5; MOVE-TO-ORG.md, Part C |
+| «Η διαγραφή χρειάζεται την ενημερωμένη υπηρεσία δημοσίευσης» | the functions were deployed before «Διαγραφή» existed | `firebase deploy --only functions --project semfe-alumni` |
+| «… άλλαξε από άλλον στο μεταξύ, και δεν διαγράφηκε» | somebody edited it after you opened it | open it again and decide again |
 | it was sent, but never appears | the build failed: open **Actions** > **publish** in the repository and read the red step | fix the file in `_src/posts/`, the workflow rebuilds |
 
-An announcement that was sent is a commit titled `Announcement: <slug>` on `main`.
+An announcement that was sent is a commit titled `Announcement: <slug>` on `main`
+(an edit too); a deleted one is `Announcement: delete <slug>`.
 
 **Visit statistics**: the page of a new announcement is counted as «other» on the
 «Στατιστικά» page until the Cloud Functions are deployed again, because

@@ -43,6 +43,7 @@ import { readFileSync, readdirSync, mkdtempSync, symlinkSync, unlinkSync, rmdirS
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { excludeList, isPublished } from './site-files.mjs';
 
 const require = createRequire(import.meta.url);
 let pw; for (const id of ['playwright', '/opt/node22/lib/node_modules/playwright']) { try { pw = require(id); break; } catch {} }
@@ -68,19 +69,9 @@ const SERVED_CONFIG = CONFIGURED
 const PROVIDERS = (C.AUTH_PROVIDERS || []).filter(k => ['google', 'facebook', 'linkedin'].includes(k));
 
 /* ---- what GitHub Pages (Jekyll) publishes --------------------------------- */
-const EXCLUDE = [];
-{
-  let inList = false;
-  for (const line of read('_config.yml').split('\n')) {
-    if (/^exclude:\s*$/.test(line)) { inList = true; continue; }
-    if (!inList) continue;
-    const m = line.match(/^\s+-\s*["']?([^"'#]+?)["']?\s*$/);
-    if (m) EXCLUDE.push(m[1].replace(/\/$/, ''));
-    else if (/^\S/.test(line)) inList = false;
-  }
-}
-const published = rel => !rel.split('/').some(s => s[0] === '.' || s[0] === '_') &&
-  !EXCLUDE.some(e => rel === e || rel.startsWith(e + '/'));
+// one rule for this test and for the publish workflow, which copies the same files (tools/site-files.mjs)
+const EXCLUDE = excludeList(ROOT);
+const published = rel => isPublished(rel, EXCLUDE);
 const PAGES = [], LEAKS = [];
 (function walk(dir, rel) {
   for (const f of readdirSync(dir, { withFileTypes: true })) {

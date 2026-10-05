@@ -1,36 +1,43 @@
-# Builds the site when its text changes. The editor on blog/ (the Cloud
-# Function publishAnnouncement, functions/announcements.js) commits a new
-# announcement as _src/posts/*.md plus its pictures in assets/img/posts/ and
-# nothing else; this workflow runs `node tools/build.mjs`, which writes the
-# page, the home page's cards, the feeds and the sitemap, and commits them.
-# GitHub Pages then publishes main by itself (a minute or two).
+# Builds the site and publishes it. The editor on blog/ (the Cloud Function
+# publishAnnouncement, functions/announcements.js) commits a new announcement as
+# _src/posts/*.md plus its pictures in assets/img/posts/ (an edit or a delete is
+# one commit the same way); this workflow runs `node tools/build.mjs`, which
+# writes the page, the home page's cards, the feeds and the sitemap, commits
+# them, and PUBLISHES the site in the same job (owner, 2026-10-05: "make it
+# appear almost instantly"): usually 20 to 40 seconds after the button.
 #
-# It is also a safety net for any change made on github.com in _src/ without
-# running the build: the generated pages follow within minutes. A build that
-# changes nothing commits nothing. Needs no secret: it only uses GITHUB_TOKEN,
-# and its own commit touches no path listed below, so it cannot start itself.
+# Publishing here needs GitHub Pages' source set to "GitHub Actions"
+# (Settings > Pages > Build and deployment). Until then GitHub's own "pages build
+# and deployment" publishes the branch after every push, a minute or two later,
+# and this job says so in a notice and publishes nothing itself: it reads the
+# source from the API on every run, so the switch needs no change here, and
+# switching back ("Deploy from a branch", main, / (root)) is the way back.
+# What is published is exactly what GitHub's Jekyll would publish
+# (tools/site-files.mjs: no _ or . names, nothing on _config.yml's exclude: list).
+#
+# It runs on EVERY push to main, because with the source on "GitHub Actions"
+# nothing else publishes: a push that changes no page just publishes the same
+# site again. The analytics workflow's own commit (made with GITHUB_TOKEN, which
+# starts no workflow) asks for a run with workflow_dispatch. A build that
+# changes nothing commits nothing. Needs no secret.
 #
 # An announcement written on the website arrives as ONE commit titled
 # "Announcement: …". The editor and the function make the text safe, but this is
 # where it is really tried: the offline checks run on the built site, and if the
 # build or a check fails, that commit is reverted (a second commit, so the history
-# says what happened) instead of leaving every later announcement stuck behind it.
+# says what happened) instead of leaving every later announcement stuck behind it;
+# nothing is published from such a run, so the site never shows it.
 # checks.yml skips such a commit, because its pages do not exist yet and a push
 # made with GITHUB_TOKEN starts no other workflow: the checks run here.
 name: publish
 on:
   push:
     branches: [main]
-    paths:
-      - '_src/**'
-      - 'assets/img/posts/**'
-      - 'tools/build.mjs'
-      - 'tools/markdown.mjs'
-      - 'tools/components.mjs'
-      - 'tools/conditions.mjs'
   workflow_dispatch:
 permissions:
   contents: write
+  pages: write          # publish the site (actions/deploy-pages)
+  id-token: write       # deploy-pages proves where it runs with an OIDC token
 concurrency:
   group: publish-${{ github.ref }}
   cancel-in-progress: false
@@ -38,6 +45,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # one job builds, commits AND publishes: a second job would wait in the queue again
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -87,3 +98,28 @@ jobs:
           done
           echo "could not push after 3 tries" >&2
           exit 1
+      - name: Where does GitHub Pages take the site from?
+        id: source
+        if: github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          t=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .build_type 2>/dev/null || echo unknown)
+          echo "build_type=$t" >> "$GITHUB_OUTPUT"
+          if [ "$t" = workflow ]; then
+            echo "Pages' source is GitHub Actions: this job publishes the site."
+          else
+            echo "::notice::GitHub Pages publishes this branch itself (source: '$t'), a minute or two after each push. Set Settings > Pages > Source to 'GitHub Actions' and this workflow publishes in seconds (ANNOUNCE-SETUP.md)."
+          fi
+      - name: Gather the published files
+        if: steps.source.outputs.build_type == 'workflow'
+        run: node tools/site-files.mjs "$RUNNER_TEMP/site"
+      - name: Upload them
+        if: steps.source.outputs.build_type == 'workflow'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/site
+      - name: Publish the site
+        id: deployment
+        if: steps.source.outputs.build_type == 'workflow'
+        uses: actions/deploy-pages@v4

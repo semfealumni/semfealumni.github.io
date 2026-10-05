@@ -33,6 +33,7 @@
  * (the earlier preview was www.stouras.com/semfealumni/).
  * Only the canonical / og:url tags use SITE_URL. */
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, unlinkSync, rmdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderMarkdown, wrapLayout, splitFrontMatter, validateFrontMatter } from './markdown.mjs';
@@ -101,6 +102,7 @@ const ICONS = {
   heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21.2l8.8-8.8a5.5 5.5 0 0 0 0-7.8z"/></svg>',
   bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10l9-6 9 6M5 10v8M9 10v8M15 10v8M19 10v8M3 21h18"/></svg>',
   phone: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6"/></svg>',
   form: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
   shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>',
@@ -166,12 +168,18 @@ function readSrc(dir) {
   const full = path.join(ROOT, '_src', dir);
   return readdirSync(full).filter(f => f.endsWith('.md')).sort().map(f => {
     const file = `${dir}/${f}`;
-    const { data, body } = splitFrontMatter(readFileSync(path.join(full, f), 'utf8'), file);
+    const raw = readFileSync(path.join(full, f), 'utf8');
+    const { data, body } = splitFrontMatter(raw, file);
     const meta = signinDeep(validateFrontMatter(data, dir === 'posts' ? 'post' : 'page', file), file);
     const html = wrapLayout(renderMarkdown(signinText(body, file), file), meta.layout, file);
-    return { file, meta, body: html.trim() };
+    return { file, meta, body: html.trim(), raw };
   });
 }
+/* The Git blob id of a source file, the id GitHub gives it: an announcement's page
+   carries it (<meta name="semfe-source">), so the editor on blog/ can tell the
+   moment the version it just saved is the one online (functions/announcements.js
+   blobId() computes the same from the text it commits). */
+const blobId = text => { const b = Buffer.from(text, 'utf8'); return createHash('sha1').update(Buffer.concat([Buffer.from('blob ' + b.length + '\0'), b])).digest('hex'); };
 
 /* ---- announcements --------------------------------------------------------- */
 const posts = readSrc('posts').map(p => {
@@ -211,7 +219,7 @@ function head(page, root) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(title)}</title>
   <meta name="description" content="${esc(desc)}">
-  <link rel="canonical" href="${url}">
+${page.isPost ? `  <meta name="semfe-source" content="${blobId(page.raw)}">\n` : ''}  <link rel="canonical" href="${url}">
 ${noindex ? '  <meta name="robots" content="noindex">\n' : ''}  <meta property="og:type" content="${page.isPost ? 'article' : 'website'}">
   <meta property="og:site_name" content="SEMFE Alumni">
   <meta property="og:locale" content="el_GR">
@@ -405,8 +413,11 @@ function renderRaw(page) {
     const i = posts.indexOf(page);
     const newer = posts[i - 1], older = posts[i + 1];
     const nav = `<nav class="post-nav" aria-label="Άλλες ανακοινώσεις">${older ? `<a class="prev" href="${root}${older.path}"><small>← Προηγούμενη</small>${esc(older.meta.title)}</a>` : '<span></span>'}${newer ? `<a class="next" href="${root}${newer.path}"><small>Επόμενη →</small>${esc(newer.meta.title)}</a>` : ''}</nav>`;
-    // «Επεξεργασία», for an admin only (auth.js shows [data-admin-only]): opens this announcement in the editor on blog/
-    const edit = `<p class="post-admin" data-admin-only hidden><a class="btn btn-outline btn-sm" href="${root}blog/?edit=${encodeURIComponent(page.file.split('/').pop())}">${ICONS.form} Επεξεργασία</a></p>`;
+    // «Επεξεργασία» and «Διαγραφή», for an admin only (auth.js shows [data-admin-only]): both open the editor
+    // on blog/, which loads this announcement and, for a delete, asks before anything is removed
+    const name = encodeURIComponent(page.file.split('/').pop());
+    const edit = `<p class="post-admin" data-admin-only hidden><a class="btn btn-outline btn-sm" href="${root}blog/?edit=${name}">${ICONS.form} Επεξεργασία</a> ` +
+      `<a class="btn btn-danger btn-sm" href="${root}blog/?delete=${name}">${ICONS.trash} Διαγραφή</a></p>`;
     main = `<section class="tight"><div class="wrap"><article class="prose">\n${fill(page.body, root, page)}\n</article>\n${edit}\n${nav}</div></section>`;
   } else {
     main = fill(page.body, root, page);

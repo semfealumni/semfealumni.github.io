@@ -191,8 +191,14 @@ function jpegSize(b) {
   const cats = [...new Set(T.TOPICS.filter(x => x.source === 'posts').map(x => x.category))].sort();
   if (JSON.stringify([...A.CATEGORIES].sort()) !== JSON.stringify(cats)) fail(`the editor offers ${A.CATEGORIES} but the e-mail alerts cover ${cats}: announce-text.js and alert-topics.js must name the same categories`);
   const wf = read('.github/workflows/publish.yml');
-  if (!/_src\/\*\*/.test(wf) || !/node tools\/build\.mjs/.test(wf) || !/assets\/img\/posts\/\*\*/.test(wf)) fail('.github/workflows/publish.yml must run node tools/build.mjs when _src/** or assets/img/posts/** change');
-  ok(`announcement editor: rules shared with the Cloud Function, categories ${cats.join(' + ')}, publish workflow in place`);
+  // it runs on EVERY push to main (with Pages' source on "GitHub Actions" it is the only thing that publishes),
+  // builds, and publishes exactly what tools/site-files.mjs lists
+  const pushBlock = (wf.match(/\n  push:\n((?:    .*\n)+)/) || [, ''])[1];
+  if (!/branches: \[main\]/.test(pushBlock) || /paths(-ignore)?:/.test(pushBlock)) fail('.github/workflows/publish.yml must run on every push to main (no paths: filter): it is what publishes the site');
+  if (!/node tools\/build\.mjs/.test(wf)) fail('.github/workflows/publish.yml must run node tools/build.mjs');
+  if (!/node tools\/site-files\.mjs/.test(wf) || !/actions\/upload-pages-artifact@/.test(wf) || !/actions\/deploy-pages@/.test(wf)) fail('.github/workflows/publish.yml must publish the files of tools/site-files.mjs (upload-pages-artifact + deploy-pages)');
+  if (!/gh workflow run publish\.yml/.test(read('.github/workflows/analytics.yml'))) fail('.github/workflows/analytics.yml must start the publish workflow after its commit (a GITHUB_TOKEN push starts none)');
+  ok(`announcement editor: rules shared with the Cloud Function, categories ${cats.join(' + ')}, publish workflow builds and publishes on every push`);
 }
 
 /* 3c. «Στατιστικά»: the profile answers are the same everywhere, the two

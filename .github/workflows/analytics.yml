@@ -32,6 +32,7 @@ on:
         default: false
 permissions:
   contents: write
+  actions: write        # start the publish workflow after a new file (a GITHUB_TOKEN push starts none by itself)
 concurrency:
   group: analytics-${{ github.ref }}
   cancel-in-progress: false
@@ -62,6 +63,7 @@ jobs:
         if: github.ref_name == 'main' && !inputs.dry_run && !inputs.scan
         run: node tools/build-analytics.mjs --selftest
       - name: Commit
+        id: commit
         if: github.ref_name == 'main' && !inputs.dry_run && !inputs.scan
         run: |
           set -e
@@ -76,8 +78,14 @@ jobs:
           # nothing else writes this file, so a rejected push only means
           # someone else pushed meanwhile: take their tip and put it on top
           for i in 1 2 3; do
-            if git push origin "HEAD:$GITHUB_REF_NAME"; then exit 0; fi
+            if git push origin "HEAD:$GITHUB_REF_NAME"; then echo "pushed=1" >> "$GITHUB_OUTPUT"; exit 0; fi
             git pull --rebase origin "$GITHUB_REF_NAME"
           done
           echo "::error::could not push after three tries"
           exit 1
+      - name: Publish it
+        # with Pages' source on "GitHub Actions" the publish workflow is what puts the new file online
+        if: steps.commit.outputs.pushed == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run publish.yml --ref "$GITHUB_REF_NAME"
