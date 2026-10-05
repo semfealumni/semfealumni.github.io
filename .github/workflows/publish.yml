@@ -1,0 +1,89 @@
+# Builds the site when its text changes. The editor on blog/ (the Cloud
+# Function publishAnnouncement, functions/announcements.js) commits a new
+# announcement as _src/posts/*.md plus its pictures in assets/img/posts/ and
+# nothing else; this workflow runs `node tools/build.mjs`, which writes the
+# page, the home page's cards, the feeds and the sitemap, and commits them.
+# GitHub Pages then publishes main by itself (a minute or two).
+#
+# It is also a safety net for any change made on github.com in _src/ without
+# running the build: the generated pages follow within minutes. A build that
+# changes nothing commits nothing. Needs no secret: it only uses GITHUB_TOKEN,
+# and its own commit touches no path listed below, so it cannot start itself.
+#
+# An announcement written on the website arrives as ONE commit titled
+# "Announcement: …". The editor and the function make the text safe, but this is
+# where it is really tried: the offline checks run on the built site, and if the
+# build or a check fails, that commit is reverted (a second commit, so the history
+# says what happened) instead of leaving every later announcement stuck behind it.
+# checks.yml skips such a commit, because its pages do not exist yet and a push
+# made with GITHUB_TOKEN starts no other workflow: the checks run here.
+name: publish
+on:
+  push:
+    branches: [main]
+    paths:
+      - '_src/**'
+      - 'assets/img/posts/**'
+      - 'tools/build.mjs'
+      - 'tools/markdown.mjs'
+      - 'tools/components.mjs'
+      - 'tools/conditions.mjs'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Build
+        run: node tools/build.mjs
+      - name: Check the built site (announcements written on the website)
+        if: startsWith(github.event.head_commit.message, 'Announcement:')
+        run: node tools/check.mjs
+      - name: Take the announcement back (it did not build or did not pass the checks)
+        if: failure() && startsWith(github.event.head_commit.message, 'Announcement:')
+        run: |
+          set -e
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git reset --hard HEAD && git clean -fdq          # whatever the failed build left
+          git revert --no-edit "$GITHUB_SHA"
+          for i in 1 2 3; do
+            if git push origin "HEAD:$GITHUB_REF_NAME"; then exit 0; fi
+            git pull --rebase origin "$GITHUB_REF_NAME"
+          done
+          exit 1
+      - name: Commit the pages
+        run: |
+          set -e
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "the pages already match _src/."
+            exit 0
+          fi
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Build the pages from _src/'
+          # somebody (or the editor) may have pushed meanwhile: take their
+          # tip, build again on top of it, and push; three tries
+          for i in 1 2 3; do
+            if git push origin "HEAD:$GITHUB_REF_NAME"; then exit 0; fi
+            git fetch origin "$GITHUB_REF_NAME"
+            git reset --hard "origin/$GITHUB_REF_NAME"
+            node tools/build.mjs
+            if [ -z "$(git status --porcelain)" ]; then echo "nothing left to build."; exit 0; fi
+            git add -A
+            git commit -m 'Build the pages from _src/'
+          done
+          echo "could not push after 3 tries" >&2
+          exit 1

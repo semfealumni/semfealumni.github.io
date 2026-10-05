@@ -1,0 +1,318 @@
+rules_version = '2';
+
+// SEMFE Alumni: Cloud Firestore security rules.
+//
+// These rules are the real gatekeeper. The pages only decide what to SHOW;
+// what anyone may READ or WRITE is decided here, on Google's servers.
+//
+//   members/{uid}    one membership application per account.
+//                    The account owner writes their own details; only an
+//                    admin can change status / duesYears / adminNote.
+//                    Readable by its owner and by admins, nobody else.
+//   directory/{uid}  the small card shown in the members-only directory.
+//                    Written by its owner ONLY while their membership is
+//                    active, under the name on their approved application;
+//                    readable only by active members and admins.
+//   linkedinLinks/   which account a LinkedIn profile signs in to. Written
+//                    only by the linkedinSignIn Cloud Function (Admin SDK,
+//                    which bypasses these rules); no browser may touch it.
+//   feedback/{ticket} a message from the Σχόλια page, its id the ticket number
+//                    the sender sees, and its screenshots in shots/{1..5}.
+//                    The sender may create them and read them; admins read,
+//                    close, reopen and delete.
+//   publicStats/{id} the members' ANONYMOUS statistics for the «Στατιστικά»
+//                    page (publicStats/members): anyone may read, only the
+//                    memberStats Cloud Function and the analytics workflow
+//                    (Admin SDK) write.
+//   siteVisits/{day} the site's own visit counters, written only by the
+//                    recordVisit Cloud Function and read only by the
+//                    analytics workflow; no browser touches them.
+//
+// Everything else is denied.
+//
+// Deploy (always name the project):
+//   firebase deploy --only firestore:rules --project <your-project-id>
+// or paste this file into Firebase console > Firestore Database > Rules > Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- who is asking -------------------------------------------------
+    function signedIn() { return request.auth != null; }
+
+    // KEEP IN SYNC with ADMIN_EMAILS in assets/js/config.js
+    // (node tools/check.mjs fails when the two lists differ).
+    // (.get() because a token may carry no e-mail at all, e.g. some LinkedIn
+    // or Facebook sign-ins; such a token is simply not an admin)
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.get('email_verified', false) == true
+        && request.auth.token.get('email', '').lower() in ['kstouras@gmail.com', 'gradsemfe@gmail.com'];
+    }
+
+    function memberPath(uid) { return /databases/$(database)/documents/members/$(uid); }
+    function isActiveMember() {
+      return signedIn()
+        && exists(memberPath(request.auth.uid))
+        && get(memberPath(request.auth.uid)).data.status == 'active';
+    }
+
+    // Who may apply: an ALLOW-list of the sign-in methods the site offers.
+    //   google.com, facebook.com, oidc.linkedin (LINKEDIN.mode 'oidc');
+    //   custom WITH the li claim (LINKEDIN.mode 'function', functions/linkedin.js);
+    //   password once the address is verified, or when the account also has
+    //   Google / Facebook / LinkedIn linked (what account.js needsEmailCheck()
+    //   assumes). Anonymous, phone and any other custom token are refused.
+    // KEEP 'oidc.linkedin' IN SYNC with LINKEDIN.providerId in assets/js/config.js.
+    function vouchedProviders() { return ['google.com', 'facebook.com', 'oidc.linkedin']; }
+    function emailConfirmed() {
+      let p = request.auth.token.firebase.sign_in_provider;
+      return p in vouchedProviders()
+        || (p == 'custom' && request.auth.token.get('li', false) == true)
+        || (p == 'password'
+            && (request.auth.token.get('email_verified', false) == true
+                || request.auth.token.firebase.identities.keys().hasAny(vouchedProviders())));
+    }
+
+    // ---- field checks ----------------------------------------------------
+    function str(v, max) { return v is string && v.size() <= max; }
+    function name(v) { return v is string && v.size() > 0 && v.size() <= 80; }
+    function year(v) { return v == null || (v is int && v >= 1950 && v <= 2100); }
+
+    function profileKeys() {
+      return ['firstName', 'lastName', 'email', 'phone', 'stage', 'entryYear', 'gradYear',
+              'direction', 'employer', 'position', 'city', 'linkedin',
+              'consentNewsletter', 'consentJobs', 'consentDirectory', 'note',
+              'acceptedPrivacy', 'provider', 'createdAt', 'updatedAt'];
+    }
+    function adminKeys() { return ['status', 'duesYears', 'adminNote', 'reviewedAt', 'reviewedBy']; }
+    // OPTIONAL answers, counted only anonymously on the «Στατιστικά» page.
+    // Optional in the rules too: a page loaded before they existed saves
+    // without them. KEEP IN SYNC with GENDERS and INDUSTRIES in
+    // assets/js/profile-options.js (tools/check.mjs fails when they differ).
+    function optionalKeys() { return ['gender', 'industry', 'country']; }
+    function genders() { return ['female', 'male', 'other', 'na']; }
+    function industries() {
+      return ['academia', 'education', 'studies', 'software', 'data', 'telecom', 'finance', 'insurance',
+              'consulting', 'energy', 'manufacturing', 'engineering', 'health', 'pharma', 'defence',
+              'transport', 'public', 'commerce', 'media', 'other'];
+    }
+    function optionalOk(d) {
+      return (d.get('gender', '') == '' || d.get('gender', '') in genders())
+        && (d.get('industry', '') == '' || d.get('industry', '') in industries())
+        && d.get('country', '') is string && d.get('country', '').matches('([A-Z]{2})?');
+    }
+
+    // duesYears: each admin write may add at most ONE year, and it must be a
+    // real year. Only admins ever write the list, so it only ever holds years.
+    function duesOk(d) {
+      let added = d.duesYears.removeAll(resource.data.get('duesYears', []));
+      return d.duesYears is list && d.duesYears.size() <= 100 && added.size() <= 1
+        && (added.size() == 0 || (added[0] is int && added[0] >= 1950 && added[0] <= 2100));
+    }
+
+    function validProfile(d) {
+      return name(d.firstName) && name(d.lastName)
+        && str(d.email, 200) && str(d.phone, 40)
+        && d.stage in ['graduate', 'final-year', 'faculty']
+        && year(d.entryYear) && year(d.gradYear)
+        && str(d.direction, 60) && str(d.employer, 120) && str(d.position, 120)
+        && str(d.city, 80) && str(d.linkedin, 200) && str(d.note, 1000)
+        && d.consentNewsletter is bool && d.consentJobs is bool && d.consentDirectory is bool
+        && d.acceptedPrivacy == true
+        && str(d.provider, 40)
+        && optionalOk(d);
+    }
+
+    // ---- membership applications ----------------------------------------
+    match /members/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+
+      // the owner applies: every profile field present, status starts 'pending'
+      allow create: if signedIn() && request.auth.uid == uid && emailConfirmed()
+        && request.resource.data.keys().hasOnly(profileKeys().concat(optionalKeys()).concat(['status']))
+        && request.resource.data.keys().hasAll(profileKeys())
+        && validProfile(request.resource.data)
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      // the owner edits their details; the admin fields and createdAt are
+      // untouchable, and once the application has been reviewed the vetted
+      // name is frozen (the directory shows it; to change it, the admin sets
+      // the application back to pending)
+      allow update: if signedIn() && request.auth.uid == uid && emailConfirmed()
+        && request.resource.data.keys().hasOnly(profileKeys().concat(optionalKeys()).concat(adminKeys()))
+        && validProfile(request.resource.data)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(adminKeys().concat(['createdAt']))
+        && (resource.data.status == 'pending'
+            || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['firstName', 'lastName']))
+        && request.resource.data.updatedAt == request.time;
+
+      // an admin reviews: only the admin fields change
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(adminKeys())
+        && request.resource.data.status in ['pending', 'active', 'rejected']
+        && (!('duesYears' in request.resource.data) || duesOk(request.resource.data))
+        && (!('adminNote' in request.resource.data) || str(request.resource.data.adminNote, 500))
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.reviewedBy == request.auth.token.email;
+
+      // the owner may delete their application (with their account); so may an admin
+      allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // ---- members-only directory ------------------------------------------
+    match /directory/{uid} {
+      allow read: if isActiveMember() || isAdmin();
+
+      allow create, update: if signedIn() && request.auth.uid == uid && isActiveMember()
+        && request.resource.data.keys().hasOnly(['name', 'gradYear', 'direction', 'employer', 'position', 'city', 'linkedin', 'updatedAt'])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 161
+        && request.resource.data.name == get(memberPath(uid)).data.firstName + ' ' + get(memberPath(uid)).data.lastName
+        && year(request.resource.data.gradYear)
+        && str(request.resource.data.direction, 60) && str(request.resource.data.employer, 120)
+        && str(request.resource.data.position, 120) && str(request.resource.data.city, 80)
+        && str(request.resource.data.linkedin, 200)
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // ---- e-mail alerts (account/ > «Ειδοποιήσεις με e-mail») ----------------
+    // One document per member: the kinds of news they want by e-mail.
+    // KEEP IN SYNC with KEYS and DOC_KEYS in assets/js/alert-topics.js
+    // (tools/check.mjs fails when they differ). Only a registered member (one
+    // with an application) may choose, and the address is pinned to their
+    // CONFIRMED sign-in e-mail, so no one can sign someone else up. `k`, the
+    // key of the stop link in the e-mails, is written only by the Cloud
+    // Function (functions/alerts.js); the member may keep it, never change it.
+    function alertTopics() { return ['announcements', 'events', 'site']; }
+    function alertsOk(d) {
+      return d.topics is list && d.topics.size() <= 10 && d.topics.hasOnly(alertTopics())
+        && d.email is string && d.email.size() >= 3 && d.email.size() <= 200
+        && d.email == request.auth.token.get('email', '')
+        && d.updatedAt == request.time;
+    }
+    match /alertPrefs/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if signedIn() && request.auth.uid == uid && emailConfirmed() && exists(memberPath(uid))
+        && request.resource.data.keys().hasOnly(['topics', 'email', 'updatedAt'])
+        && alertsOk(request.resource.data);
+      allow update: if signedIn() && request.auth.uid == uid && emailConfirmed() && exists(memberPath(uid))
+        && request.resource.data.keys().hasOnly(['topics', 'email', 'updatedAt', 'k'])
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['k'])
+        && alertsOk(request.resource.data);
+      allow delete: if signedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // ---- feedback (the Σχόλια page) --------------------------------------
+    // One document per message; its id is the ticket number the sender sees
+    // (SEMFE-YYMMDD-XXXX). Any signed-in account may send one, as itself and
+    // with its own sign-in e-mail (or none): the feedback function writes
+    // only to that address, and only when the token says it is confirmed, so
+    // this cannot be used to send mail to someone else.
+    // The screenshots (JPEG data URLs, up to 5) are NOT in the ticket: each is
+    // its own document, feedback/{ticket}/shots/{1..5}, written in the SAME
+    // batch that creates the ticket (and never after). The ticket stays small,
+    // because the Cloud Function's trigger events carry at most 512 KB and an
+    // update event carries the ticket twice.
+    // The feedback Cloud Function and the GitHub sync (Admin SDK, not bound by
+    // these rules) keep their own bookkeeping fields on the ticket.
+    function fbKeys() {
+      return ['ticket', 'uid', 'email', 'emailVerified', 'name', 'kind', 'message',
+              'page', 'shots', 'ua', 'status', 'createdAt'];
+    }
+    function fbShot(v) { return v is string && v.size() <= 400000 && v.matches('data:image/jpeg;base64,[A-Za-z0-9+/=]+'); }
+    function fbNew(d, ticket) {
+      return d.keys().hasAll(fbKeys()) && d.keys().hasOnly(fbKeys())
+        && d.ticket == ticket && d.uid == request.auth.uid
+        && d.email == request.auth.token.get('email', '')
+        && d.emailVerified == (request.auth.token.get('email_verified', false) == true)
+        && str(d.name, 120)
+        && d.kind in ['problem', 'idea', 'other']
+        && d.message is string && d.message.size() > 0 && d.message.size() <= 5000
+        && str(d.page, 500) && str(d.ua, 400)
+        && d.shots is int && d.shots >= 0 && d.shots <= 5
+        && d.status == 'open' && d.createdAt == request.time;
+    }
+    function fbPath(ticket) { return /databases/$(database)/documents/feedback/$(ticket); }
+    match /feedback/{ticket} {
+      allow create: if signedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && ticket.matches('SEMFE-[0-9]{6}-[A-Z0-9]{4}')
+        && fbNew(request.resource.data, ticket);
+      allow read: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+      allow update: if isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['status', 'resolution', 'resolutionUrl', 'resolvedAt', 'resolvedBy'])
+        && request.resource.data.status in ['open', 'closed']
+        && str(request.resource.data.get('resolution', ''), 5000)
+        && str(request.resource.data.get('resolutionUrl', ''), 500);
+      allow delete: if isAdmin();
+
+      match /shots/{n} {
+        // only in the batch that creates the ticket (it does not exist yet,
+        // and will once the batch lands), by its sender, numbered 1..shots
+        allow create: if signedIn()
+          && n in ['1', '2', '3', '4', '5']
+          && !exists(fbPath(ticket))
+          && getAfter(fbPath(ticket)).data.uid == request.auth.uid
+          && int(n) <= getAfter(fbPath(ticket)).data.shots
+          && request.resource.data.keys().hasOnly(['url'])
+          && fbShot(request.resource.data.url);
+        allow read: if isAdmin() || (signedIn() && get(fbPath(ticket)).data.uid == request.auth.uid);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // ---- «Τι νέο»: the admins' decisions about changelog.json -----------
+    // changelog.json (in the repository) lists what changed, as suggestions;
+    // one document per entry here says what an admin decided:
+    // status 'approved' (public), 'pending' (admins only), 'removed', plus an
+    // optional rewording. Anyone may READ (whats-new/ shows visitors the
+    // approved ones without signing in); only an admin decides. The keys are
+    // DOC_KEYS in assets/js/news.js (tools/check.mjs keeps the two equal).
+    match /newsOverrides/{id} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && id.matches('[a-z0-9][a-z0-9-]{0,79}')
+        && request.resource.data.keys().hasOnly(['status', 'title', 'summary', 't', 'by'])
+        && request.resource.data.status in ['approved', 'pending', 'removed']
+        && (!('title' in request.resource.data) || str(request.resource.data.title, 200))
+        && (!('summary' in request.resource.data) || str(request.resource.data.summary, 2000))
+        && request.resource.data.t == request.time
+        && request.resource.data.by == request.auth.token.email;
+      allow delete: if isAdmin();
+    }
+
+    // ---- the «Στατιστικά» page ---------------------------------------------
+    // The members' anonymous statistics: one document, counted by the server
+    // (functions/member-stats.js), readable by anyone, written by no browser.
+    match /publicStats/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+    // The visit counters: server only, in both directions.
+    match /siteVisits/{day} {
+      allow read, write: if false;
+    }
+
+    // ---- LinkedIn links: server only -------------------------------------
+    match /linkedinLinks/{sub} {
+      allow read, write: if false;
+    }
+
+    // ---- the log of merged accounts: server only ------------------------
+    // Written by the `accounts` Cloud Function (Admin SDK, which these rules
+    // do not bind) each time two accounts become one. No browser reads it.
+    match /accountMerges/{id} {
+      allow read, write: if false;
+    }
+    // the same function's "one merge at a time" locks (a few seconds each)
+    match /mergeLocks/{uid} {
+      allow read, write: if false;
+    }
+  }
+}

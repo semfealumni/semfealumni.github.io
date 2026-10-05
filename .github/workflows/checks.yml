@@ -1,0 +1,33 @@
+# Read-only checks on every push and pull request. Nothing here deploys:
+# GitHub Pages publishes main by itself, and Firebase is deployed by hand
+# (see FIREBASE-SETUP.md).
+name: checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    # an announcement committed by the editor on blog/ has no built pages yet:
+    # the publish workflow builds them and runs these checks itself (a commit it
+    # makes with GITHUB_TOKEN starts no other workflow, so the checks cannot run here)
+    if: ${{ !startsWith(github.event.head_commit.message, 'Announcement:') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      # pages match _src/, links resolve, share card, admin list in sync, deploy guards
+      - run: node tools/check.mjs
+      # how _src/ pages are read: Markdown dialect, the YAML blocks, front matter (offline)
+      - run: node tools/md-selftest.mjs
+      # the Cloud Functions (LinkedIn sign-in, the accounts list and merge,
+      # the feedback e-mails, the Στατιστικά counters), against fakes (no install needed)
+      - run: npm test
+        working-directory: functions
+      # the feedback resolution files and the ticket log (offline)
+      - run: node tools/feedback-sync.mjs --selftest
+      # the Στατιστικά builder and the shape of data/analytics.json (offline)
+      - run: node tools/build-analytics.mjs --selftest

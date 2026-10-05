@@ -1,0 +1,98 @@
+# The Σχόλια tickets, outside Firebase (tools/feedback-sync.mjs):
+#  - closes the tickets named by files in _feedback-resolutions/ (the feedback
+#    Cloud Function then e-mails each sender the answer);
+#  - copies every ticket into the PRIVATE log repository, so they can be read
+#    and acted on from GitHub.
+# Until the secrets exist (FEEDBACK-SETUP.md) it does nothing and says so.
+#   secrets.FIREBASE_SERVICE_ACCOUNT  the JSON key of a Firebase service account
+#   secrets.FEEDBACK_LOG_TOKEN        a token that may push to the log repository
+#   vars.FEEDBACK_LOG_REPO            owner/name of that PRIVATE repository
+# Each part runs even when another fails (a bad resolution file, an expired
+# log token); the last step then fails the run so the problem is seen.
+name: feedback
+on:
+  schedule:
+    - cron: '23,53 * * * *'
+  push:
+    branches: [main]
+    paths: ['_feedback-resolutions/**', 'tools/feedback-sync.mjs']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: feedback-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # only flags here: the key itself is given to the two steps that use it
+      HAS_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+      HAS_LOG: ${{ secrets.FEEDBACK_LOG_TOKEN != '' && vars.FEEDBACK_LOG_REPO != '' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Check the resolution files
+        id: scan
+        continue-on-error: true
+        run: node tools/feedback-sync.mjs --scan
+      - name: Not set up yet
+        if: env.HAS_KEY != 'true'
+        run: echo "::notice::FIREBASE_SERVICE_ACCOUNT is not set, so nothing is synced (FEEDBACK-SETUP.md, step 3)."
+      - name: Install firebase-admin
+        if: env.HAS_KEY == 'true'
+        run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+        working-directory: functions
+      - name: Close tickets from _feedback-resolutions/
+        id: close
+        if: env.HAS_KEY == 'true'
+        continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node tools/feedback-sync.mjs --close
+      - name: Check out the private log
+        id: log
+        if: env.HAS_KEY == 'true' && env.HAS_LOG == 'true'
+        continue-on-error: true
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ vars.FEEDBACK_LOG_REPO }}
+          token: ${{ secrets.FEEDBACK_LOG_TOKEN }}
+          path: _log
+      - name: Copy every ticket into the log
+        id: mirror
+        if: steps.log.outcome == 'success'
+        continue-on-error: true
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node tools/feedback-sync.mjs --mirror --log _log
+      # The log is ONE snapshot commit, replaced each time something changes:
+      # a ticket deleted from the admin page (or with its sender's account)
+      # must not live on in the log's history.
+      - name: Push the log
+        id: push
+        if: steps.mirror.outcome == 'success'
+        continue-on-error: true
+        working-directory: _log
+        run: |
+          git config user.name "semfe-feedback-bot"
+          git config user.email "semfe-feedback-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          branch=$(git rev-parse --abbrev-ref HEAD)
+          git checkout -q --orphan snapshot
+          git commit -q -m "Feedback tickets (a snapshot: earlier versions are not kept)"
+          git push -q -f origin HEAD:"$branch"
+      - name: Report
+        if: always()
+        run: |
+          fail=0
+          [ "${{ steps.scan.outcome }}" = "failure" ] && { echo "::error::a file in _feedback-resolutions/ is not valid (see the first step)"; fail=1; }
+          [ "${{ steps.close.outcome }}" = "failure" ] && { echo "::error::closing tickets failed (see that step)"; fail=1; }
+          [ "${{ steps.log.outcome }}" = "failure" ] && { echo "::error::the log repository could not be checked out: is FEEDBACK_LOG_TOKEN expired, or FEEDBACK_LOG_REPO wrong?"; fail=1; }
+          [ "${{ steps.mirror.outcome }}" = "failure" ] && { echo "::error::copying the tickets failed (see that step)"; fail=1; }
+          [ "${{ steps.push.outcome }}" = "failure" ] && { echo "::error::pushing the log failed: does the token have Contents read and write?"; fail=1; }
+          exit $fail

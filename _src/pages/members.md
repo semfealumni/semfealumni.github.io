@@ -1,0 +1,23 @@
+---
+path: members/
+nav: ""
+subnav: members
+firestore: true
+noindex: true
+scripts: [profile-options.js, members.js]
+title: Περιοχή μελών
+description: "Η περιοχή μόνο για μέλη του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ: η ιδιότητά σας και ο κατάλογος μελών."
+hero:
+  eyebrow: Μόνο για μέλη
+  title: Περιοχή μελών
+  lede: "Για τα ενεργά μέλη του Συλλόγου: η συνδρομή σας και ο κατάλογος μελών."
+crumbs:
+  - [Περιοχή μελών, null]
+---
+
+<section class="tight">
+  <div class="wrap" id="members-app">
+    <noscript><div class="notice warn"><strong>Χρειάζεται JavaScript</strong><p>Η περιοχή μελών λειτουργεί μόνο με ενεργοποιημένη JavaScript.</p></div></noscript>
+    <div class="loading"><span class="spinner" aria-hidden="true"></span>Φόρτωση…</div>
+  </div>
+</section>

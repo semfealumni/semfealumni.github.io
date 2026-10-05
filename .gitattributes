@@ -1,0 +1,5 @@
+# One line ending everywhere, whatever the computer that checked the files out
+# (a Windows checkout would otherwise turn them into CRLF, and the checksums of
+# tools/vendor/ and the "pages match _src/" check would fail).
+* text=auto eol=lf
+tools/vendor/* -text
