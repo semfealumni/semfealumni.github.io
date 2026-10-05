@@ -242,11 +242,17 @@ step 2 of the day deleted).
   **`semfealumni/semfealumni-feedback-log`**. Making it independent of the old
   account, in this order (steps 1 to 4 belong to Part B, so do them **before
   the day**; only step 5 waits, until after "A week later"):
-  1. The organisation's copy was created as a **fork** of the personal one.
-     **Deleting a private repository also deletes its private forks**, so cut it
-     loose first: its **Settings > General > Danger Zone > Leave fork network**.
-     The log itself is rebuilt from the database on every run (one snapshot
-     commit, replaced each time), so nothing is lost either way.
+  1. The organisation's first copy was created as a **fork** of the personal
+     one, and GitHub cannot detach a private fork ("Leave fork network" is
+     greyed out: only public forks can be detached). **Deleting a private
+     repository also deletes its private forks**, so the personal one could never
+     be deleted safely while the fork exists. So replace the fork with a plain
+     repository: delete the fork (Settings > General > Danger Zone > **Delete
+     this repository**; this does not touch the personal one), then create
+     https://github.com/organizations/semfealumni/repositories/new : name
+     `semfealumni-feedback-log`, **Private**, tick **Add a README file**,
+     **Create repository**. Nothing is lost: the log is rebuilt from the
+     database on every run (one snapshot commit, replaced each time).
   2. Make a fine-grained token (ANNOUNCE-SETUP.md step 1, with a different
      name such as `SEMFE feedback log`): resource owner **semfealumni**, only
      the repository `semfealumni-feedback-log`, **Contents: Read and write**.
@@ -256,6 +262,6 @@ step 2 of the day deleted).
      Part B); the org log shows a new "Feedback tickets (a snapshot…)" commit.
   5. Only then delete the personal repository
      `konstantinosStouras/semfealumni-feedback-log`, after checking that the
-     organisation's copy no longer says "forked from" under its name.
+     organisation's new repository does not say "forked from" under its name.
 * **Old links**: see "A week later": archiving alone does not unpublish a Pages
   site.

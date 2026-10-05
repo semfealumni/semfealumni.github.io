@@ -96,11 +96,12 @@ by Claude.
    `semfealumni-feedback-log`, **Private**, tick "Add a README file",
    **Create repository**.
 
-   *Note: the existing one was created as a **fork** of the old personal copy
-   `konstantinosStouras/semfealumni-feedback-log`. If its page still says "forked
-   from" under the name, detach it first (Settings > General > Danger Zone >
-   **Leave fork network**), because deleting a private repository also deletes
-   its private forks: MOVE-TO-ORG.md, Part D, "The private feedback log".*
+   *Note: the first copy in the organisation was created as a **fork** of the
+   old personal copy `konstantinosStouras/semfealumni-feedback-log`. GitHub
+   cannot detach a private fork, and deleting a private repository also deletes
+   its private forks, so delete that fork and create the repository afresh as
+   above (nothing is lost: the log is rebuilt from the database on every run):
+   MOVE-TO-ORG.md, Part D, "The private feedback log".*
 2. **A token that may write to it**: https://github.com/settings/personal-access-tokens/new
    * Token name: `SEMFE feedback log`; Expiration: 1 year, or the longest the
      organisation allows (put a reminder in your calendar to renew it; see
