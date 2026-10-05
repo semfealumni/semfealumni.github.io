@@ -11,7 +11,7 @@
 
   function html(s) { app.innerHTML = s; }
   function locked(title, body, actions) {
-    html('<div class="panel" style="max-width:720px"><span class="lock-ic">' +
+    html('<div class="panel"><span class="lock-ic">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>' +
       '<h2 style="margin-top:14px">' + title + '</h2>' + body + (actions ? '<div class="section-foot" style="margin-top:8px">' + actions + '</div>' : '') + '</div>');
     app.querySelectorAll('[data-open]').forEach(function (b) { b.addEventListener('click', function (e) { A.open(b.getAttribute('data-open'), e.currentTarget); }); });

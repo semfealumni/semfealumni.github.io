@@ -89,12 +89,30 @@ h2 { font-size: clamp(1.6rem, 3.6vw, 2.35rem); font-weight: 800; }
 h3 { font-size: 1.18rem; font-weight: 800; }
 h4 { font-size: 1.02rem; font-weight: 700; }
 p { margin: 0 0 1em; text-wrap: pretty; }   /* no single word left alone on the last line (where supported) */
+/* Running text fills its box and lines up on both sides, on every page and
+   at every width (owner, 2026-10-05: "any text on the website should extend
+   all the way to the right and justified"). Words break at syllables (every
+   page says lang="el"), so the spaces in a justified line stay even, on a
+   phone too. All three rules have no weight (:where), so any class that sets
+   its own alignment (a date on the right, a centred band) still wins. */
+:where(main, .site-footer) :where(p, li, dd, blockquote, figcaption, .notice, .stat .label) {
+  text-align: justify; -webkit-hyphens: auto; hyphens: auto;
+}
+/* ...never a title: a heading or a summary inside a list item keeps its own
+   alignment and is never cut at a syllable */
+:where(main, .site-footer) :where(li, blockquote, figcaption) :where(h1, h2, h3, h4, h5, h6, summary),
+:where(.milestones strong, .milestones .when) {
+  text-align: start; -webkit-hyphens: manual; hyphens: manual;
+}
+/* ...and a row of buttons is spaced by its own gaps, never stretched apart;
+   nor is the short label of a card that is itself a button («Όποιο ποσό
+   επιθυμείτε» would be two words pushed to the two edges) */
+:where(main, .site-footer) :where(p:has(> .btn, > button), li:has(> .btn, > button), a.card p) { text-align: start; }
 ul, ol { padding-left: 1.3em; }
 strong { font-weight: 800; }
 mark { background: var(--gold-soft); color: inherit; padding: 0 .2em; border-radius: 4px; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
 .wrap { width: 92%; width: min(var(--max), calc(100% - 40px)); margin: 0 auto; }
-.narrow { max-width: 760px; }
 .skip { position: absolute; left: -999px; top: 8px; background: var(--gold); color: var(--navy-ink); padding: 8px 14px; border-radius: 8px; z-index: 200; font-weight: 800; }
 .skip:focus { left: 8px; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
@@ -372,7 +390,7 @@ html.hdr-measure .site-header, html.hdr-measure .site-header * { transition: non
 }
 .hero .wrap { position: relative; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 48px; align-items: center; }
 .hero h1 .accent { color: var(--gold); }
-.hero .lede { font-size: 1.14rem; max-width: 36em; color: rgba(255,255,255,.88); }
+.hero .lede { font-size: 1.14rem; color: rgba(255,255,255,.88); }
 .hero .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
 .hero-art { display: grid; place-items: center; }
 .hero-logo {
@@ -424,7 +442,7 @@ html.hdr-measure .site-header, html.hdr-measure .site-header * { transition: non
 /* on the narrowest phones a long Greek word («εκλογοαπολογιστική») must fit a
    line whole, not break in the middle */
 @media (max-width: 380px) { .page-hero h1 { font-size: 1.5rem; } .hero h1 { font-size: 1.75rem; } }
-.page-hero .lede { color: rgba(255,255,255,.86); max-width: 44em; margin: 0; font-size: 1.08rem; }
+.page-hero .lede { color: rgba(255,255,255,.86); margin: 0; font-size: 1.08rem; }
 .crumbs { font-size: .88rem; margin-bottom: 14px; color: rgba(255,255,255,.75); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .crumbs a { color: rgba(255,255,255,.9); display: inline-block; padding: 9px 0; }
 .crumbs span[aria-hidden] { opacity: .6; }
@@ -438,7 +456,7 @@ section.dark { background: #0a2240; color: #fff; }
 section.dark a:not(.btn) { color: var(--gold); }
 .eyebrow { display: inline-block; font-size: .78rem; letter-spacing: .2em; text-transform: uppercase; font-weight: 800; color: var(--navy); margin-bottom: 12px; }
 .dark .eyebrow, .hero .eyebrow, .page-hero .eyebrow { color: var(--gold); }
-.section-head { max-width: 46em; margin-bottom: 36px; }
+.section-head { margin-bottom: 36px; }
 .section-head p { color: var(--muted); font-size: 1.06rem; }
 .dark .section-head p { color: rgba(255,255,255,.8); }
 .section-foot { margin-top: 32px; display: flex; flex-wrap: wrap; gap: 12px; }
@@ -485,7 +503,7 @@ section.dark a:not(.btn) { color: var(--gold); }
 /* the statute's aims as a list that opens one at a time (like the FAQ on
    operationsacademia.org): a number, a short title, a plus that turns into a
    minus; the statute's own words inside */
-.qa { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; max-width: 880px; }
+.qa { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 .qa details { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .qa details[open] { box-shadow: var(--shadow); }
 .qa summary {
@@ -513,7 +531,6 @@ section.dark a:not(.btn) { color: var(--gold); }
 /* «Τι νέο» (whats-new/, news-page.js): a dated list on a thin line; for an
    admin, what waits for approval in a box above it and the removed ones in a
    closed box below */
-.news { max-width: 820px; }
 .news-note:empty { display: none; }
 .news-note { margin: 0 0 18px; }
 .news-h { font-size: 1.2rem; margin: 0 0 16px; }
@@ -600,20 +617,12 @@ section.dark a:not(.btn) { color: var(--gold); }
 .follow-links { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* long-form content (announcements, legal pages, about text) */
-.prose { max-width: 760px; }
-/* the legal pages (privacy, terms, data deletion): the text fills the page
-   and is aligned on both sides; words break at syllables (lang="el") so the
-   spaces stay even. On a phone a line holds too few words to justify well,
-   so it stays aligned left there. */
-.prose.wide { max-width: none; }
-@media (min-width: 640px) {
-  .prose.wide p, .prose.wide li { text-align: justify; -webkit-hyphens: auto; hyphens: auto; }
-  .prose.wide .muted { text-align: left; }
-}
+/* long text fills the page like every other block of text (the rules after
+   the one for p, above); a picture narrower than the text sits in the middle */
 .prose h2 { font-size: clamp(1.4rem, 3vw, 1.8rem); margin-top: 1.6em; }
 .prose h3 { margin-top: 1.4em; }
 .prose > :first-child { margin-top: 0; }
-.prose img { border-radius: var(--radius-sm); margin: 20px 0; box-shadow: var(--shadow); }
+.prose img { border-radius: var(--radius-sm); margin: 20px auto; box-shadow: var(--shadow); }
 .prose blockquote { margin: 20px 0; padding: 14px 20px; border-left: 4px solid var(--gold); background: var(--mist); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
 .prose blockquote p:last-child { margin: 0; }
 .prose li + li { margin-top: 6px; }
@@ -625,7 +634,7 @@ section.dark a:not(.btn) { color: var(--gold); }
 .video iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
 .video::before { content: 'Το βίντεο φορτώνει από το YouTube…'; position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; color: rgba(255,255,255,.7); font-weight: 700; padding: 16px; text-align: center; }
 @supports not (aspect-ratio: 1 / 1) { .video { height: 0; padding-bottom: 56.25%; } }
-.post-nav { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 44px; max-width: 760px; }
+.post-nav { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 44px; }
 .post-nav a { display: block; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius-sm); text-decoration: none; background: var(--surface); }
 .post-nav small { display: block; color: var(--muted); font-weight: 700; }
 li, .stat .label, .post-nav a, .card p { text-wrap: pretty; }
@@ -820,7 +829,6 @@ table.data tr.picked td { background: var(--sky); }
 .keep-opt { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
 .keep-opt input { width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: var(--navy); }
 .keep-opt:has(input:checked) { border-color: var(--navy); box-shadow: 0 0 0 1px var(--navy) inset; }
-.users-panel .intro { max-width: 80ch; }
 .linked svg { width: 20px; height: 20px; }
 .dir-tools { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
 .dir-tools .field { flex: 1 1 220px; }
@@ -856,7 +864,7 @@ table.data .acts-in .btn { flex: 1 1 auto; justify-content: center; }
 /* final cta */
 .cta { text-align: center; padding: 88px 0; }
 .cta h2 { color: #fff; }
-.cta p { color: rgba(255,255,255,.84); max-width: 36em; margin: 0 auto 26px; }
+.cta p { color: rgba(255,255,255,.84); max-width: 36em; margin: 0 auto 26px; text-align: center; }   /* centred on purpose, like its title and buttons */
 .cta .actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
 
 /* social */
@@ -883,6 +891,9 @@ table.data .acts-in .btn { flex: 1 1 auto; justify-content: center; }
 .footer-brand { display: flex; gap: 12px; align-items: flex-start; }
 .footer-brand img { width: 46px; height: 46px; border-radius: 50%; background: #fff; padding: 3px; flex: none; }
 .footer-brand p { margin: 0; }
+/* the name is a title on its own line, never stretched; the line under it is justified */
+.footer-brand p strong { display: block; text-align: start; }
+.footer-brand p strong + br { display: none; }
 .footer-social { display: flex; gap: 8px; margin-top: 14px; }
 .footer-social a { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.08); }
 .footer-social svg { width: 20px; height: 20px; color: #fff; }
@@ -896,7 +907,6 @@ table.data .acts-in .btn { flex: 1 1 auto; justify-content: center; }
 /* ---------- feedback: the Σχόλια page and the admin inbox ---------- */
 .fb-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 24px; align-items: start; }
 @media (max-width: 900px) { .fb-grid { grid-template-columns: minmax(0, 1fr); } }
-.fb-signin { max-width: 680px; }
 .fb-kinds { display: flex; flex-wrap: wrap; gap: 8px; }
 .fb-kinds legend { margin-bottom: 4px; }
 .fb-kind { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 14px; border: 1.5px solid var(--field-line); border-radius: 999px; cursor: pointer; font-weight: 700; font-size: .95rem; }
@@ -984,7 +994,7 @@ body.modal-open .to-top { display: none; }
    square at the baseline; grid lines recede. */
 .an { display: grid; gap: 56px; }
 .an-part > h2 { margin: 0 0 10px; }
-.an-lead { color: var(--muted); max-width: 820px; margin: 0 0 16px; }
+.an-lead { color: var(--muted); margin: 0 0 16px; }
 .an-range { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
 .an-period { color: var(--muted); font-size: .9rem; font-weight: 600; margin: 0 0 16px; }
 .an-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 0 0 18px; }

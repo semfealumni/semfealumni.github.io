@@ -31,7 +31,7 @@
     users = null; usersErr = null; picked = []; merging = false; uMsg = null;
     if (!A.configured) return html('<div class="notice warn"><strong>Η σύνδεση μελών δεν έχει ενεργοποιηθεί ακόμα.</strong><p>Δείτε το FIREBASE-SETUP.md.</p></div>');
     if (!u) {
-      html('<div class="panel" style="max-width:640px"><h2>Μόνο για διαχειριστές</h2><p>Συνδεθείτε με τον λογαριασμό διαχειριστή.</p><button type="button" class="btn btn-primary" data-open>Σύνδεση</button></div>');
+      html('<div class="panel"><h2>Μόνο για διαχειριστές</h2><p>Συνδεθείτε με τον λογαριασμό διαχειριστή.</p><button type="button" class="btn btn-primary" data-open>Σύνδεση</button></div>');
       app.querySelector('[data-open]').addEventListener('click', function (e) { A.open('signin', e.currentTarget); });
       return;
     }
