@@ -7,8 +7,8 @@ with an application (pending or active) ticks the kinds of news they want:
 
 | Kind | What is mailed | Where it comes from |
 |---|---|---|
-| Ανακοινώσεις του Συλλόγου | a new announcement | a post in `_src/posts/` with `"category": "Ανακοινώσεις"` |
-| Εκδηλώσεις και συναντήσεις | a new event or meet-up | a post with `"category": "Εκδηλώσεις"` |
+| Ανακοινώσεις του Συλλόγου | a new announcement | a post in `_src/posts/` with `category: Ανακοινώσεις` |
+| Εκδηλώσεις και συναντήσεις | a new event or meet-up | a post with `category: Εκδηλώσεις` |
 | Νέα του ιστότοπου | a site change | a «Τι νέο» entry, once an admin **approves** it |
 
 The e-mails go to the member's confirmed sign-in e-mail. One e-mail per member

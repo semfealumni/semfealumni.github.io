@@ -17,6 +17,8 @@ jobs:
           node-version: 24
       # pages match _src/, links resolve, share card, admin list in sync, deploy guards
       - run: node tools/check.mjs
+      # how _src/ pages are read: Markdown dialect, the YAML blocks, front matter (offline)
+      - run: node tools/md-selftest.mjs
       # the Cloud Functions (LinkedIn sign-in, the accounts list and merge,
       # the feedback e-mails, the Στατιστικά counters), against fakes (no install needed)
       - run: npm test

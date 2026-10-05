@@ -2,6 +2,8 @@
 /* Offline checks. Run before every commit:  node tools/check.mjs
    Fails (exit 1) on a real defect:
      - a page on disk differs from what _src/ builds (run node tools/build.mjs)
+     - a file in _src/pages or _src/posts that is not a .md page, or a vendored
+       Markdown/YAML library whose checksum no longer matches tools/vendor/README.md
      - a link or image on any page points at a file that does not exist
      - the share card: not exactly one og:image, declared size != real JPEG size,
        over 300 KB, og:* written with name= or twitter:* with property=
@@ -16,6 +18,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 const require = createRequire(import.meta.url);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,6 +32,22 @@ const C = new Function('window', read('assets/js/config.js') + '; return window.
 /* 1. generated pages are up to date */
 try { execFileSync(process.execPath, [path.join(ROOT, 'tools/build.mjs'), '--check'], { stdio: 'pipe' }); ok('built pages match _src/'); }
 catch (e) { fail('built pages differ from _src/ — run: node tools/build.mjs\n' + String(e.stdout || '')); }
+
+/* 1b. _src/ holds Markdown pages only, and the two libraries that read them are the ones committed */
+{
+  const stray = ['pages', 'posts'].flatMap(d => readdirSync(path.join(ROOT, '_src', d)).filter(f => !f.endsWith('.md')).map(f => `_src/${d}/${f}`));
+  if (stray.length) fail(`_src/pages and _src/posts take .md files only (YAML front matter + Markdown, see _src/README.md); found: ${stray.join(', ')}`);
+  else ok('_src/ holds only .md pages');
+  const table = read('tools/vendor/README.md');
+  let wrong = 0;
+  for (const name of ['markdown-it.esm.min.mjs', 'js-yaml.esm.min.mjs']) {
+    const want = (table.match(new RegExp('^\\s+([0-9a-f]{64})\\s+' + name.replace(/\./g, '\\.') + '$', 'm')) || [])[1];
+    const have = createHash('sha256').update(readFileSync(path.join(ROOT, 'tools/vendor', name))).digest('hex');
+    if (!want) { wrong++; fail(`tools/vendor/README.md lists no SHA-256 for ${name}`); }
+    else if (want !== have) { wrong++; fail(`tools/vendor/${name} was changed (SHA-256 ${have.slice(0, 12)}…, the README says ${want.slice(0, 12)}…); update both together, see the README`); }
+  }
+  if (!wrong) ok('vendored Markdown and YAML libraries match their checksums');
+}
 
 /* collect the served HTML pages (skip _src, tools, node_modules, dot dirs) */
 const pages = [];
@@ -223,7 +242,7 @@ function jpegSize(b) {
    pages long after it was left out). Comments are not text a visitor reads. */
 {
   const HAND_LIST = /(Google|Facebook)(, | ή (με )?)(Facebook|LinkedIn|e-mail)|(Google|Facebook|LinkedIn) ή (με )?(<strong>)?e-mail/;
-  const srcs = readdirSync(path.join(ROOT, '_src/pages')).filter(f => f.endsWith('.html')).map(f => '_src/pages/' + f)
+  const srcs = readdirSync(path.join(ROOT, '_src/pages')).filter(f => f.endsWith('.md')).map(f => '_src/pages/' + f)
     .concat(readdirSync(path.join(ROOT, 'assets/js')).filter(f => f.endsWith('.js') && f !== 'config.js').map(f => 'assets/js/' + f));
   let typed = 0;
   for (const f of srcs) {

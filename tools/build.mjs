@@ -5,22 +5,28 @@
  *   node tools/build.mjs --check  write nothing; exit 1 if any page on disk
  *                                 differs from what _src/ would produce
  *
- * No dependencies. The output is committed, so GitHub Pages serves plain files
+ * No npm install: the Markdown and YAML readers it needs are committed in
+ * tools/vendor/. The output is committed, so GitHub Pages serves plain files
  * and needs no build step of its own.
  *
- * _src/pages/*.html   one file per page: a META block, then the page body
- * _src/posts/*.html   one file per announcement, same shape
+ * _src/pages/*.md   one file per page: YAML front matter, then the page body
+ * _src/posts/*.md   one file per announcement, same shape
  *
- * The META block is JSON inside an HTML comment at the very top:
- *   <!--META { "path": "governance/", "title": "Διοίκηση", ... } META-->
- * Inside a body you may write:
+ * The front matter is YAML between two "---" lines at the very top:
+ *   ---
+ *   path: governance/
+ *   title: Διοίκηση
+ *   ---
+ * and the body is Markdown (tools/markdown.mjs: the dialect, tools/components.mjs:
+ * the ```{people} blocks and their kin). Raw HTML is allowed for the layout of a
+ * designed page. Inside a body you may write:
  *   {{root}}        the relative way back to the site root ("../../")
  *   {{icon:NAME}}   an inline SVG icon from ICONS below
  *   {{latest}}      the three newest announcements as cards (home page)
  *   {{posts}}       every announcement as cards (the announcements page)
  *   {{signin}}, {{signin-social}}, <!--if:KEY-->…<!--/if:KEY-->
  *                   the sign-in methods the site offers (see below); these
- *                   work in the META block too
+ *                   work in the front matter too
  *
  * Every link the site writes is RELATIVE, so the same files work at
  * stouras.com/semfealumni/ today and at the root of semfealumni.gr later.
@@ -28,6 +34,8 @@
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderMarkdown, wrapLayout, splitFrontMatter } from './markdown.mjs';
+import { applyConditions } from './conditions.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CHECK = process.argv.includes('--check');
@@ -61,14 +69,15 @@ const orList = names => names.length < 2 ? (names[0] || '') : `${names.slice(0, 
 const SIGNIN_SOCIAL = orList(OFFERED.map(k => PROVIDER_NAMES[k]));
 const SIGNIN_ALL = orList(OFFERED.map(k => PROVIDER_NAMES[k]).concat('e-mail'));
 function signinText(s, file) {
-  return s
-    .replace(/<!--if:([a-z]+)-->([\s\S]*?)<!--\/if:\1-->/g, (m, k, inner) => {
-      if (k !== 'social' && !PROVIDER_NAMES[k]) throw new Error(`${file}: unknown condition <!--if:${k}-->`);
-      return (k === 'social' ? OFFERED.length > 0 : OFFERED.includes(k)) ? signinText(inner, file) : '';
-    })
+  return applyConditions(s, file, k => {
+    if (k !== 'social' && !PROVIDER_NAMES[k]) throw new Error(`${file}: unknown condition <!--if:${k}-->`);
+    return k === 'social' ? OFFERED.length > 0 : OFFERED.includes(k);
+  })
     .replace(/\{\{signin\}\}/g, SIGNIN_ALL)
     .replace(/\{\{signin-social\}\}/g, SIGNIN_SOCIAL);
 }
+/* the same for every text in the front matter (a description may say {{signin}}) */
+const signinDeep = (v, file) => typeof v === 'string' ? signinText(v, file) : Array.isArray(v) ? v.map(x => signinDeep(x, file)) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, signinDeep(x, file)])) : v;
 
 /* ---- icons (stroke icons drawn on a 24px grid; brand marks filled) --------- */
 const ICONS = {
@@ -153,13 +162,12 @@ const greekDate = iso => { const [y, m, d] = iso.split('-').map(Number); return 
 
 function readSrc(dir) {
   const full = path.join(ROOT, '_src', dir);
-  return readdirSync(full).filter(f => f.endsWith('.html')).sort().map(f => {
-    const raw = signinText(readFileSync(path.join(full, f), 'utf8'), `${dir}/${f}`);   // META too
-    const m = raw.match(/^\s*<!--META([\s\S]*?)META-->/);
-    if (!m) throw new Error(`${dir}/${f}: missing <!--META {...} META--> block`);
-    let meta;
-    try { meta = JSON.parse(m[1]); } catch (e) { throw new Error(`${dir}/${f}: META is not valid JSON (${e.message})`); }
-    return { file: `${dir}/${f}`, meta, body: raw.slice(m[0].length).trim() };
+  return readdirSync(full).filter(f => /\.md$/i.test(f)).sort().map(f => {
+    const file = `${dir}/${f}`;
+    const { data, body } = splitFrontMatter(readFileSync(path.join(full, f), 'utf8'), file);
+    const meta = signinDeep(data, file);
+    const html = wrapLayout(renderMarkdown(signinText(body, file), file), meta.layout, file);
+    return { file, meta, body: html.trim() };
   });
 }
 

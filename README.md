@@ -16,8 +16,8 @@ as they are here; there is nothing to install to publish it.
 ## What is here
 
     index.html, */index.html   the pages (GENERATED from _src/, do not edit by hand)
-    _src/pages/*.html          the text of each page
-    _src/posts/*.html          the announcements (Ανακοινώσεις)
+    _src/pages/*.md            the text of each page: YAML front matter + Markdown (see _src/README.md)
+    _src/posts/*.md            the announcements (Ανακοινώσεις), same shape
     assets/css/site.css        the one stylesheet (colours at the top)
     assets/js/config.js        the settings: Firebase config, sign-in buttons, admin e-mails
     assets/js/site.js          menu, motion (gliding links, counting numbers, fade-ins), photo viewer, copy buttons, announcement filter
@@ -48,32 +48,34 @@ as they are here; there is nothing to install to publish it.
 
 ## Editing a page
 
-1. Edit the page's file in `_src/pages/` (for example `_src/pages/governance.html`).
+1. Edit the page's file in `_src/pages/` (for example `_src/pages/governance.md`).
 2. Run `node tools/build.mjs` to regenerate the served pages.
 3. Run `node tools/check.mjs` (links, share card, admin list, everything in sync).
 4. Commit and push. GitHub Pages republishes in a minute or two.
 
-Each source file starts with a small `<!--META {...} META-->` block (title,
-description, address). Inside the text, `{{root}}` stands for the way back
-to the site root, so links keep working wherever the site is hosted.
+Each source file is **YAML front matter + Markdown**: a few `key: value` lines
+between two `---` lines (title, description, address), then the text. A list of
+people, documents, photos or dates is a short YAML block instead of HTML. The
+whole format, with examples, is in **[_src/README.md](_src/README.md)**. Inside
+the text, `{{root}}` stands for the way back to the site root, so links keep
+working wherever the site is hosted.
 
 ## Adding an announcement
 
-Copy one of the files in `_src/posts/`, rename it `YYYY-MM-DD-slug.html`, and
-change the META block:
+Copy one of the files in `_src/posts/`, rename it `YYYY-MM-DD-slug.md`, and
+change the front matter:
 
-```html
-<!--META
-{
-  "title": "Πρόσκληση για Κοπή Πίτας στις 27 Φεβρουαρίου 2026",
-  "date": "2026-02-11",
-  "slug": "2026-kopi-pitas",
-  "category": "Ανακοινώσεις",
-  "image": "2026-kopi-pitas.jpg",
-  "description": "Μία πρόταση που εμφανίζεται στην κάρτα της ανακοίνωσης."
-}
-META-->
-<p>Το κείμενο της ανακοίνωσης…</p>
+```markdown
+---
+title: Πρόσκληση για Κοπή Πίτας στις 27 Φεβρουαρίου 2026
+date: 2026-02-11
+slug: 2026-kopi-pitas
+category: Ανακοινώσεις
+image: 2026-kopi-pitas.jpg
+description: Μία πρόταση που εμφανίζεται στην κάρτα της ανακοίνωσης.
+---
+
+Το κείμενο της ανακοίνωσης…
 ```
 
 `category` is `Ανακοινώσεις` or `Εκδηλώσεις`, and it also decides **who is

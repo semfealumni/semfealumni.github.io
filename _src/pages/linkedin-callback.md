@@ -1,0 +1,19 @@
+---
+path: auth/linkedin/
+noTrack: true
+noindex: true
+firestore: false
+scripts: [linkedin-callback.js]
+title: Σύνδεση με LinkedIn
+description: Ολοκλήρωση της σύνδεσης με LinkedIn στον ιστότοπο του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ.
+hero:
+  eyebrow: Λογαριασμός
+  title: Σύνδεση με LinkedIn
+---
+
+<section class="tight">
+  <div class="wrap" id="li-app" aria-live="polite">
+    <div class="loading"><span class="spinner" aria-hidden="true"></span>Ολοκληρώνεται η σύνδεση με LinkedIn…</div>
+    <noscript><div class="notice warn"><strong>Χρειάζεται JavaScript</strong><p>Η σύνδεση λειτουργεί μόνο με ενεργοποιημένη JavaScript.</p></div></noscript>
+  </div>
+</section>

@@ -8,9 +8,14 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
 
 ## Pages are generated
 
-* Edit `_src/pages/*.html` and `_src/posts/*.html`, then run
-  `node tools/build.mjs` and commit the regenerated HTML WITH the source.
-  `node tools/check.mjs` fails when the two differ (CI runs it on every push).
+* Edit `_src/pages/*.md` and `_src/posts/*.md` (YAML front matter + Markdown,
+  with short YAML blocks for the repeated lists; the format is in
+  `_src/README.md`), then run `node tools/build.mjs` and commit the regenerated
+  HTML WITH the source. `node tools/check.mjs` fails when the two differ (CI
+  runs it on every push). The Markdown and YAML readers are vendored in
+  `tools/vendor/` (no `npm install`; check.mjs pins their checksums), the dialect
+  is `tools/markdown.mjs`, the YAML blocks `tools/components.mjs`, and
+  `node tools/md-selftest.mjs` tests them. Never edit the generated HTML.
 * Header, footer, menu and page heads come from `tools/build.mjs`.
 * **The logo's name is never cut short.** "ΣΥΛΛΟΓΟΣ ΔΙΠΛΩΜΑΤΟΥΧΩΝ" above
   "ΣΕΜΦΕ ΕΜΠ" is part of the logo: when the header slims on scroll
@@ -53,7 +58,7 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   the move). The build writes `CNAME` and `robots.txt` ONLY when `siteUrl` is
   the root of a domain; a `CNAME` here while the site is a preview would move
   it. Old addresses of the association's earlier site are kept alive by
-  `LEGACY` in `tools/build.mjs` and the script in `_src/pages/404.html`.
+  `LEGACY` in `tools/build.mjs` and the script in `_src/pages/404.md`.
 * Do **not** add a `.nojekyll` file: Jekyll keeps `_src/` off the web and
   `_config.yml` excludes the maintenance files.
 
