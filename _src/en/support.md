@@ -49,6 +49,7 @@ To become a member of the Association of SEMFE Graduates and get access to the m
     <h3>You fill in the membership application</h3>
     <div data-apply-online hidden>
       <p>Create an account with <strong>{{signin}}</strong> and fill in your details in the <strong>membership application</strong>. From the same account you can later see the status of your membership.</p>
+      <p>If you create the account with an e-mail address and password, we first send you an e-mail: press its link to confirm your address, and then you sign in as usual.</p>
       <p><a class="btn btn-dark" href="{{root}}account/#apply">Create an account and apply</a></p>
     </div>
     <div data-apply-legacy>

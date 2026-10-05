@@ -27,7 +27,23 @@
  * refuses one written by hand on GitHub and says where to change it instead);
  * «Αποθήκευση αλλαγών» sends it back (action "update"): the same address, the
  * published pictures kept, one commit, no e-mail again. An edit keeps no draft
- * on this device, and leaves the draft of a new announcement where it was. */
+ * on this device, and leaves the draft of a new announcement where it was.
+ *
+ * Deleting one (owner, 2026-10-05): «Διαγραφή» on the announcement's own page
+ * (blog/?delete=FILE) or in the edit form. The editor reads it back (action
+ * "load", which also answers for one written by hand), asks, and only then sends
+ * action "delete": its file and its own pictures go in one commit, and the
+ * build drops its page, its card and its feed entries. Its card leaves the list
+ * on this page at once.
+ *
+ * How soon it is online (owner, 2026-10-05: "make it appear almost instantly"):
+ * the publish workflow builds AND publishes, usually well under a minute
+ * (.github/workflows/publish.yml). The success panel does not guess: it asks the
+ * real page every few seconds until it carries the version just saved (the
+ * build writes its Git blob id into <meta name="semfe-source">, the function
+ * returns the same id), or until a deleted page answers "not found", and then
+ * refreshes this browser's copy of the page, the list and the home page, so
+ * that the link never shows a stale copy from the browser's cache. */
 (function () {
   'use strict';
   var L = window.SEMFE_I18N, T = L.t;
@@ -43,7 +59,10 @@
   var figures = [], cover = 0, state = { title: '', category: AN.CATEGORIES[0], description: '', body: '' };
   var busy = false, tab = 'write', tips = false, md = null, poll = null, droppedPictures = false;
   var edit = null;                                       // while editing a published one: { file, sha, url, date, slug, raw }
-  var pendingEdit = (function () { try { var f = new URLSearchParams(location.search).get('edit'); return /^\d{4}-\d{2}-\d{2}-[a-z0-9_-]+\.md$/.test(f || '') ? f : null; } catch (e) { return null; } })();
+  var FILE_OK = /^\d{4}-\d{2}-\d{2}-[a-z0-9_-]+\.md$/;
+  function asked(name) { try { var f = new URLSearchParams(location.search).get(name); return FILE_OK.test(f || '') ? f : null; } catch (e) { return null; } }
+  var pendingEdit = asked('edit'), pendingDelete = pendingEdit ? null : asked('delete');
+  var doomed = null;                                     // the one being deleted: { file, sha, url, title }
 
   /* ---- messages ---------------------------------------------------------- */
   var CODES = {
@@ -106,7 +125,11 @@
     'slug-bad': T('Η διεύθυνση της ανακοίνωσης δεν είναι έγκυρη.',
       'The announcement\'s address is not valid.'),
     'edit-not-deployed': T('Η επεξεργασία χρειάζεται την ενημερωμένη υπηρεσία δημοσίευσης. Τρέξτε μία φορά: firebase deploy --only functions --project semfe-alumni (ANNOUNCE-SETUP.md).',
-      'Editing needs the updated publishing service. Run once: firebase deploy --only functions --project semfe-alumni (ANNOUNCE-SETUP.md).')
+      'Editing needs the updated publishing service. Run once: firebase deploy --only functions --project semfe-alumni (ANNOUNCE-SETUP.md).'),
+    'delete-not-deployed': T('Η διαγραφή χρειάζεται την ενημερωμένη υπηρεσία δημοσίευσης. Τρέξτε μία φορά: firebase deploy --only functions --project semfe-alumni (ANNOUNCE-SETUP.md).',
+      'Deleting needs the updated publishing service. Run once: firebase deploy --only functions --project semfe-alumni (ANNOUNCE-SETUP.md).'),
+    'delete-changed': T('Η ανακοίνωση άλλαξε από άλλον στο μεταξύ, και δεν διαγράφηκε. Ανοίξτε την ξανά, δείτε τι άλλαξε και αποφασίστε πάλι.',
+      'Someone else changed the announcement in the meantime, and it was not deleted. Open it again, see what changed and decide once more.')
   };
   function explain(e) {
     var c = (e && e.code) || '';
@@ -125,9 +148,15 @@
     if (!url || !L.en || !/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !/^[a-z0-9_-]+$/.test(slug || '')) return url;
     try { return new URL(L.home + AN.pathOf(date, slug), location.href).href; } catch (e) { return url; }
   }
+  /* the same from the announcement's file name (YYYY-MM-DD-slug.md): the answers to "load" and
+     "delete" carry no date and slug of their own */
+  function fileUrl(url, file) {
+    var m = /^(\d{4}-\d{2}-\d{2})-([a-z0-9_-]+)\.md$/.exec(file || '');
+    return m ? pageUrl(url, m[1], m[2]) : url;
+  }
 
   /* a repaint replaces the elements: remember which control had the focus and give it back */
-  var FOCUS_ATTRS = ['id', 'data-del', 'data-put', 'data-cover', 'data-size', 'data-alt', 'data-send', 'data-cancel', 'data-yes', 'data-no', 'data-tool', 'data-tips', 'data-tab', 'data-edit-file'];
+  var FOCUS_ATTRS = ['id', 'data-del', 'data-put', 'data-cover', 'data-size', 'data-alt', 'data-send', 'data-cancel', 'data-yes', 'data-no', 'data-tool', 'data-tips', 'data-tab', 'data-edit-file', 'data-delete-file', 'data-del-yes'];
   function focusKey() {
     var a = document.activeElement;
     if (!a || a === document.body || !box.contains(a)) return null;
@@ -422,10 +451,15 @@
     var a = $('[data-actions]'); if (!a) return;
     var key = focusKey(); setTimeout(function () { restoreFocus(key); }, 0);
     if (busy) { a.innerHTML = '<p class="muted"><span class="spinner" aria-hidden="true"></span>' + (edit ? T('Αποθήκευση…', 'Saving…') : T('Δημοσίευση…', 'Publishing…')) + '</p>'; return; }
+    if (edit && a.getAttribute('data-confirm') === 'delete') {
+      a.innerHTML = T('<p><strong>Να διαγραφεί αυτή η ανακοίνωση;</strong> ', '<p><strong>Delete this announcement?</strong> ') + deleteWarning() + '</p>' +
+        '<p class="section-foot"><button type="button" class="btn btn-danger" data-del-yes>' + T('Ναι, διαγραφή', 'Yes, delete') + '</button> <button type="button" class="btn btn-outline" data-no>' + T('Όχι, πίσω', 'No, go back') + '</button></p>';
+      return;
+    }
     if (a.getAttribute('data-confirm')) {
       a.innerHTML = (edit
-        ? T('<p><strong>Να αποθηκευτούν οι αλλαγές;</strong> Η σελίδα της ανακοίνωσης θα αλλάξει σε 2 με 4 λεπτά. Δεν στέλνεται ξανά e-mail.</p>',
-            '<p><strong>Save the changes?</strong> The announcement\'s page will change in 2 to 4 minutes. No e-mail is sent again.</p>') +
+        ? T('<p><strong>Να αποθηκευτούν οι αλλαγές;</strong> Η σελίδα της ανακοίνωσης θα αλλάξει μέσα σε λίγα δευτερόλεπτα. Δεν στέλνεται ξανά e-mail.</p>',
+            '<p><strong>Save the changes?</strong> The announcement\'s page will change within a few seconds. No e-mail is sent again.</p>') +
           '<p class="section-foot"><button type="button" class="btn btn-primary" data-yes>' + T('Ναι, αποθήκευση', 'Yes, save') + '</button> <button type="button" class="btn btn-outline" data-no>' + T('Όχι, πίσω', 'No, go back') + '</button></p>'
         : T('<p><strong>Να δημοσιευτεί τώρα;</strong> Η ανακοίνωση θα μπει στον ιστότοπο και θα σταλεί e-mail στα μέλη που επέλεξαν «' + esc(state.category) + '».</p>',
             '<p><strong>Publish now?</strong> The announcement will go on the site and an e-mail will be sent to the members who chose “' + esc(categoryLabel(state.category)) + '”.</p>') +
@@ -433,44 +467,165 @@
       return;
     }
     a.innerHTML = '<p class="section-foot"><button type="submit" class="btn btn-primary" data-send' + (ready === true ? '' : ' disabled') + '>' + (edit ? T('Αποθήκευση αλλαγών', 'Save changes') : T('Δημοσίευση', 'Publish')) + '</button> ' +
-      '<button type="button" class="btn btn-outline" data-cancel>' + T('Ακύρωση', 'Cancel') + '</button></p>' +
-      (edit ? '' : '<p class="muted ed-after">' + T('Μετά τη δημοσίευση μπορείτε να τη διορθώσετε με το κουμπί «Επεξεργασία» στη σελίδα της. Για να σβήσετε μια ανακοίνωση, σβήστε το αρχείο της στο GitHub (',
-        'After publishing you can correct it with the Edit button on its page. To delete an announcement, delete its file on GitHub (') + '<code>_src/posts/</code>).</p>');
+      '<button type="button" class="btn btn-outline" data-cancel>' + T('Ακύρωση', 'Cancel') + '</button>' +
+      (edit ? ' <button type="button" class="btn btn-danger ed-delete" data-delete-ask>' + T('Διαγραφή', 'Delete') + '</button>' : '') + '</p>' +
+      (edit ? '' : '<p class="muted ed-after">' + T('Μετά τη δημοσίευση μπορείτε να τη διορθώσετε ή να τη διαγράψετε με τα κουμπιά «Επεξεργασία» και «Διαγραφή» στη σελίδα της.',
+        'After publishing you can correct it or delete it with the Edit and Delete buttons on its page.') + '</p>');
   }
-  function done(res) {
-    clearTimeout(poll); poll = null;
-    var url = String((res && res.url) || ''), file = String((res && res.file) || ''), edited = !!(res && res.edited), same = !!(res && res.unchanged);
-    if (!/^https?:\/\//.test(url)) url = '';
-    url = pageUrl(url, res && res.date, res && res.slug);
-    if (!/^\d{4}-\d{2}-\d{2}-[a-z0-9_-]+\.md$/.test(file)) file = '';
-    open = true; box.hidden = false; bar.setAttribute('aria-expanded', 'true');             // the panel must be seen even if the box was collapsed meanwhile
-    // the address is a link at once (owner, 2026-10-05); until the site is rebuilt it may still show the page as it was, or "not found"
-    box.innerHTML = '<section class="panel ed" aria-labelledby="ed-h"><h2 id="ed-h" tabindex="-1">' + (edited ? T('Οι αλλαγές αποθηκεύτηκαν', 'The changes were saved') : T('Η ανακοίνωση στάλθηκε', 'The announcement was sent')) + '</h2>' +
-      (same ? '<div class="notice"><strong>' + T('Δεν άλλαξε τίποτα.', 'Nothing changed.') + '</strong><p>' + T('Η ανακοίνωση είναι ήδη έτσι στον ιστότοπο.', 'The announcement is already like this on the site.') + '</p></div>'
-        : '<div class="notice ok"><strong>' + T('Ο ιστότοπος ενημερώνεται.', 'The site is being updated.') + '</strong><p>' +
-          (edited ? T('Οι αλλαγές θα φανούν σε 2 με 4 λεπτά· ως τότε η σελίδα δείχνει την προηγούμενη μορφή.', 'The changes will show in 2 to 4 minutes; until then the page shows the previous version.')
-            : T('Η σελίδα θα είναι έτοιμη σε 2 με 4 λεπτά· ως τότε ο σύνδεσμος μπορεί να δείχνει «δεν βρέθηκε».', 'The page will be ready in 2 to 4 minutes; until then the link may say “not found”.')) + '</p></div>') +
-      (url ? '<p class="ed-link">' + T('Διεύθυνση: ', 'Address: ') + '<a href="' + esc(url) + '" data-done-link>' + esc(url) + '</a></p>' : '') +
-      (url && !edited ? '<p class="muted" data-wait role="status"><span class="spinner" aria-hidden="true"></span>' + T('Περιμένουμε να εμφανιστεί…', 'Waiting for it to appear…') + '</p>' : '') +
-      '<p class="section-foot">' + (url ? '<a class="btn btn-primary" href="' + esc(url) + '">' + T('Δείτε την ανακοίνωση', 'See the announcement') + '</a> ' : '') +
-      (file ? '<button type="button" class="btn btn-outline" data-edit-file="' + esc(file) + '">' + T('Επεξεργασία', 'Edit') + '</button> ' : '') +
-      '<button type="button" class="btn btn-dark" data-new>' + T('Νέα ανακοίνωση', 'New announcement') + '</button> <button type="button" class="btn btn-outline" data-close>' + T('Κλείσιμο', 'Close') + '</button></p></section>';
-    var h = $('#ed-h'); if (h) h.focus();
-    var tries = 0;
+  /* ---- is it online yet? ------------------------------------------------------------------ */
+  /* Ask the real page (never the browser's cache) every few seconds: `want(response, html)` says
+     when it is the version we are waiting for. Then refresh this browser's copy of the page, the
+     list and the home page, so that following a link shows the new version, not a cached old one.
+     On an English page `url` is the English copy of the announcement (pageUrl), and the list and
+     the home page are the English ones too: the pages this browser will follow next. Both copies
+     carry the same <meta name="semfe-source">, and a deleted announcement loses both. */
+  var watchRun = 0;
+  function watch(url, want, onLive, onSlow) {
+    var run = ++watchRun, tries = 0, started = Date.now();
+    clearTimeout(poll);
     (function again() {
-      if (!box.querySelector('[data-wait]')) return;
+      if (run !== watchRun) return;
       tries++;
-      fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 'check=' + tries, { cache: 'no-store' }).then(function (r) {
-        var w = box.querySelector('[data-wait]'); if (!w) return;
-        if (r.ok) { w.innerHTML = T('✓ Η σελίδα είναι έτοιμη: ', '✓ The page is ready: ') + '<a href="' + esc(url) + '">' + T('Δείτε την ανακοίνωση', 'See the announcement') + '</a>'; w.className = 'ed-ready'; return; }
+      fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 'check=' + started + '-' + tries, { cache: 'no-store' }).then(function (r) {
+        return (r.ok ? r.text() : Promise.resolve('')).then(function (html) { return want(r, html); });
+      }).then(function (live) {
+        if (run !== watchRun) return;
+        if (live) {
+          [url, new URL('blog/', new URL(L.home, location.href)).href, new URL(L.home, location.href).href].forEach(function (u) {
+            try { fetch(u, { cache: 'reload' }).catch(function () {}); } catch (e) {}
+          });
+          onLive(Math.round((Date.now() - started) / 1000));
+          return;
+        }
         throw new Error('not yet');
       }).catch(function () {
-        var w = box.querySelector('[data-wait]'); if (!w) return;
-        if (tries >= 32) { w.innerHTML = T('Δεν εμφανίστηκε ακόμα. Δείτε τη σε λίγο στη σελίδα των ανακοινώσεων, ή ελέγξτε τη ροή «publish» στο GitHub Actions.',
-          'It has not appeared yet. Look for it shortly on the announcements page, or check the “publish” workflow in GitHub Actions.'); return; }
-        poll = setTimeout(again, 15000);
+        if (run !== watchRun) return;
+        var waited = Date.now() - started;
+        if (waited > 10 * 60000) { onSlow(); return; }
+        poll = setTimeout(again, waited < 90000 ? 4000 : 15000);
       });
     })();
+  }
+  function stopWatch() { watchRun++; clearTimeout(poll); poll = null; }
+  function seconds(n) { return n < 60 ? n + '″' : Math.floor(n / 60) + '′ ' + (n % 60) + '″'; }
+
+  function done(res) {
+    stopWatch();
+    var url = String((res && res.url) || ''), file = String((res && res.file) || ''), edited = !!(res && res.edited), same = !!(res && res.unchanged);
+    var blob = /^[0-9a-f]{40}$/.test(String((res && res.blob) || '')) ? res.blob : '';
+    if (!/^https?:\/\//.test(url)) url = '';
+    if (!FILE_OK.test(file)) file = '';
+    // on an English page the English copy (en/blog/…): the address shown, and the page watched until it is the new version
+    url = pageUrl(url, res && res.date, res && res.slug);
+    open = true; box.hidden = false; bar.setAttribute('aria-expanded', 'true');             // the panel must be seen even if the box was collapsed meanwhile
+    // the address is a link at once (owner, 2026-10-05); the line under it says the moment the page really is the new one
+    var tracking = url && !same && (blob || !edited);
+    box.innerHTML = '<section class="panel ed" aria-labelledby="ed-h"><h2 id="ed-h" tabindex="-1">' + (edited ? T('Οι αλλαγές αποθηκεύτηκαν', 'The changes were saved') : T('Η ανακοίνωση στάλθηκε', 'The announcement was sent')) + '</h2>' +
+      (same ? '<div class="notice"><strong>' + T('Δεν άλλαξε τίποτα.', 'Nothing changed.') + '</strong><p>' + T('Η ανακοίνωση είναι ήδη έτσι στον ιστότοπο.', 'The announcement is already like this on the site.') + '</p></div>'
+        : '<div class="notice ok"><strong>' + T('Ο ιστότοπος ενημερώνεται τώρα.', 'The site is being updated now.') + '</strong><p>' +
+          (edited ? T('Οι αλλαγές φαίνονται μέσα σε λίγα δευτερόλεπτα· θα το δείτε εδώ μόλις γίνει.', 'The changes show within a few seconds; you will see it here as soon as they do.')
+            : T('Η σελίδα της είναι έτοιμη μέσα σε λίγα δευτερόλεπτα· θα το δείτε εδώ μόλις γίνει.', 'Its page is ready within a few seconds; you will see it here as soon as it is.')) + '</p></div>') +
+      (url ? '<p class="ed-link">' + T('Διεύθυνση: ', 'Address: ') + '<a href="' + esc(url) + '" data-done-link>' + esc(url) + '</a></p>' : '') +
+      (tracking ? '<p class="muted" data-wait role="status"><span class="spinner" aria-hidden="true"></span>' + (edited ? T('Ενημερώνεται η σελίδα…', 'Updating the page…') : T('Δημιουργείται η σελίδα…', 'Creating the page…')) + '</p>' : '') +
+      '<p class="section-foot">' + (url ? '<a class="btn btn-primary" href="' + esc(url) + '">' + T('Δείτε την ανακοίνωση', 'See the announcement') + '</a> ' : '') +
+      (file ? '<button type="button" class="btn btn-outline" data-edit-file="' + esc(file) + '">' + T('Επεξεργασία', 'Edit') + '</button> ' : '') +
+      (file ? '<button type="button" class="btn btn-danger" data-delete-file="' + esc(file) + '">' + T('Διαγραφή', 'Delete') + '</button> ' : '') +
+      '<button type="button" class="btn btn-dark" data-new>' + T('Νέα ανακοίνωση', 'New announcement') + '</button> <button type="button" class="btn btn-outline" data-close>' + T('Κλείσιμο', 'Close') + '</button></p></section>';
+    var h = $('#ed-h'); if (h) h.focus();
+    if (!tracking) return;
+    watch(url, function (r, html) {
+      return r.ok && (!blob || html.indexOf('name="semfe-source" content="' + blob + '"') >= 0);
+    }, function (secs) {
+      var w = box.querySelector('[data-wait]'); if (!w) return;
+      w.className = 'ed-ready';
+      w.innerHTML = T('✓ ' + (edited ? 'Οι αλλαγές είναι online' : 'Η ανακοίνωση είναι online') + ' (σε ' + seconds(secs) + '): ',
+        '✓ ' + (edited ? 'The changes are online' : 'The announcement is online') + ' (in ' + seconds(secs) + '): ') + '<a href="' + esc(url) + '">' + T('Δείτε την', 'See it') + '</a>';
+    }, function () {
+      var w = box.querySelector('[data-wait]'); if (!w) return;
+      w.innerHTML = T('Δεν εμφανίστηκε ακόμα. Δείτε τη σε λίγο στη σελίδα των ανακοινώσεων, ή ελέγξτε τη ροή «publish» στο GitHub Actions.',
+        'It has not appeared yet. Look for it shortly on the announcements page, or check the “publish” workflow in GitHub Actions.');
+    });
+  }
+
+  /* ---- deleting one --------------------------------------------------------------------------- */
+  function deleteWarning() {
+    return T('Θα φύγει από τον ιστότοπο, από τη λίστα των ανακοινώσεων και από τις ροές RSS/Atom, μαζί με τις εικόνες της, και η διεύθυνσή της θα πάψει να λειτουργεί. ' +
+      'Όσα e-mail έχουν ήδη σταλεί στα μέλη δεν ανακαλούνται. Αν γίνει κατά λάθος, επαναφέρεται από το ιστορικό του GitHub (ANNOUNCE-SETUP.md).',
+      'It will leave the site, the list of announcements and the RSS/Atom feeds, together with its pictures, and its address will stop working. ' +
+      'E-mails already sent to the members cannot be called back. If it is done by mistake, it can be brought back from the GitHub history (ANNOUNCE-SETUP.md).');
+  }
+  function deletePanel(html) {
+    open = true; box.hidden = false; bar.setAttribute('aria-expanded', 'true');
+    box.innerHTML = '<section class="panel ed" aria-labelledby="ed-h"><h2 id="ed-h" tabindex="-1">' + T('Διαγραφή ανακοίνωσης', 'Delete announcement') + '</h2>' + html + '</section>';
+    var h = $('#ed-h'); if (h) h.focus();
+  }
+  function closeButton() { return '<p class="section-foot"><button type="button" class="btn btn-outline" data-close>' + T('Κλείσιμο', 'Close') + '</button></p>'; }
+  /* from the announcement's own page: read it back, then ask */
+  function startDelete(file, fromAddress) {
+    if (!user || busy) return;
+    stopWatch();
+    if (edit) reset();                                          // leaving an edit (reset() keeps the draft of a new one where it was)
+    busy = true; doomed = null;
+    deletePanel('<p class="muted" role="status"><span class="spinner" aria-hidden="true"></span>' + T('Άνοιγμα της ανακοίνωσης…', 'Opening the announcement…') + '</p>');
+    if (fromAddress && window.history.replaceState) { try { window.history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
+    A.callFunction('publishAnnouncement', { action: 'load', file: file }).then(function (r) {
+      busy = false;
+      if (!r || !r.sha) { deletePanel('<p class="form-error" role="alert">' + esc(CODES['delete-not-deployed']) + '</p>' + closeButton()); return; }
+      var title = String(r.title || (r.post && r.post.title) || file);
+      doomed = { file: r.file || file, sha: r.sha, url: fileUrl(/^https?:\/\//.test(r.url || '') ? r.url : '', r.file || file), title: title };
+      deletePanel('<div class="notice warn"><strong>' + T('Να διαγραφεί η ανακοίνωση «' + esc(title) + '»;', 'Delete the announcement “' + esc(title) + '”?') + '</strong><p>' + esc(deleteWarning()) + '</p></div>' +
+        (doomed.url ? '<p class="ed-link">' + T('Διεύθυνση: ', 'Address: ') + '<a href="' + esc(doomed.url) + '">' + esc(doomed.url) + '</a></p>' : '') +
+        '<p class="ed-note" data-note role="alert"></p>' +
+        '<p class="section-foot"><button type="button" class="btn btn-danger" data-del-yes>' + T('Ναι, διαγραφή', 'Yes, delete') + '</button> <button type="button" class="btn btn-outline" data-close>' + T('Όχι, ακύρωση', 'No, cancel') + '</button></p>');
+    }, function (e) {
+      busy = false;
+      deletePanel('<p class="form-error" role="alert">' + esc(explain(e)) + '</p>' + closeButton());
+    });
+  }
+  function confirmDelete() {
+    var target = doomed || (edit ? { file: edit.file, sha: edit.sha, url: edit.url, title: state.title } : null);
+    if (!target || busy) return;
+    busy = true;
+    var a = $('[data-actions]');
+    if (a && edit) { a.removeAttribute('data-confirm'); a.innerHTML = '<p class="muted"><span class="spinner" aria-hidden="true"></span>' + T('Διαγραφή…', 'Deleting…') + '</p>'; }
+    else { var y = $('[data-del-yes]'); if (y) { y.disabled = true; y.innerHTML = '<span class="spinner" aria-hidden="true"></span>' + T('Διαγραφή…', 'Deleting…'); } }
+    A.callFunction('publishAnnouncement', { action: 'delete', file: target.file, sha: target.sha }).then(function (res) {
+      busy = false; doomed = null;
+      if (edit) reset();
+      deleted(res, target);
+    }, function (e) {
+      busy = false;
+      var c = String((e && e.code) || '').replace(/^semfe\//, '');
+      var msg = c === 'bad-request' ? CODES['delete-not-deployed'] : c === 'post-changed' ? CODES['delete-changed'] : explain(e);
+      if (edit) { paintActions(); note(msg, true); return; }
+      var n = $('[data-note]'); if (n) { n.textContent = msg; n.className = 'ed-note form-error'; }
+      var y = $('[data-del-yes]'); if (y) { y.disabled = false; y.textContent = T('Ναι, διαγραφή', 'Yes, delete'); y.focus(); }
+    });
+  }
+  function deleted(res, target) {
+    stopWatch();
+    var url = String((res && res.url) || target.url || '');
+    if (!/^https?:\/\//.test(url)) url = '';
+    url = fileUrl(url, (res && res.file) || target.file);     // on an English page: the English copy, which the build removes too
+    // its card leaves this page's list at once
+    var rel = url.replace(/^https?:\/\/[^/]+\//, '');
+    if (rel) Array.prototype.forEach.call(document.querySelectorAll('a.post-card'), function (c) {
+      var h = c.getAttribute('href') || '';
+      if (h.slice(-rel.length) === rel && c.parentNode) c.parentNode.removeChild(c);
+    });
+    deletePanel('<div class="notice ok">' + T('<strong>Η ανακοίνωση «' + esc(target.title) + '» διαγράφηκε.</strong><p>Ο ιστότοπος ενημερώνεται τώρα· η σελίδα και η κάρτα της φεύγουν μέσα σε λίγα δευτερόλεπτα.</p>',
+        '<strong>The announcement “' + esc(target.title) + '” was deleted.</strong><p>The site is being updated now; its page and its card go within a few seconds.</p>') + '</div>' +
+      (url ? '<p class="muted" data-wait role="status"><span class="spinner" aria-hidden="true"></span>' + T('Αφαιρείται η σελίδα…', 'Removing the page…') + '</p>' : '') +
+      '<p class="section-foot"><button type="button" class="btn btn-dark" data-new>' + T('Νέα ανακοίνωση', 'New announcement') + '</button> <button type="button" class="btn btn-outline" data-close>' + T('Κλείσιμο', 'Close') + '</button></p>');
+    if (!url) return;
+    watch(url, function (r) { return r.status === 404; }, function (secs) {
+      var w = box.querySelector('[data-wait]'); if (!w) return;
+      w.className = 'ed-ready'; w.textContent = T('✓ Η σελίδα αφαιρέθηκε από τον ιστότοπο (σε ' + seconds(secs) + ').', '✓ The page was removed from the site (in ' + seconds(secs) + ').');
+    }, function () {
+      var w = box.querySelector('[data-wait]'); if (!w) return;
+      w.textContent = T('Η σελίδα δεν έχει αφαιρεθεί ακόμα. Ελέγξτε σε λίγο, ή τη ροή «publish» στο GitHub Actions.',
+        'The page has not been removed yet. Check again shortly, or look at the “publish” workflow in GitHub Actions.');
+    });
   }
 
   /* ---- editing one already published ------------------------------------------------------- */
@@ -480,7 +635,7 @@
   }
   function startEdit(file, fromAddress) {
     if (!user || busy) return;
-    clearTimeout(poll); poll = null;
+    stopWatch(); doomed = null;
     busy = true; edit = null;
     editPanel('<p class="muted" role="status"><span class="spinner" aria-hidden="true"></span>' + T('Άνοιγμα της ανακοίνωσης…', 'Opening the announcement…') + '</p>');
     var h = $('#ed-h'); if (h) h.focus();
@@ -591,10 +746,13 @@
     else if (b.hasAttribute('data-put')) insertMarker(+b.getAttribute('data-put') + 1);
     else if (b.hasAttribute('data-del')) removeFigure(+b.getAttribute('data-del'));
     else if (b.hasAttribute('data-yes')) publish();
+    else if (b.hasAttribute('data-del-yes')) confirmDelete();
+    else if (b.hasAttribute('data-delete-ask')) { if (busy) return; $('[data-actions]').setAttribute('data-confirm', 'delete'); paintActions(); var dy = $('[data-del-yes]'); if (dy) dy.focus(); }
     else if (b.hasAttribute('data-no')) { $('[data-actions]').removeAttribute('data-confirm'); paintActions(); var sb = $('[data-send]'); if (sb) sb.focus(); }
-    else if (b.hasAttribute('data-cancel') || b.hasAttribute('data-close')) { if (busy) return; leaveEdit(); open = false; clearTimeout(poll); paint(); bar.focus(); }
-    else if (b.hasAttribute('data-new')) { leaveEdit(); open = true; paint(); checkReady(); var ti = $('[data-title]'); if (ti) ti.focus(); }
+    else if (b.hasAttribute('data-cancel') || b.hasAttribute('data-close')) { if (busy) return; leaveEdit(); doomed = null; open = false; stopWatch(); paint(); bar.focus(); }
+    else if (b.hasAttribute('data-new')) { if (busy) return; leaveEdit(); doomed = null; stopWatch(); open = true; paint(); checkReady(); var ti = $('[data-title]'); if (ti) ti.focus(); }
     else if (b.hasAttribute('data-edit-file')) startEdit(b.getAttribute('data-edit-file'));
+    else if (b.hasAttribute('data-delete-file')) startDelete(b.getAttribute('data-delete-file'));
   });
   box.addEventListener('submit', function (e) { e.preventDefault(); if (!busy) submit(); });
   box.addEventListener('keydown', function (e) {
@@ -628,6 +786,7 @@
   }
   bar.addEventListener('click', function () {
     if (!user || busy) return;                                  // not while an announcement is being sent: it would hide the answer
+    doomed = null;
     if (edit) { leaveEdit(); open = true; paint(); checkReady(); var t1 = $('[data-title]'); if (t1) t1.focus(); return; }   // «Νέα ανακοίνωση» while editing: a new one
     open = !open;
     if (open) { if (!state.title && !state.body) loadDraft(); paint(); checkReady(); var ti = $('[data-title]'); if (ti) ti.focus(); } else { paint(); }
@@ -641,11 +800,16 @@
       user = u; edit = null; state = { title: '', category: AN.CATEGORIES[0], description: '', body: '' }; figures = []; cover = 0; tab = 'write'; loadDraft();
       if (switched && open && !busy) { paint(); checkReady(); }        // another admin signed in while the box was open: show THEIR draft, not the last one's
     }
-    if (!admin) { user = null; open = false; edit = null; box.innerHTML = ''; box.hidden = true; }
+    if (!admin) { user = null; open = false; edit = null; doomed = null; stopWatch(); box.innerHTML = ''; box.hidden = true; }
     host.hidden = !admin;
     if (admin && pendingEdit && !busy && !edit) {                       // blog/?edit=FILE: the «Επεξεργασία» of an announcement's own page
-      var asked = pendingEdit; pendingEdit = null;
-      startEdit(asked, true);
+      var toEdit = pendingEdit; pendingEdit = null;
+      startEdit(toEdit, true);
+      if (host.scrollIntoView) host.scrollIntoView({ block: 'start' });
+    }
+    if (admin && pendingDelete && !busy) {                              // blog/?delete=FILE: its «Διαγραφή»; nothing goes before the question is answered
+      var toDelete = pendingDelete; pendingDelete = null;
+      startDelete(toDelete, true);
       if (host.scrollIntoView) host.scrollIntoView({ block: 'start' });
     }
   }, { passive: true });         // a visitor who never signed in must not make this page load the sign-in library

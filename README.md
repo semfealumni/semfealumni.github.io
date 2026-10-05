@@ -58,7 +58,7 @@ as they are here; there is nothing to install to publish it.
 1. Edit the page's file in `_src/pages/` (for example `_src/pages/governance.md`).
 2. Run `node tools/build.mjs` to regenerate the served pages.
 3. Run `node tools/check.mjs` (links, share card, admin list, everything in sync).
-4. Commit and push. GitHub Pages republishes in a minute or two.
+4. Commit and push. The `publish` workflow republishes the site within a minute.
 
 Each source file is **YAML front matter + Markdown**: a few `key: value` lines
 between two `---` lines (title, description, address), then the text. A list of
@@ -100,10 +100,12 @@ the post going live (ALERTS-SETUP.md).
 An **admin** who is signed in can also write an announcement on
 **semfealumni.gr/blog/**: the button **«Νέα ανακοίνωση»** opens a box with a
 title, a formatted text area (toolbar, preview), pictures and the kind of
-announcement, and **«Δημοσίευση»** publishes it a few minutes later: the
+announcement, and **«Δημοσίευση»** publishes it within a minute: the
 Cloud Function `publishAnnouncement` commits the `.md` file and the pictures,
 and the `publish` workflow builds the pages and checks them (an announcement
-that does not build is taken back automatically). It needs a GitHub token once:
+that does not build is taken back automatically). A published one is corrected
+or removed with **«Επεξεργασία»** or **«Διαγραφή»** under it, on its own page. It
+needs a GitHub token once:
 **[ANNOUNCE-SETUP.md](ANNOUNCE-SETUP.md)**. Until then the box opens, says that
 publishing is not set up, and still lets the admin write and preview.
 
@@ -187,9 +189,12 @@ through small forwarding pages. So do the old preview links,
 ## Hosting
 
 The site lives in this repository, `semfealumni/semfealumni.github.io`, in the
-GitHub organisation SEMFE Alumni (it was built in `konstantinosStouras/semfealumni`
-and moved here with its history: **`MOVE-TO-ORG.md`**). GitHub Pages publishes it from the `main` branch, root folder (Settings, Pages,
-Source: "Deploy from a branch", `main`, `/ (root)`), with the custom domain
+GitHub organisation SEMFE Alumni (it was built in `konstantinosStouras/semfealumni`,
+since deleted, and moved here with its history: **`MOVE-TO-ORG.md`**). The
+`publish` workflow builds and publishes it on every push to `main` (Settings,
+Pages, Source: "GitHub Actions"; until that is chosen, GitHub publishes the
+`main` branch itself, "Deploy from a branch", `main`, `/ (root)`, a minute or
+two later: ANNOUNCE-SETUP.md, step 5), with the custom domain
 `semfealumni.gr` (the `CNAME` file, written by the build). The domain is
 VERIFIED in the organisation (a TXT record
 `_github-pages-challenge-semfealumni` at papaki, the registrar, which

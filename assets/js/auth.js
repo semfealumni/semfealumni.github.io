@@ -21,9 +21,23 @@
  * they did the first time, and then link it, so they end up with ONE
  * account that opens with either provider.
  *
+ * A new e-mail + password account must CONFIRM its address before it can use
+ * the site (owner, 2026-10-05, as on operationsacademia.org). Registering sends
+ * Firebase's verification e-mail; until its link is pressed the account is
+ * PENDING: Firebase keeps the session (so «Στείλτε μου ξανά το e-mail» and
+ * «Το επιβεβαίωσα» work), but the site treats it as signed out. user() is null,
+ * every onChange listener hears null, no header hint is written, the header
+ * shows «Επιβεβαίωση e-mail», and the dialog shows the «Επιβεβαιώστε το e-mail
+ * σας» card instead of the sign-in form. Google and LinkedIn vouch for the
+ * address, so only an account whose ONLY way in is the password is held:
+ * needsVerification() below, the same test as emailConfirmed() in
+ * firestore.rules, which refuses such an account's application anyway.
+ *
  * Public API (window.SemfeAuth), used by account.js / members.js / admin.js:
  *   configured            true when config.js has a real Firebase config
  *   onChange(fn)          fn(user|null) now (once known) and on every change
+ *                         (null also for a PENDING account, see above)
+ *   pending()             {email} while a pending account is signed in, else null
  *   open(mode, trigger?)  open the dialog: 'signin' | 'register'; focus returns to trigger
  *   signOut()
  *   db()                  Promise<firestore> (loads Firestore on first use)
@@ -123,6 +137,9 @@
   var listeners = [], pendingLink = null, dialog = null, lastFocus = null, lastFocusSel = '', mode = 'signin';
   var signingOut = false, sdkFailed = false;
   var SIGNOUT_KEY = 'semfe:signout';          // "Αποσύνδεση" pressed; auth.signOut() not confirmed yet
+  /* the pending account (see the top of this file): its Firebase user, and a
+     note in this browser so the next page paints «Επιβεβαίωση e-mail» at once */
+  var pendingUser = null, PENDING_KEY = 'semfe:auth-pending', autoOpened = false;
   var FAIL_MSG = T('Δεν ήταν δυνατή η φόρτωση της υπηρεσίας σύνδεσης. Ελέγξτε τη σύνδεσή σας στο διαδίκτυο και ανανεώστε τη σελίδα.',
     'The sign-in service could not be loaded. Check your internet connection and reload the page.');
 
@@ -152,9 +169,10 @@
           // "Αποσύνδεση" pressed before the SDK had loaded: do not bring the
           // restored session back on screen, auth.signOut() is on its way
           if (u && signingOut) return;
-          // a registration fires this BEFORE the name is saved: the page hears
-          // about the new account once it has its name (settle(), below)
-          if (u && registering) { current = u; authKnown = true; return; }
+          // a registration fires this BEFORE the name is saved and the
+          // verification e-mail sent: the page hears about the new account
+          // once both are done (settle(), from emailSubmit)
+          if (u && registering) { authKnown = true; return; }
           settle(u);
         });
       });
@@ -167,11 +185,24 @@
     return sdkPromise;
   }
   var registering = false;
+  /* an account whose only way in is e-mail + password, and whose address is
+     not confirmed yet. KEEP IN STEP with emailConfirmed() in firestore.rules
+     (Google, Facebook and LinkedIn vouch for the address) and with
+     linkNeedsVerifiedEmail() in account.js (which covers the other providers). */
+  function needsVerification(u) {
+    if (!u || u.emailVerified || !u.email) return false;
+    var pd = u.providerData || [];
+    return pd.length > 0 && pd.every(function (p) { return p.providerId === 'password'; });
+  }
   function settle(u) {
+    if (u && needsVerification(u)) return enterPending(u);
+    pendingUser = null; clearPending(); watchVerify(false);
     current = u; authKnown = true;
     if (u) freshToken(u).catch(function () {});
     // signed in some other way (another tab, a LinkedIn return): the dialog has nothing left to do
     if (u && dialog && !dialog.hidden && !pendingLink) close();
+    // signed out elsewhere while the verification card was open: it becomes the sign-in form
+    if (!u && dialog && !dialog.hidden && mode === 'verify') setMode('signin');
     if (u) saveHint(u); else clearHint();
     paintHeader();
     listeners.forEach(function (fn) { try { fn(u); } catch (e) { if (window.console) console.error(e); } });
@@ -188,6 +219,145 @@
       if (u.emailVerified && !(r && r.claims && r.claims.email_verified === true)) return u.getIdToken(true);
       return r && r.token;
     });
+  }
+
+  /* ---- an account that has not confirmed its e-mail yet ---------------- */
+  // what the card says: 'sent' (just now, from here), 'failed' (the e-mail at
+  // registration did not go), null (sent when the account was made, some time ago)
+  var verifyState = null, verifyErr = null, lastSend = 0, checking = false, watchTimer = null, resendTimer = null;
+  var RESEND_GAP = 60e3, WATCH_EVERY = 10e3, WATCH_FOR = 15 * 60e3;
+  function pendingHint() { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); } catch (e) { return null; } }
+  function savePending(u) { try { localStorage.setItem(PENDING_KEY, JSON.stringify({ e: u.email || '', u: u.uid })); } catch (e) {} }
+  function clearPending() { try { localStorage.removeItem(PENDING_KEY); } catch (e) {} }
+  function pendingEmail() { return pendingUser ? pendingUser.email || '' : ((pendingHint() || {}).e || ''); }
+  function verifySettings() { return { url: absolute(L.home + 'account/') }; }
+  function enterPending(u) {
+    var first = !pendingUser;
+    pendingUser = u; current = null; authKnown = true;
+    clearHint(); savePending(u);
+    paintHeader();
+    listeners.forEach(function (fn) { try { fn(null); } catch (e) { if (window.console) console.error(e); } });
+    if (dialog && !dialog.hidden) {
+      // signing in or registering right now: the dialog becomes the card. The
+      // typed password goes at once (a shared computer); a waiting link stays
+      // for afterSignIn().
+      var pw = $('#auth-pass', dialog); if (pw) pw.value = '';
+      if (mode !== 'verify') { setMode('verify'); focusVerify(); } else paintVerify();
+    } else if (first && !autoOpened && document.body.getAttribute('data-firestore') === '1') {
+      // a page that needs an account (account, members, admin, feedback): say why at once
+      autoOpened = true;
+      open('verify');
+    }
+  }
+  function focusVerify() {
+    var l = dialog && $('[data-verify-lede]', dialog);
+    if (l) setTimeout(function () { try { l.focus(); } catch (e) {} }, 30);
+  }
+  function verifyMsg(msg, kind) {
+    var el = dialog && $('[data-verify-status]', dialog);
+    if (!el) return;
+    el.textContent = msg || '';
+    el.className = kind === 'ok' ? 'form-ok' : kind === 'err' ? 'form-error' : 'muted';
+  }
+  /* the button presses need the pending user; the SDK may still be loading
+     (the header was painted from the note in this browser) */
+  function withPending(fn) {
+    if (pendingUser) return fn(pendingUser);
+    if (!authKnown || !sdkReady) { verifyMsg(sdkFailed ? FAIL_MSG : T('Μια στιγμή, φορτώνει η υπηρεσία σύνδεσης…', 'One moment, the sign-in service is loading…')); loadSdk(); return; }
+    setMode('signin');                         // nobody is signed in after all
+  }
+  /* reload the account: once the link has been pressed, a fresh token (the
+     rules read email_verified from it) and the hold is lifted. silent: the
+     periodic check, which says nothing until the answer is yes. */
+  function checkVerified(silent) {
+    if (!pendingUser || checking) return;
+    var u = pendingUser;
+    checking = true;
+    if (!silent) verifyMsg(T('Έλεγχος…', 'Checking…'));
+    u.reload().then(function () {
+      var fresh = (auth && auth.currentUser) || u;
+      if (fresh.uid !== u.uid) { checking = false; return; }
+      if (!fresh.emailVerified) {
+        checking = false;
+        if (!silent) verifyMsg(T('Δεν έχει επιβεβαιωθεί ακόμα. Πατήστε τον σύνδεσμο στο e-mail και μετά ξανά «Το επιβεβαίωσα».',
+          'Not confirmed yet. Press the link in the e-mail, then press “I have confirmed it” again.'), 'err');
+        return;
+      }
+      return fresh.getIdToken(true).then(function () { checking = false; lift(fresh); });
+    }).catch(function (e) {
+      checking = false;
+      if (!silent) verifyMsg(friendly(e), 'err');
+    });
+  }
+  function lift(u) {
+    verifyState = null; verifyErr = null;
+    settle(u);                                 // the hint, the header, the listeners; closes the dialog
+    resetDialog();
+    var msg = T('Το e-mail σας επιβεβαιώθηκε. Είστε πλέον συνδεδεμένος/η.', 'Your e-mail address has been confirmed. You are now signed in.');
+    // from a public page, on to the membership application (where a new account goes)
+    if (document.body.getAttribute('data-firestore') !== '1') {
+      try { sessionStorage.setItem('semfe:flash', msg); } catch (e) {}
+      location.href = L.home + 'account/#apply';
+    } else flash(msg);
+  }
+  function resendVerify() {
+    withPending(function (u) {
+      if (Date.now() - lastSend < RESEND_GAP) return;
+      var btn = $('[data-verify-resend]', dialog);
+      if (btn) btn.disabled = true;
+      verifyMsg(T('Αποστολή…', 'Sending…'));
+      u.sendEmailVerification(verifySettings()).then(function () {
+        verifyState = 'sent'; verifyErr = null; lastSend = Date.now();
+        paintVerify();
+        verifyMsg(T('Σας στείλαμε νέο e-mail επιβεβαίωσης στο ' + (u.email || '') + '.',
+          'We have sent a new confirmation e-mail to ' + (u.email || '') + '.'), 'ok');
+      }, function (e) {
+        paintVerify();
+        verifyMsg(friendly(e), 'err');
+      });
+    });
+  }
+  /* while the card is open (and the tab is in front), look every few seconds:
+     the link is often pressed on another device, and the card should notice */
+  function watchVerify(on) {
+    if (watchTimer) { clearInterval(watchTimer); watchTimer = null; }
+    if (!on) return;
+    var until = Date.now() + WATCH_FOR;
+    watchTimer = setInterval(function () {
+      if (Date.now() > until) return watchVerify(false);
+      if (document.visibilityState !== 'hidden') checkVerified(true);
+    }, WATCH_EVERY);
+  }
+  function verifyCardOpen() { return !!(pendingUser && dialog && !dialog.hidden && mode === 'verify'); }
+  // back from the mail program or another tab: look at once
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && verifyCardOpen()) checkVerified(true); });
+  window.addEventListener('focus', function () { if (verifyCardOpen()) checkVerified(true); });
+  function paintVerify() {
+    if (!dialog) return;
+    var e = '<strong>' + esc(pendingEmail()) + '</strong>';
+    var why = verifyErr ? ' (' + esc(friendly(verifyErr)) + ')' : '';
+    $('[data-verify-lede]', dialog).innerHTML = verifyState === 'sent'
+      ? T('Σας στείλαμε e-mail στο ' + e + '. Πατήστε τον σύνδεσμο που περιέχει για να επιβεβαιώσετε τη διεύθυνσή σας. Μόνο τότε ολοκληρώνεται η σύνδεση.',
+        'We have sent an e-mail to ' + e + '. Press the link in it to confirm your address. Only then is signing in complete.')
+      : verifyState === 'failed'
+      ? T('Ο λογαριασμός σας δημιουργήθηκε, αλλά το e-mail επιβεβαίωσης δεν στάλθηκε στο ' + e + why + '. Πατήστε «Στείλτε μου ξανά το e-mail».',
+        'Your account was created, but the confirmation e-mail could not be sent to ' + e + why + '. Press “Send me the e-mail again”.')
+      : T('Ο λογαριασμός με το ' + e + ' δεν έχει επιβεβαιωθεί ακόμα. Για να συνδεθείτε, πατήστε τον σύνδεσμο στο e-mail επιβεβαίωσης που σας στείλαμε όταν τον δημιουργήσατε, ή ζητήστε νέο.',
+        'The account with ' + e + ' has not been confirmed yet. To sign in, press the link in the confirmation e-mail we sent you when you created it, or ask for a new one.');
+    var btn = $('[data-verify-resend]', dialog), wait = RESEND_GAP - (Date.now() - lastSend);
+    if (resendTimer) { clearTimeout(resendTimer); resendTimer = null; }
+    btn.disabled = wait > 0;
+    // a second e-mail within a minute is refused anyway (auth/too-many-requests)
+    if (wait > 0) resendTimer = setTimeout(function () { resendTimer = null; if (dialog) $('[data-verify-resend]', dialog).disabled = false; }, wait);
+  }
+  /* "Αποσύνδεση": out of the pending account, and the dialog becomes the
+     sign-in form (to register again with the right address, for example) */
+  function verifyOut() {
+    signOut({ stay: true }).then(function () {
+      if (!dialog || dialog.hidden) return;
+      setMode('signin');
+      setTimeout(function () { try { $('#auth-email', dialog).focus(); } catch (e) {} }, 30);
+    }, function (e) { verifyMsg(friendly(e), 'err'); });
   }
   var fsPromise = null;
   function db() {
@@ -329,10 +499,18 @@
     // the button being replaced may hold the keyboard focus: give it to its successor
     var had = slot.contains(document.activeElement) && !($('#acct-menu', slot) && !$('#acct-menu', slot).hidden);
     paintSlot(slot);
-    if (had) { var f = $('.acct-chip, [data-signin]', slot); if (f) try { f.focus({ preventScroll: true }); } catch (e) {} }
+    if (had) { var f = $('.acct-chip, [data-signin], [data-verify-open]', slot); if (f) try { f.focus({ preventScroll: true }); } catch (e) {} }
   }
   function paintSlot(slot) {
     var u = current, h = !authKnown && configured ? hint() : null;
+    // a pending account (or this browser's note of one, before the SDK has answered)
+    if (!u && (pendingUser || (!h && !authKnown && configured && pendingHint()))) {
+      slot.innerHTML = '<button type="button" class="btn btn-primary btn-sm acct-signin acct-verify" data-verify-open title="' +
+        T('Επιβεβαιώστε το e-mail σας για να ολοκληρωθεί η σύνδεση', 'Confirm your e-mail to finish signing in') + '">' +
+        svg('mail') + '<span class="tx">' + T('Επιβεβαίωση e-mail', 'Confirm e-mail') + '</span></button>';
+      $('[data-verify-open]', slot).addEventListener('click', function (e) { open('verify', e.currentTarget); });
+      return;
+    }
     if (!u && !h) {
       slot.innerHTML = '<a class="btn btn-primary btn-sm acct-signin" href="' + L.home + 'account/" data-signin>' + T('Σύνδεση', 'Sign in') + '</a>';
       $('[data-signin]', slot).addEventListener('click', function (e) { e.preventDefault(); open('signin', e.currentTarget); });
@@ -414,6 +592,7 @@
       '<button type="button" class="modal-x" data-close aria-label="' + T('Κλείσιμο', 'Close') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
       '<div class="modal-head"><h2 id="auth-title">' + T('Σύνδεση', 'Sign in') + '</h2><p id="auth-sub">' + T('Για τα μέλη και τους φίλους του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ.', 'For the members and friends of the Association of SEMFE NTUA Graduates.') + '</p></div>' +
       '<div class="modal-body">' +
+      '<div class="auth-main" data-auth-main>' +
       '<div class="tabs2" role="group" aria-label="' + T('Σύνδεση ή εγγραφή', 'Sign in or register') + '">' +
       '<button type="button" id="tab-signin" aria-pressed="true" data-mode="signin">' + T('Σύνδεση', 'Sign in') + '</button>' +
       '<button type="button" id="tab-register" aria-pressed="false" data-mode="register">' + T('Εγγραφή', 'Register') + '</button></div>' +
@@ -443,6 +622,19 @@
       '</form>' +
       '<p class="small" style="margin:0">' + T('Συνεχίζοντας, αποδέχεστε την ' + privacyA + 'Πολιτική απορρήτου</a> του Συλλόγου. Από τον πάροχο που επιλέγετε λαμβάνουμε μόνο το όνομα, το e-mail και τη φωτογραφία σας.',
         'By continuing, you accept the Association\'s ' + privacyA + 'Privacy policy</a>. From the provider you choose we receive only your name, e-mail address and photo.') + '</p>' +
+      '</div>' +
+      // the card of a pending account (an e-mail + password account whose address is not confirmed yet)
+      '<div class="verify-box" data-verify hidden>' +
+      '<span class="verify-ic" aria-hidden="true">' + svg('mail') + '</span>' +
+      '<p data-verify-lede tabindex="-1"></p>' +
+      '<p class="muted" style="margin:0">' + T('Δεν το βλέπετε; Κοιτάξτε και στα ανεπιθύμητα (spam) ή στις «Προωθήσεις». Μόλις πατήσετε τον σύνδεσμο, πατήστε εδώ «Το επιβεβαίωσα».',
+        'Can\'t see it? Look in your spam folder or under “Promotions” too. Once you have pressed the link, press “I have confirmed it” here.') + '</p>' +
+      '<p class="muted" role="status" data-verify-status style="margin:0"></p>' +
+      '<button type="button" class="btn btn-dark btn-block" data-verify-check>' + T('Το επιβεβαίωσα', 'I have confirmed it') + '</button>' +
+      '<button type="button" class="btn btn-outline btn-block" data-verify-resend>' + T('Στείλτε μου ξανά το e-mail', 'Send me the e-mail again') + '</button>' +
+      '<p class="small" style="margin:0;text-align:center"><button type="button" class="link-btn" data-verify-out>' + T('Αποσύνδεση (π.χ. για εγγραφή με άλλο e-mail)', 'Sign out (e.g. to register with another e-mail)') + '</button></p>' +
+      '<p class="small" style="margin:0">' + T('Αν το e-mail δεν έρχεται, γράψτε μας στο ', 'If the e-mail does not arrive, write to us at ') + '<a href="mailto:' + esc(C.contactEmail || 'gradsemfe@gmail.com') + '">' + esc(C.contactEmail || 'gradsemfe@gmail.com') + '</a>.</p>' +
+      '</div>' +
       '</div></div>';
     document.body.appendChild(wrap);
 
@@ -461,6 +653,9 @@
     });
     $('[data-email-form]', wrap).addEventListener('submit', function (e) { e.preventDefault(); emailSubmit(); });
     $('[data-forgot]', wrap).addEventListener('click', forgot);
+    $('[data-verify-check]', wrap).addEventListener('click', function () { withPending(function () { checkVerified(false); }); });
+    $('[data-verify-resend]', wrap).addEventListener('click', resendVerify);
+    $('[data-verify-out]', wrap).addEventListener('click', verifyOut);
     $('[data-pw]', wrap).addEventListener('click', function () {
       var inp = $('#auth-pass'), show = inp.type === 'password';
       inp.type = show ? 'text' : 'password';
@@ -474,8 +669,19 @@
     return wrap;
   }
   function setMode(m) {
-    mode = m === 'register' ? 'register' : 'signin';
-    var reg = mode === 'register';
+    mode = m === 'register' ? 'register' : m === 'verify' ? 'verify' : 'signin';
+    var reg = mode === 'register', ver = mode === 'verify';
+    $('[data-auth-main]', dialog).hidden = ver;
+    $('[data-verify]', dialog).hidden = !ver;
+    watchVerify(ver && !!pendingUser);
+    if (ver) {
+      $('#auth-title').textContent = T('Επιβεβαιώστε το e-mail σας', 'Confirm your e-mail');
+      $('#auth-sub').textContent = T('Ένα τελευταίο βήμα: η σύνδεση ολοκληρώνεται μόλις επιβεβαιώσετε τη διεύθυνση e-mail σας.',
+        'One last step: signing in is complete as soon as you confirm your e-mail address.');
+      verifyMsg('');
+      paintVerify();
+      return;
+    }
     $('#auth-title').textContent = reg ? T('Νέος λογαριασμός', 'New account') : T('Σύνδεση', 'Sign in');
     $('#auth-sub').textContent = reg
       ? T('Δημιουργήστε λογαριασμό για να κάνετε αίτηση μέλους και να μπείτε στην περιοχή μελών.', "Create an account to apply for membership and to enter the members' area.")
@@ -492,6 +698,8 @@
   }
   function open(m, trigger) {
     if (current) { location.href = L.home + 'account/'; return; }
+    // a pending account: whatever was asked for, the card (it has «Αποσύνδεση»)
+    if (pendingUser || (!authKnown && configured && pendingHint())) m = 'verify';
     if (configured) loadSdk();
     if (!dialog) dialog = buildDialog();
     var ae = document.activeElement;             // Safari does not focus a clicked button: prefer the trigger
@@ -500,20 +708,23 @@
     // arrives, which can detach the trigger: keep a way to find its successor
     lastFocusSel = !lastFocus || !lastFocus.getAttribute ? '' : lastFocus.id ? '#' + lastFocus.id
       : lastFocus.hasAttribute('data-open') ? '[data-open="' + lastFocus.getAttribute('data-open') + '"]'
-      : lastFocus.hasAttribute('data-signin') ? '#acct-slot [data-signin]' : '';
+      : lastFocus.hasAttribute('data-signin') ? '#acct-slot [data-signin]'
+      : lastFocus.hasAttribute('data-verify-open') ? '#acct-slot [data-verify-open]' : '';
     if (!pendingLink) $('[data-link-notice]', dialog).hidden = true;
     setMode(m || 'signin');
     dialog.hidden = false;
     if (U.lockScroll) U.lockScroll(); else document.body.classList.add('modal-open');
+    if (mode === 'verify') { watchVerify(!!pendingUser); focusVerify(); return; }
     var first = $(configured ? '.prov, #auth-email' : '[data-offline] a', dialog) || $('[data-close]', dialog);
     setTimeout(function () { try { first.focus(); } catch (e) {} }, 30);
   }
   function close() {
     if (!dialog || dialog.hidden) return;
     dialog.hidden = true;
+    watchVerify(false);
     if (U.unlockScroll) U.unlockScroll(); else document.body.classList.remove('modal-open');
     var to = lastFocus && document.body.contains(lastFocus) ? lastFocus
-      : (lastFocusSel && $(lastFocusSel)) || $('#acct-slot [data-signin], #acct-slot .acct-chip');
+      : (lastFocusSel && $(lastFocusSel)) || $('#acct-slot [data-signin], #acct-slot [data-verify-open], #acct-slot .acct-chip');
     if (to && to.focus) try { to.focus(); } catch (e) {}
   }
   function showStatus(msg, kind) {
@@ -568,7 +779,13 @@
               flash(T('Ο λογαριασμός δημιουργήθηκε, αλλά το όνομα δεν αποθηκεύτηκε (' + friendly(e) + '). Συμπληρώστε το στην αίτηση μέλους.',
                 'Your account was created, but the name was not saved (' + friendly(e) + '). Please fill it in on the membership application.'));
             })
-            .then(function () { return res.user.sendEmailVerification({ url: absolute(L.home + 'account/') }).catch(function () {}); })
+            // the e-mail that confirms the address: until its link is pressed the
+            // account is pending (settle() shows the card instead of signing in)
+            .then(function () {
+              return res.user.sendEmailVerification(verifySettings()).then(function () {
+                verifyState = 'sent'; verifyErr = null; lastSend = Date.now();
+              }, function (e) { verifyState = 'failed'; verifyErr = e; lastSend = 0; });
+            })
             .then(function () { registering = false; settle(auth.currentUser || res.user); return res; });
         }, function (e) { registering = false; throw e; })
       : auth.signInWithEmailAndPassword(email, pass);
@@ -606,6 +823,11 @@
       });
     }
     return chain.then(function () {
+      // an e-mail + password account that has not confirmed its address: the
+      // dialog stays open as the card (settle() has already switched it)
+      var cu = (auth && auth.currentUser) || u;
+      if (cu && needsVerification(cu)) { enterPending(cu); return; }
+      if (cu && pendingUser) settle(cu);      // a link just made the account one that needs no confirmation
       close();
       resetDialog();
       var onAccount = /\/account\/?$/.test(location.pathname);
@@ -646,8 +868,11 @@
     var ln = $('[data-link-notice]', dialog); if (ln) ln.hidden = true;
     showStatus('');
   }
-  function signOut() {
-    clearHint();
+  /* opts.stay: do not reload a member page afterwards (the verification
+     card's «Αποσύνδεση», which turns the dialog into the sign-in form) */
+  function signOut(opts) {
+    clearHint(); clearPending();
+    pendingUser = null; watchVerify(false); verifyState = null; verifyErr = null;
     resetDialog();
     if (!configured) { current = null; paintHeader(); return Promise.resolve(); }
     // the SDK may still be downloading (the header was drawn from the saved
@@ -662,7 +887,7 @@
       try { localStorage.removeItem(SIGNOUT_KEY); } catch (e) {}
       clearHint();
       // a fresh page without the #hash: account/#apply would otherwise open the registration dialog
-      if (/\/(account|members|admin)\/?$/.test(location.pathname)) location.replace(location.pathname + location.search);
+      if (!(opts && opts.stay) && /\/(account|members|admin)\/?$/.test(location.pathname)) location.replace(location.pathname + location.search);
     }, function (e) { signingOut = false; throw e; });
   }
 
@@ -845,8 +1070,8 @@
         'For security reasons, sign out, sign in again and repeat this within a few minutes.'),
       'semfe/needs-password': T('Γράψτε τον κωδικό σας για επιβεβαίωση.',
         'Enter your password to confirm.'),
-      'semfe/account-exists-unverified': T('Υπάρχει ήδη λογαριασμός με το e-mail του LinkedIn σας, που όμως δεν έχει επιβεβαιωθεί. Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά (' + methodsText('e-mail και κωδικό', 'linkedin', lang) + '), επιβεβαιώστε το e-mail σας από τη σελίδα «Ο λογαριασμός μου» και μετά συνδέστε από εκεί το LinkedIn.',
-        'There is already an account with the e-mail address of your LinkedIn account, but it has not been confirmed. Sign in the way you did the first time (' + methodsText('e-mail and password', 'linkedin', lang) + '), confirm your e-mail address on the My account page, and then connect LinkedIn from there.'),
+      'semfe/account-exists-unverified': T('Υπάρχει ήδη λογαριασμός με το e-mail του LinkedIn σας, που όμως δεν έχει επιβεβαιωθεί. Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά (' + methodsText('e-mail και κωδικό', 'linkedin', lang) + '), πατήστε τον σύνδεσμο στο e-mail επιβεβαίωσης που θα σας ζητηθεί, και μετά συνδέστε το LinkedIn από τη σελίδα «Ο λογαριασμός μου».',
+        'There is already an account with the e-mail address of your LinkedIn account, but it has not been confirmed. Sign in the way you did the first time (' + methodsText('e-mail and password', 'linkedin', lang) + '), press the link in the confirmation e-mail when you are asked to, and then connect LinkedIn from the My account page.'),
       'semfe/link-needs-verified-email': T('Για να συνδέσετε το LinkedIn, χρειάζεται πρώτα να επιβεβαιώσετε το e-mail του λογαριασμού σας (δείτε «Τρόποι σύνδεσης» στη σελίδα «Ο λογαριασμός μου»).',
         'To connect LinkedIn, you first need to confirm the e-mail address of your account (see Sign-in methods on the My account page).'),
       'semfe/credential-already-in-use': T('Αυτός ο λογαριασμός LinkedIn είναι ήδη συνδεδεμένος με άλλον λογαριασμό του ιστότοπου.',
@@ -932,7 +1157,9 @@
     else if (!configured) { try { fn(null); } catch (e) {} }
   }
   window.SemfeAuth = {
-    configured: configured, root: root, home: L.home, onChange: onChange, open: open, close: close, signOut: signOut,
+    configured: configured, root: root, home: L.home, onChange: onChange, open: open, close: close, signOut: function () { return signOut(); },
+    pending: function () { return pendingUser ? { email: pendingUser.email || '' } : null; },
+    needsVerification: needsVerification,
     db: db, isAdmin: isAdmin, providers: providers, providersAsync: providersAsync, link: link, reauth: reauth, reauthPassword: reauthPassword,
     linkedinTakeState: linkedinTakeState, linkedinComplete: linkedinComplete, safeReturn: safeReturn,
     linkedinViaFunction: function () { return LI_FUNCTION; },
@@ -969,7 +1196,7 @@
   try { outPending = localStorage.getItem(SIGNOUT_KEY) === '1'; } catch (e) {}
   if (configured && outPending) {
     // "Αποσύνδεση" was pressed on the previous page before it could finish
-    signingOut = true; clearHint();
+    signingOut = true; clearHint(); clearPending();
     loadSdk().then(function () { return auth.signOut(); }).then(function () {
       signingOut = false;
       try { localStorage.removeItem(SIGNOUT_KEY); } catch (e) {}
@@ -981,7 +1208,7 @@
     // member pages, for someone who has signed in on this browser before, or
     // once the visitor opens the sign-in dialog. A visitor who only reads the
     // public pages never downloads it and gets nothing stored.
-    if (document.body.getAttribute('data-firestore') === '1' || !!hint()) loadSdk();
+    if (document.body.getAttribute('data-firestore') === '1' || !!hint() || !!pendingHint()) loadSdk();
   } else {
     authKnown = true;
   }
@@ -989,7 +1216,7 @@
   // (only once we know nobody is signed in: a member following such a link stays where they are)
   if (/(^|[?&#])(signin|register)\b/.test(location.search + location.hash) && !/\/account\/?$/.test(location.pathname)) {
     var asked = /register/.test(location.search + location.hash) ? 'register' : 'signin', handled = false;
-    if (!hint()) { handled = true; open(asked); }     // no saved session here: open at once (a late sign-in closes it)
+    if (!hint() && !pendingHint()) { handled = true; open(asked); }     // no saved session here: open at once (a late sign-in closes it)
     // (only if the visitor has not opened the dialog themselves meanwhile, even if they closed it again)
     onChange(function (u) { if (handled) return; handled = true; if (!u && !dialog) open(asked); });
   }

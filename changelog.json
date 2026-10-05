@@ -12,6 +12,17 @@
       }
     },
     {
+      "id": "2026-10-05-epivevaiosi-email",
+      "date": "2026-10-05",
+      "title": "Επιβεβαίωση του e-mail στην εγγραφή",
+      "summary": "Όταν δημιουργείτε λογαριασμό με e-mail και κωδικό, σας στέλνουμε ένα e-mail με σύνδεσμο. Μόλις τον πατήσετε, η διεύθυνσή σας επιβεβαιώνεται και μπορείτε να συνδεθείτε και να κάνετε την αίτηση μέλους. Αν το e-mail δεν έφτασε, μπορείτε να ζητήσετε νέο από την ίδια σελίδα. Με Google ή LinkedIn η σύνδεση γίνεται όπως πριν.",
+      "url": "account/",
+      "en": {
+        "title": "Confirming your e-mail when you register",
+        "summary": "When you create an account with an e-mail and a password, we send you an e-mail with a link. Once you press it, your address is confirmed and you can sign in and apply for membership. If the e-mail did not arrive, you can ask for a new one from the same page. With Google or LinkedIn, signing in works as before."
+      }
+    },
+    {
       "id": "2026-10-05-rss-atom-odigies",
       "date": "2026-10-05",
       "title": "Πιο απλή εγγραφή στις ροές RSS και Atom",

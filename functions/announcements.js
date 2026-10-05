@@ -35,6 +35,17 @@
  *     An edit keeps the date and the address; it is ONE commit titled
  *     "Announcement: <slug>" like a new one (publish.yml checks it the same way),
  *     and it e-mails nobody again (the alerts know the address already).
+ *   { action: 'delete', file, sha (from load) }
+ *                          -> { ok, deleted: true, url, file, removed: [paths], commit }
+ *     Removes the announcement's file and its own pictures (date-slug-N.*) in ONE
+ *     commit titled "Announcement: delete <slug>"; the build then drops its page,
+ *     its card and its feed entries (tools/build.mjs). Any announcement may be
+ *     deleted, one written by hand on GitHub too. Git keeps it: a revert of that
+ *     commit brings it back (ANNOUNCE-SETUP.md).
+ * Every answer that commits also carries `blob`, the Git blob id of the
+ * announcement's text (null after a delete): the build writes the same id into
+ * the page (<meta name="semfe-source">), so the editor can tell the moment the
+ * new version is really online.
  * Errors are { error: <code> } with a status: not-signed-in 401, not-admin 403,
  * not-set-up 503, a code of announce-text.js 400, github-token 503, github-busy 409,
  * post-missing 404, post-changed 409 (edited elsewhere since it was opened). */
@@ -101,7 +112,8 @@ function readFigures(list, edit) {
 }
 
 /** One commit on the branch, prepared against its tip; resolves { post, commit }.
-    prepare(head) -> { post, message, figures } for build.mjs to write, or { post, unchanged: true }.
+    prepare(head) -> { post, message, figures } for build.mjs to write, { post, message, tree }
+    with a tree of its own (a delete: entries with sha null), or { post, unchanged: true }.
     Somebody pushing in between (a workflow, a person) starts it again from the new tip. */
 async function commitWith(api, cfg, prepare) {
   const base = '/repos/' + cfg.repo;
@@ -114,12 +126,15 @@ async function commitWith(api, cfg, prepare) {
     const plan = await prepare(head);
     if (plan.unchanged) return { post: plan.post, commit: null };
     const post = plan.post;
-    const tree = [{ path: post.path, mode: '100644', type: 'blob', content: post.text }];
-    for (const img of post.images) {
-      if (img.existing) continue;                                              // a picture already published keeps its file
-      const blob = await api('POST', base + '/git/blobs', { content: plan.figures[img.n - 1].bytes.toString('base64'), encoding: 'base64' });
-      if (!blob.ok) throw refusal(blob, 'blob');
-      tree.push({ path: img.path, mode: '100644', type: 'blob', sha: blob.json.sha });
+    let tree = plan.tree;                                                      // a delete brings its own: the paths to remove
+    if (!tree) {
+      tree = [{ path: post.path, mode: '100644', type: 'blob', content: post.text }];
+      for (const img of post.images) {
+        if (img.existing) continue;                                            // a picture already published keeps its file
+        const blob = await api('POST', base + '/git/blobs', { content: plan.figures[img.n - 1].bytes.toString('base64'), encoding: 'base64' });
+        if (!blob.ok) throw refusal(blob, 'blob');
+        tree.push({ path: img.path, mode: '100644', type: 'blob', sha: blob.json.sha });
+      }
     }
     const t = await api('POST', base + '/git/trees', { base_tree: parent.json.tree.sha, tree });
     if (!t.ok) throw refusal(t, 'tree');
@@ -181,6 +196,37 @@ async function commitEdit(api, cfg, file, sha, input, figures, by) {
   });
 }
 
+/** The Git blob id of a text, as GitHub computes it: what the build stamps into the page. */
+function blobId(text) {
+  const b = Buffer.from(String(text), 'utf8');
+  return require('crypto').createHash('sha1').update(Buffer.concat([Buffer.from('blob ' + b.length + '\0'), b])).digest('hex');
+}
+/** The title line of any announcement, one written by hand included (for the delete question and the commit). */
+function looseTitle(text) {
+  const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(String(text));
+  const m = fm && /^title:[ \t]*(.*)$/m.exec(fm[1]);
+  if (!m) return '';
+  let t = m[1].trim();
+  if (/^'.*'$/.test(t)) t = t.slice(1, -1).replace(/''/g, "'");
+  else if (/^".*"$/.test(t)) { try { t = JSON.parse(t); } catch (e) { t = t.slice(1, -1); } }
+  return titleLine(t).slice(0, 300);
+}
+/** Commit the removal of `file` and its own pictures; `file` must still be the version `sha` the admin saw. */
+async function commitDelete(api, cfg, file, sha, by) {
+  const [, date, slug] = FILE_RE.exec(file);
+  return commitWith(api, cfg, async head => {
+    const now = await readPostFile(api, cfg, file, head);
+    if (!now) throw new HttpError(404, 'post-missing');
+    if (now.sha !== sha) throw new HttpError(409, 'post-changed');
+    const pictures = (await postImages(api, cfg, date, slug, head)).map(n => 'assets/img/posts/' + n);
+    const paths = [POSTS_DIR + '/' + file].concat(pictures);
+    const title = looseTitle(now.text) || slug;
+    return { post: { date, slug, file, path: paths[0], removed: paths, title },
+      tree: paths.map(p => ({ path: p, mode: '100644', type: 'blob', sha: null })),
+      message: 'Announcement: delete ' + slug + '\n\n' + title + '\n\nDeleted from the website by ' + by + '.' };
+  });
+}
+
 /* The HTTP handler. deps: { auth, fetch, clock, log }; cfg: { allowedOrigins[], token, repo, branch, siteUrl }. */
 async function handle(req, res, deps, cfg) {
   const origin = req.get ? req.get('origin') : (req.headers && req.headers.origin);
@@ -208,7 +254,7 @@ async function handle(req, res, deps, cfg) {
 
     const ready = !!cfg.token && cfg.token !== 'none' && /^[\w-]+\/[\w.-]+$/.test(cfg.repo || '');
     if (body.action === 'status') return res.status(200).json({ ok: true, ready });
-    if (['publish', 'load', 'update'].indexOf(body.action) === -1) throw new HttpError(400, 'bad-request');
+    if (['publish', 'load', 'update', 'delete'].indexOf(body.action) === -1) throw new HttpError(400, 'bad-request');
     if (!ready) throw new HttpError(503, 'not-set-up');
     const site = String(cfg.siteUrl).replace(/\/?$/, '/');
     const api = github(deps, cfg);
@@ -222,11 +268,17 @@ async function handle(req, res, deps, cfg) {
       let post;
       try { post = T.parsePost(f.text); } catch (e) {
         if (!(e && e.code === 'not-editable')) throw e;
-        return res.status(200).json({ ok: true, editable: false, file: body.file, url,
+        return res.status(200).json({ ok: true, editable: false, file: body.file, sha: f.sha, url, title: looseTitle(f.text),
           github: 'https://github.com/' + cfg.repo + '/edit/' + encodeURIComponent(cfg.branch) + '/' + POSTS_DIR + '/' + body.file });
       }
-      return res.status(200).json({ ok: true, editable: true, file: body.file, sha: f.sha, url, post,
+      return res.status(200).json({ ok: true, editable: true, file: body.file, sha: f.sha, url, post, title: post.title,
         raw: 'https://raw.githubusercontent.com/' + cfg.repo + '/' + encodeURIComponent(cfg.branch) + '/' });
+    }
+    if (body.action === 'delete') {
+      const m = typeof body.file === 'string' && FILE_RE.exec(body.file);
+      if (!m || typeof body.sha !== 'string' || !body.sha) throw new HttpError(400, 'bad-request');
+      const { post, commit } = await commitDelete(api, cfg, body.file, body.sha, me.email);
+      return res.status(200).json({ ok: true, deleted: true, url: site + T.pathOf(post.date, post.slug), file: post.file, removed: post.removed, commit, blob: null });
     }
     for (const k of ['title', 'category', 'body']) if (typeof body[k] !== 'string') throw new HttpError(400, 'bad-request');
     if (body.description !== undefined && typeof body.description !== 'string') throw new HttpError(400, 'bad-request');
@@ -241,7 +293,7 @@ async function handle(req, res, deps, cfg) {
       // the same cheap check first, with the address it keeps
       T.buildPost(Object.assign({}, input, { date: m[1], keepSlug: m[2], figures: figures.map(f => f.name ? { name: f.name, ext: f.ext, size: f.size } : { ext: f.ext, size: f.size }) }));
       const { post, commit } = await commitEdit(api, cfg, body.file, body.sha, input, figures, me.email);
-      return res.status(200).json(Object.assign({ ok: true, edited: true, url: site + T.pathOf(post.date, post.slug), path: post.path, file: post.file, slug: post.slug, date: post.date, commit },
+      return res.status(200).json(Object.assign({ ok: true, edited: true, url: site + T.pathOf(post.date, post.slug), path: post.path, file: post.file, slug: post.slug, date: post.date, commit, blob: blobId(post.text) },
         commit ? {} : { unchanged: true }));
     }
 
@@ -251,7 +303,7 @@ async function handle(req, res, deps, cfg) {
     T.buildPost(Object.assign({}, input, { taken: [], figures: figures.map(f => ({ ext: f.ext, size: f.size })) }));
 
     const { post, commit } = await commitPost(api, cfg, input, figures, me.email);
-    return res.status(200).json({ ok: true, url: site + T.pathOf(post.date, post.slug), path: post.path, file: post.file, slug: post.slug, date: post.date, commit });
+    return res.status(200).json({ ok: true, url: site + T.pathOf(post.date, post.slug), path: post.path, file: post.file, slug: post.slug, date: post.date, commit, blob: blobId(post.text) });
   } catch (e) {
     const mine = e instanceof HttpError || !!(e && e.announce);          // an HttpError of this file, or a rule of announce-text.js
     const status = e instanceof HttpError ? e.status : (e && e.announce ? 400 : 500);
@@ -261,4 +313,4 @@ async function handle(req, res, deps, cfg) {
   }
 }
 
-module.exports = { handle, commitPost, commitEdit, readFigures, github, refusal };
+module.exports = { handle, commitPost, commitEdit, commitDelete, readFigures, github, refusal, blobId, looseTitle };

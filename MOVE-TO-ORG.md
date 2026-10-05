@@ -193,9 +193,14 @@ depend on GitHub.
   stop a Pages site, so first **Settings > Pages**: under **Branch** choose
   **None** and **Save** (or, if the page shows a "Your site is live" box, the
   three dots next to the address, **Unpublish site**). Done on 5 October 2026.
-  Delete its Actions secrets
-  `FIREBASE_SERVICE_ACCOUNT`, `FEEDBACK_LOG_TOKEN` and any `GA4_*` (an archived
-  repository keeps them). Then **archive** it (not delete).
+  The plan was to delete its Actions secrets and archive it; **it was deleted
+  outright on 5 October 2026 instead**, which takes its secrets with it. Nothing
+  was lost: this repository holds its whole history (its last commit, `30c9fd3`,
+  is in `git log` here), and the homepage repository keeps a copy of the first
+  version in `_backups/semfealumni-first-version/`. GitHub keeps a deleted
+  repository restorable for 90 days (your photo > **Settings** >
+  **Repositories** > **Deleted repositories**). Links to
+  github.com/konstantinosStouras/semfealumni now answer "not found".
 * **The old preview address `www.stouras.com/semfealumni/...`** used to forward
   to semfealumni.gr (through the old repository's custom domain), then showed a
   frozen copy of the site, and answered "not found" once the old site was

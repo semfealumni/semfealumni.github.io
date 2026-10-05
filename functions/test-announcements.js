@@ -301,7 +301,14 @@ const TOOLS = path.join(__dirname, '..', 'tools');
         const base = g.trees[Object.keys(g.trees).find(k => k === body.base_tree)];
         assert.ok(base, 'base_tree must be the parent commit\'s tree');
         const files = Object.assign({}, base);
-        for (const e of body.tree) { assert.strictEqual(e.mode, '100644'); files[e.path] = e.content !== undefined ? e.content : g.blobs[e.sha]; }
+        for (const e of body.tree) {
+          assert.strictEqual(e.mode, '100644');
+          if (e.sha === null) {                                                     // a removal; GitHub refuses one of a path the tree does not have
+            if (!(e.path in files)) return reply(422, { message: 'GitRPC::BadObjectState' });
+            delete files[e.path]; continue;
+          }
+          files[e.path] = e.content !== undefined ? e.content : g.blobs[e.sha];
+        }
         const sha = 't' + (++g.n); g.trees[sha] = files; return reply(201, { sha });
       }
       if (method === 'POST' && p === '/git/commits') { const sha = 'c' + (++g.n); g.commits[sha] = { tree: body.tree, parents: body.parents, message: body.message }; return reply(201, { sha }); }
@@ -362,7 +369,7 @@ const TOOLS = path.join(__dirname, '..', 'tools');
   await t('publish: one commit with the text and the picture, on top of the branch', async () => {
     const r = await call(OK);
     assert.strictEqual(r.code, 200, JSON.stringify(r.body));
-    assert.deepStrictEqual(Object.assign({}, r.body, { commit: 'x' }), { ok: true, url: 'https://semfealumni.gr/blog/2026/10/05/kopi-pitas-2026/', path: '_src/posts/2026-10-05-kopi-pitas-2026.md', file: '2026-10-05-kopi-pitas-2026.md', slug: 'kopi-pitas-2026', date: '2026-10-05', commit: 'x' });
+    assert.deepStrictEqual(Object.assign({}, r.body, { commit: 'x', blob: 'y' }), { ok: true, blob: 'y', url: 'https://semfealumni.gr/blog/2026/10/05/kopi-pitas-2026/', path: '_src/posts/2026-10-05-kopi-pitas-2026.md', file: '2026-10-05-kopi-pitas-2026.md', slug: 'kopi-pitas-2026', date: '2026-10-05', commit: 'x' });
     const g = r.gh;
     assert.strictEqual(g.head, r.body.commit);
     const c = g.commits[g.head];
@@ -571,6 +578,77 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     assert.deepStrictEqual(await call(Object.assign({}, base, { file: '2026-01-01-none.md', body: 'y', figures: [] }), { github: repo() }).then(r => [r.code, r.body.error]), [404, 'post-missing']);
     assert.deepStrictEqual(await call(Object.assign({}, base, { sha: '' }), { github: repo() }).then(r => [r.code, r.body.error]), [400, 'bad-request']);
     assert.deepStrictEqual(await call(Object.assign({}, base, { body: 'x {{root}}', figures: [] }), { github: repo() }).then(r => [r.code, r.body.error]), [400, 'braces']);
+  });
+  /* ---- the version id the build stamps into the page, and deleting ---------- */
+  const gitBlob = text => { const b = Buffer.from(text); return sha1(Buffer.concat([Buffer.from('blob ' + b.length + '\0'), b])); };
+  await t('blob: publish and update answer the Git blob id of the text they committed (what the build stamps into the page)', async () => {
+    assert.strictEqual(ann.blobId('hello\n'), 'ce013625030ba8dba906f756967f9e9ca394464a');          // `printf 'hello\n' | git hash-object --stdin`
+    assert.strictEqual(ann.blobId('Κοπή'), gitBlob('Κοπή'), 'counted in bytes, not characters');
+    const g = fakeGithub(), r = await call(OK, { github: g });
+    assert.strictEqual(r.body.blob, gitBlob(g.trees[g.commits[g.head].tree][r.body.path]));
+    const g2 = repo(), o = await opened(g2);
+    const u = await call({ action: 'update', file: FILE, sha: o.sha, title: 'Νέος τίτλος', category: 'Εκδηλώσεις', body: 'Άλλο κείμενο.', figures: [] }, { github: g2 });
+    assert.strictEqual(u.body.blob, gitBlob(g2.trees[g2.commits[g2.head].tree][EDITED.path]));
+    const build = require('node:fs').readFileSync(path.join(TOOLS, 'build.mjs'), 'utf8');
+    assert.ok(/<meta name="semfe-source" content="\$\{blobId\(page\.raw\)\}">/.test(build), 'tools/build.mjs writes the same id into each announcement page');
+  });
+  await t('looseTitle: the title of any announcement, one written by hand too', async () => {
+    assert.strictEqual(ann.looseTitle('---\ntitle: Πρόσκληση\ndate: 2025-03-02\n---\n'), 'Πρόσκληση');
+    assert.strictEqual(ann.looseTitle("---\ntitle: 'It''s'\n---\n"), "It's");
+    assert.strictEqual(ann.looseTitle('---\ntitle: "Α \\"β\\""\n---\n'), 'Α "β"');
+    assert.strictEqual(ann.looseTitle('---\r\ntitle:   x  y \r\n---\r\n'), 'x y');
+    assert.strictEqual(ann.looseTitle('no front matter'), '');
+    assert.strictEqual(ann.looseTitle('---\ndate: x\n---\ntitle: in the body\n'), '', 'only from the front matter');
+  });
+  await t('load: answers the version and the title for one written by hand too (what a delete needs)', async () => {
+    const r = await call({ action: 'load', file: '2025-03-02-2025-taktiki-gs.md' }, { github: repo() });
+    assert.deepStrictEqual([r.body.editable, r.body.title, r.body.sha], [false, 'Πρόσκληση', sha1(Buffer.from('---\ntitle: Πρόσκληση\ndate: 2025-03-02\n---\n\n<p class="date-right">x</p>\n'))]);
+    assert.strictEqual((await call({ action: 'load', file: FILE }, { github: repo() })).body.title, 'Κοπή πίτας 2026');
+  });
+  await t('delete: ONE commit removes the file and every picture of its own; nothing else is touched or uploaded', async () => {
+    const g = repo(), o = await opened(g);
+    Object.assign(g.trees.t0, { ['assets/img/posts/2026-10-01-kopi-pitas-2026-extra-1.jpg']: Buffer.from('another announcement'), ['assets/img/posts/2026-kopi-pitas.jpg']: Buffer.from('old') });
+    const before = Object.keys(g.trees.t0);
+    const r = await call({ action: 'delete', file: FILE, sha: o.sha }, { github: g });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.body));
+    assert.deepStrictEqual([r.body.deleted, r.body.url, r.body.file, r.body.blob], [true, 'https://semfealumni.gr/blog/2026/10/01/kopi-pitas-2026/', FILE, null]);
+    assert.deepStrictEqual(r.body.removed, [EDITED.path, 'assets/img/posts/2026-10-01-kopi-pitas-2026-1.jpg', 'assets/img/posts/2026-10-01-kopi-pitas-2026-2.jpg', 'assets/img/posts/2026-10-01-kopi-pitas-2026-3.jpg']);
+    const c = g.commits[g.head], files = g.trees[c.tree];
+    assert.strictEqual(c.parents[0], 'c0', 'one commit on top of the tip');
+    assert.ok(/^Announcement: delete kopi-pitas-2026\n\nΚοπή πίτας 2026\n\nDeleted from the website by kstouras@gmail\.com\.$/.test(c.message), c.message);
+    assert.deepStrictEqual(before.filter(k => !(k in files)).sort(), r.body.removed.slice().sort(), 'exactly those are gone');
+    assert.ok(files['assets/img/posts/2026-10-01-kopi-pitas-2026-extra-1.jpg'] && files['assets/img/posts/2026-kopi-pitas.jpg'] && files['_src/posts/2025-03-02-2025-taktiki-gs.md'], 'another announcement and its pictures stay');
+    assert.strictEqual(r.gh.calls.filter(x => x.method === 'POST' && /\/git\/(blobs)$/.test(x.path)).length, 0, 'nothing is uploaded');
+    const tree = r.gh.calls.find(x => x.method === 'POST' && x.path.endsWith('/git/trees')).body;
+    assert.ok(tree.tree.every(e => e.sha === null && e.type === 'blob'), 'the tree only removes');
+  });
+  await t('delete: one written by hand can be deleted too, with its title in the commit', async () => {
+    const g = repo(), o = (await call({ action: 'load', file: '2025-03-02-2025-taktiki-gs.md' }, { github: g })).body;
+    const r = await call({ action: 'delete', file: '2025-03-02-2025-taktiki-gs.md', sha: o.sha }, { github: g });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.body));
+    assert.deepStrictEqual(r.body.removed, ['_src/posts/2025-03-02-2025-taktiki-gs.md']);
+    assert.ok(g.commits[g.head].message.startsWith('Announcement: delete 2025-taktiki-gs\n\nΠρόσκληση\n\n'));
+  });
+  await t('delete: changed since it was opened, already gone, a bad request, not an admin: nothing is removed', async () => {
+    let g = repo();
+    let r = await call({ action: 'delete', file: FILE, sha: 'an-older-version' }, { github: g });
+    assert.deepStrictEqual([r.code, r.body.error, g.head], [409, 'post-changed', 'c0']);
+    g = repo();
+    r = await call({ action: 'delete', file: '2026-01-01-none.md', sha: 'x' }, { github: g });
+    assert.deepStrictEqual([r.code, r.body.error, g.head], [404, 'post-missing', 'c0']);
+    for (const b of [{ file: FILE }, { file: FILE, sha: '' }, { file: '../x.md', sha: 'x' }, { file: 'README.md', sha: 'x' }, { sha: 'x' }])
+      assert.deepStrictEqual(await call(Object.assign({ action: 'delete' }, b), { github: repo() }).then(x => [x.code, x.body.error]), [400, 'bad-request'], JSON.stringify(b));
+    g = repo();
+    r = await call({ action: 'delete', file: FILE, sha: 'x' }, { token: 'other', github: g });
+    assert.deepStrictEqual([r.code, r.body.error, r.gh.calls.length], [403, 'not-admin', 0]);
+  });
+  await t('delete: somebody pushed in between: done again on the new tip, still one commit', async () => {
+    const g = repo(); g.conflicts = 1;
+    const o = await opened(g);
+    const r = await call({ action: 'delete', file: FILE, sha: o.sha }, { github: g });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.body));
+    assert.ok(!(EDITED.path in g.trees[g.commits[g.head].tree]));
+    assert.strictEqual(g.commits[g.head].parents[0].indexOf('c-other'), 0, 'on top of the other push');
   });
   await t('ADMIN_EMAILS is the one accounts.js keeps (nothing else decides who may publish)', async () => {
     assert.ok(accounts.ADMIN_EMAILS.includes('kstouras@gmail.com'));
