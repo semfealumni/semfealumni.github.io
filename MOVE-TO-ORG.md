@@ -11,7 +11,7 @@ repository before, is kept in `_past-website-versions/mkdocs-material-site/`.
 > then the Pages source and the custom domain on this repository): since then
 > **https://semfealumni.gr/ is served by this repository**, and
 > `https://semfealumni.github.io/` forwards to it. What is left is "A week later"
-> below. The rest of this file is kept as the record of how it was done, and as
+> below (the personal feedback log is already deleted). The rest of this file is kept as the record of how it was done, and as
 > the way back.
 
 **Nothing changes for visitors or members:** the address is still
@@ -270,5 +270,7 @@ step 2 of the day deleted).
   5. Only then delete the personal repository
      `konstantinosStouras/semfealumni-feedback-log`, after checking that the
      organisation's new repository does not say "forked from" under its name.
+     (Done on 5 October 2026; a `feedback` run started afterwards still checked
+     out and pushed the organisation's log, so it stands on its own.)
 * **Old links**: see "A week later": archiving alone does not unpublish a Pages
   site.
