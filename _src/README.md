@@ -80,7 +80,11 @@ crumbs:
 
 A text that has a colon, a `#` or starts with a quote needs quotes
 (`title: "Ανακοίνωση: κοπή πίτας"`); a long one can be folded over lines with
-`description: >-` and an indented block.
+`description: >-` and an indented block. **A number must be in quotes too**
+(`slug: "2026"`, `value: "3.000"`): YAML reads `3.000` as the number 3 and
+`007` as 7, and the build refuses a page whose title, description or slug came
+out as a number. The build also refuses a key it does not know, and `noindex: no`
+(write `true` or `false`); the message names the file.
 
 ## The text: Markdown
 
@@ -90,7 +94,7 @@ Plain CommonMark: `## heading`, `**bold**`, `*italic*`, `[text](address)`,
 | Write | Get |
 |---|---|
 | `[text]({{root}}contact/)` | a link that works wherever the site is hosted (`{{root}}` is the way back to the site root) |
-| `[text](https://…){ .btn .btn-dark newtab }` | CSS classes on a link; `newtab` opens it in a new tab (`target="_blank" rel="noopener"`) |
+| `[text](https://…){ .btn .btn-dark newtab }` | CSS classes on a link; `newtab` opens it in a new tab (`target="_blank" rel="noopener"`). A bare word is an attribute only if it is `newtab`, `hidden`, `download` or `open`: `{ see below }` is just text. Event handlers (`onclick=…`) are refused |
 | `![alt](a.jpg){ width=300 loading=lazy }` | attributes on a picture |
 | `Με εκτίμηση,` + a line `{ .sign }` | a class on the paragraph above (the last line of a paragraph) |
 | `## Title { #anchor }` | an id on a heading |
@@ -100,7 +104,9 @@ Plain CommonMark: `## heading`, `**bold**`, `*italic*`, `[text](address)`,
 | `{{latest}}`, `{{posts}}`, `{{social}}` alone on a line | the newest announcements, all of them, the social links |
 | `{{post:slug}}` as a link address | the address of an announcement |
 
-A line break inside a paragraph is written `<br>` at the end of the line.
+A line break inside a paragraph is written `<br>` at the end of the line. The
+dialect is plain CommonMark: no tables, no `~~strike~~`, and a line that starts
+with a number and a dot (`2025. Έτος`) is a numbered list, so write `2025\. Έτος`.
 
 Text for a sign-in method that may not be offered goes between
 `<!--if:google-->` … `<!--/if:google-->` (`google`, `linkedin`, `facebook` or
@@ -136,7 +142,9 @@ buttons that need JavaScript, `<dl>` tables) are written.
 
 A list that repeats (people, documents, photos, dates) is a fenced block whose
 first line names the component. Each entry is checked: a missing or misspelled
-key stops the build with a sentence naming the page and the entry.
+key, a number that is not in quotes, or a mistyped first line (```{ people}```)
+stops the build with a sentence naming the page and the entry. The block must
+start after a blank line when it follows HTML, or it is passed through as HTML.
 
 ````markdown
 ```{people}

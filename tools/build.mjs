@@ -34,7 +34,7 @@
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderMarkdown, wrapLayout, splitFrontMatter } from './markdown.mjs';
+import { renderMarkdown, wrapLayout, splitFrontMatter, validateFrontMatter } from './markdown.mjs';
 import { applyConditions } from './conditions.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -162,10 +162,10 @@ const greekDate = iso => { const [y, m, d] = iso.split('-').map(Number); return 
 
 function readSrc(dir) {
   const full = path.join(ROOT, '_src', dir);
-  return readdirSync(full).filter(f => /\.md$/i.test(f)).sort().map(f => {
+  return readdirSync(full).filter(f => f.endsWith('.md')).sort().map(f => {
     const file = `${dir}/${f}`;
     const { data, body } = splitFrontMatter(readFileSync(path.join(full, f), 'utf8'), file);
-    const meta = signinDeep(data, file);
+    const meta = signinDeep(validateFrontMatter(data, dir === 'posts' ? 'post' : 'page', file), file);
     const html = wrapLayout(renderMarkdown(signinText(body, file), file), meta.layout, file);
     return { file, meta, body: html.trim() };
   });
@@ -434,8 +434,8 @@ const all = [...pages, ...posts];
 const seen = new Set();
 const out = [];
 for (const page of all) {
-  if (page.path == null) throw new Error(`${page.file}: META needs "path"`);
-  if (!page.meta.title || !page.meta.description) throw new Error(`${page.file}: META needs "title" and "description"`);
+  if (page.path == null) throw new Error(`${page.file}: the front matter needs "path"`);
+  if (!page.meta.title || !page.meta.description) throw new Error(`${page.file}: the front matter needs "title" and "description"`);
   const file = page.meta.file || (page.path + 'index.html');
   if (seen.has(file)) throw new Error(`two sources write ${file}`);
   seen.add(file);
@@ -447,7 +447,7 @@ for (const page of all) {
    announcements and one per category. Each gets a small page that forwards to
    the announcements (on the category's filter), so links and bookmarks keep
    working after the move. Files that moved (the PDFs, the logo, the photos)
-   are forwarded by the script in _src/pages/404.html. */
+   are forwarded by the script in _src/pages/404.md. */
 const LEGACY = [];
 for (const y of [...new Set(posts.map(p => String(p.meta.date).slice(0, 4)))].sort()) LEGACY.push(['blog/archive/' + y + '/', 'blog/']);
 for (const c of [...new Set(posts.map(p => p.meta.category).filter(Boolean))].sort()) LEGACY.push(['blog/category/' + c.toLowerCase() + '/', 'blog/?cat=' + encodeURIComponent(c)]);

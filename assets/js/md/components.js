@@ -40,7 +40,7 @@ function entries(list, spec, ctx) {
     for (const k of Object.keys(item)) {
       const v = item[k];
       if (spec.flags && spec.flags.includes(k)) { if (typeof v !== 'boolean') throw new Error(`${where(i + 1)}: "${k}" must be true or false`); out[k] = v; }
-      else if (typeof v === 'number') out[k] = String(v);            // value: 2013 is as good as value: "2013"
+      else if (typeof v === 'number') throw new Error(`${where(i + 1)}: "${k}" is a number, and YAML would change how it is written (3.000 becomes 3): write it in quotes, "${v}"`);
       else if (typeof v !== 'string') throw new Error(`${where(i + 1)}: "${k}" must be text`);
       else out[k] = v;
     }
@@ -55,7 +55,11 @@ export const COMPONENTS = {
   people: {
     spec: { required: ['id', 'name', 'role'], optional: ['photo', 'linkedin'] },
     render(list, ctx) {
-      const rows = entries(list, this.spec, ctx).map(p => `  <article class="person" id="${escAttr(p.id)}">
+      const rows = entries(list, this.spec, ctx).map((p, i, all) => {
+        if (all.findIndex(q => q.id === p.id) !== i) throw new Error(`${ctx.file}: the {people} block, entry ${i + 1}: the id "${p.id}" is used twice`);
+        if (p.linkedin && !/^https:\/\//.test(p.linkedin)) throw new Error(`${ctx.file}: the {people} block, entry ${i + 1}: "linkedin" must be an address that starts with https://`);
+        return p;
+      }).map(p => `  <article class="person" id="${escAttr(p.id)}">
     <img src="${PROFILES}${escAttr(p.photo || p.id + '.jpg')}" alt="${escAttr(p.name)}" width="116" height="116" loading="lazy">
     <div class="role">${esc(p.role)}</div>
     <h3>${esc(p.name)}</h3>${p.linkedin ? `

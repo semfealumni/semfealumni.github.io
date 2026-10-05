@@ -47,7 +47,9 @@ import { load, CORE_SCHEMA } from './js-yaml.min.js';
 import { COMPONENTS } from './components.js';
 
 /* ---- attribute lists ------------------------------------------------------ */
-const ATTR_TOKEN = /[ \t]*(?:\.([A-Za-z_][\w-]*)|#([A-Za-z_][\w:-]*)|([A-Za-z_:][\w:.-]*)(?:=(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`{}]+)))?)/y;
+const ATTR_TOKEN = /[ \t]*(?:\.([\p{L}_][\p{L}\p{N}_-]*)|#([\p{L}_][\p{L}\p{N}_:-]*)|([A-Za-z_:][\w:.-]*)(?:=(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`{}]+)))?)/uy;
+/* a word with no "=" is an attribute only when it is one of these: "{ see below }" is text, not three attributes */
+const FLAGS = ['newtab', 'hidden', 'download', 'open'];
 
 /** "{ .a #b k=v flag }" (the text between the braces) as [[name, value]], or null if it is not one. */
 export function parseAttrs(text) {
@@ -62,7 +64,12 @@ export function parseAttrs(text) {
     if (!m) return null;
     if (m[1] !== undefined) out.push(['class', m[1]]);
     else if (m[2] !== undefined) out.push(['id', m[2]]);
-    else out.push([m[3], m[4] !== undefined ? m[4] : m[5] !== undefined ? m[5] : m[6] !== undefined ? m[6] : '']);
+    else {
+      const value = m[4] !== undefined ? m[4] : m[5] !== undefined ? m[5] : m[6] !== undefined ? m[6] : null;
+      if (value === null && FLAGS.indexOf(m[3]) < 0) return null;                    // a bare word that is not a known flag
+      if (value !== null && m[3] === 'newtab') return null;                          // newtab takes no value
+      out.push([m[3], value === null ? '' : value]);
+    }
     at = ATTR_TOKEN.lastIndex;
     if (at < s.length && !/\s/.test(s[at])) return null;
   }
@@ -70,6 +77,7 @@ export function parseAttrs(text) {
 }
 function applyAttrs(token, attrs) {
   for (const [k, v] of attrs) {
+    if (/^on/i.test(k) || /^srcdoc$/i.test(k)) throw new Error(`the attribute "${k}" is not allowed (event handlers and srcdoc cannot be written in a page)`);
     if (k === 'class') token.attrJoin('class', v);
     else if (k === 'newtab' && v === '') { token.attrSet('target', '_blank'); token.attrSet('rel', 'noopener'); }
     else token.attrSet(k, v);
@@ -152,7 +160,7 @@ function imageParagraphPlugin(md) {
 /* ---- {{posts}} / {{latest}} / {{social}} alone on a line ------------------- */
 const BLOCK_PLACEHOLDER = /^\{\{(posts|latest|social)\}\}[ \t]*$/;
 function placeholderBlockPlugin(md) {
-  md.block.ruler.before('paragraph', 'placeholder_block', (state, startLine, endLine, silent) => {
+  md.block.ruler.before('paragraph', 'placeholder_block', function placeholderBlock(state, startLine, endLine, silent) {
     if (state.sCount[startLine] - state.blkIndent >= 4) return false;
     const pos = state.bMarks[startLine] + state.tShift[startLine], max = state.eMarks[startLine];
     const m = BLOCK_PLACEHOLDER.exec(state.src.slice(pos, max));
@@ -163,11 +171,12 @@ function placeholderBlockPlugin(md) {
     t.map = [startLine, startLine + 1];
     state.line = startLine + 1;
     return true;
-  });
+  }, { alt: ['paragraph', 'reference', 'blockquote', 'list'] });          // alone on a line it ends the paragraph above it, like a heading does
 }
 
 /* ---- the renderer ---------------------------------------------------------- */
 const md = new MarkdownIt({ html: true, linkify: false, typographer: false, breaks: false, xhtmlOut: false });
+md.disable(['table', 'strikethrough']);   // CommonMark only: "a | b" and "~~x~~" are plain text
 md.normalizeLink = s => s;            // {{root}}x/ must stay as written (markdown-it would percent-encode the braces)
 md.use(attrsPlugin).use(placeholderBlockPlugin).use(imageParagraphPlugin);
 
@@ -175,18 +184,26 @@ md.use(attrsPlugin).use(placeholderBlockPlugin).use(imageParagraphPlugin);
 const COMPONENT_FENCE = /^\{([A-Za-z][\w-]*)((?:[ \t]+[A-Za-z_][\w-]*)*)[ \t]*\}$/;
 const plainFence = md.renderer.rules.fence;
 md.renderer.rules.fence = (tokens, idx, options, env, self) => {
-  const tok = tokens[idx], m = COMPONENT_FENCE.exec(tok.info.trim());
-  if (!m) return plainFence(tokens, idx, options, env, self);
-  const file = (env && env.file) || 'the page', component = COMPONENTS[m[1]];
+  const tok = tokens[idx], info = tok.info.trim(), m = COMPONENT_FENCE.exec(info);
+  const file = (env && env.file) || 'the page';
+  if (!m) {
+    // a fence that opens with "{" is meant as a component: a typo is an error, never a code block shown to visitors
+    if (/^\{/.test(info)) throw new Error(`${file}: "${'```' + info}" is not a component block (write it as ${'```'}{name} or ${'```'}{name word}, the name right after the brace)`);
+    return plainFence(tokens, idx, options, env, self);
+  }
+  const component = Object.hasOwn(COMPONENTS, m[1]) ? COMPONENTS[m[1]] : null;
   if (!component) throw new Error(`${file}: there is no component {${m[1]}} (known: ${Object.keys(COMPONENTS).join(', ')})`);
   let list;
   try { list = load(tok.content, { schema: CORE_SCHEMA }); }
-  catch (e) { throw new Error(`${file}: the {${m[1]}} block is not valid YAML (${String(e.message).split('\n')[0]})`); }
+  catch (e) { throw new Error(`${file}: the {${m[1]}} block is not valid YAML (${String(e.message).split('\n')[0]}${e.mark ? `, line ${e.mark.line + 1} of the block` : ''})`); }
   return component.render(list, { file, name: m[1], extra: m[2].split(/[ \t]+/).filter(Boolean), inline: s => md.renderInline(String(s)) });
 };
 
 /** Markdown (a body, not including front matter) as HTML. file only names the page in an error message. */
-export function renderMarkdown(src, file) { return md.render(String(src), { file }); }
+export function renderMarkdown(src, file) {
+  try { return md.render(String(src), { file }); }
+  catch (e) { if (file && !String(e.message).startsWith(file)) e.message = `${file}: ${e.message}`; throw e; }
+}
 
 /** The page layouts a front matter `layout:` can name: the HTML that goes around the rendered body. */
 export const LAYOUTS = ['text'];
@@ -200,12 +217,35 @@ export function wrapLayout(html, layout, file) {
 /** A file's text as { data, body }; throws a sentence naming the file when the front matter is missing or is not YAML. */
 export function splitFrontMatter(raw, file) {
   const m = /^﻿?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(raw);
-  if (!m) throw new Error(`${file}: must start with a front matter block: a line "---", the YAML, a line "---"`);
+  if (!m) {
+    if (/^﻿?---[ \t]*\r?\n/.test(raw)) throw new Error(`${file}: the front matter is not closed: add a line "---" after the YAML`);
+    throw new Error(`${file}: must start with a front matter block: a line "---", the YAML, a line "---"`);
+  }
   let data;
   try { data = load(m[1], { schema: CORE_SCHEMA }); }
-  catch (e) { throw new Error(`${file}: the front matter is not valid YAML (${String(e.message).split('\n')[0]})`); }
+  catch (e) { throw new Error(`${file}: the front matter is not valid YAML (${String(e.message).split('\n')[0].replace(/\s*\(\d+:\d+\)$/, '')}${e.mark ? `, at line ${e.mark.line + 2} of the file` : ''})`); }
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error(`${file}: the front matter must be a list of "key: value" lines`);
   return { data, body: raw.slice(m[0].length).replace(/^\r?\n/, '') };
+}
+
+/* ---- what the front matter may say ------------------------------------------ */
+const TEXT = v => typeof v === 'string';
+const PAGE_KEYS = { path: TEXT, nav: TEXT, subnav: TEXT, title: TEXT, description: TEXT, layout: TEXT, bodyClass: TEXT, file: TEXT,
+  hero: v => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).every(k => ['eyebrow', 'title', 'lede'].includes(k)) && Object.values(v).every(TEXT),
+  crumbs: v => Array.isArray(v) && v.every(c => Array.isArray(c) && c.length === 2 && TEXT(c[0]) && (c[1] === null || TEXT(c[1]))),
+  scripts: v => Array.isArray(v) && v.every(s => TEXT(s) && /^[\w.-]+\.js$/.test(s)),
+  noindex: v => typeof v === 'boolean', noTrack: v => typeof v === 'boolean', firestore: v => typeof v === 'boolean', absRoot: v => typeof v === 'boolean' };
+const POST_KEYS = { title: TEXT, date: v => TEXT(v) && /^\d{4}-\d{2}-\d{2}$/.test(v), slug: v => TEXT(v) && /^[a-z0-9_-]+$/.test(v), category: TEXT, image: TEXT, description: TEXT };
+const SHAPE = { hero: 'eyebrow, title and lede (text)', crumbs: 'a list of [text, address] pairs (null for the last one)', scripts: 'a list of file names of assets/js', date: 'a date written YYYY-MM-DD', slug: 'lowercase letters, digits, - and _ (write it in quotes if it could read as a number)' };
+/** The front matter of a page ('page') or an announcement ('post'): only keys the build uses, each of the kind it expects. Throws a sentence naming the file. */
+export function validateFrontMatter(data, kind, file) {
+  const keys = kind === 'post' ? POST_KEYS : PAGE_KEYS, need = kind === 'post' ? ['title', 'date', 'slug', 'description'] : ['path', 'title', 'description'];
+  for (const [k, v] of Object.entries(data)) {
+    if (!Object.hasOwn(keys, k)) throw new Error(`${file}: the front matter has "${k}", which is not used (it knows: ${Object.keys(keys).join(', ')})`);
+    if (!keys[k](v)) throw new Error(`${file}: "${k}" must be ${SHAPE[k] || (/^(noindex|noTrack|firestore|absRoot)$/.test(k) ? 'true or false (not yes or no)' : 'text (write it in quotes if it is a number or a date)')}`);
+  }
+  for (const k of need) if (!(k in data) || (k !== 'path' && data[k] === '')) throw new Error(`${file}: the front matter needs "${k}"`);
+  return data;
 }
 
 const BAD_START = /^[-?:,\[\]{}#&*!|>'"%@`]/;

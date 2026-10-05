@@ -31,11 +31,14 @@ const C = new Function('window', read('assets/js/config.js') + '; return window.
 
 /* 1. generated pages are up to date */
 try { execFileSync(process.execPath, [path.join(ROOT, 'tools/build.mjs'), '--check'], { stdio: 'pipe' }); ok('built pages match _src/'); }
-catch (e) { fail('built pages differ from _src/ — run: node tools/build.mjs\n' + String(e.stdout || '')); }
+catch (e) {
+  const said = String(e.stderr || '').split('\n').filter(l => /^(Error|TypeError|RangeError)/.test(l) || /^\S+\.md: /.test(l)).slice(0, 3).join('\n');
+  fail(said ? 'the build stops on _src/ (node tools/build.mjs):\n      ' + said.replace(/\n/g, '\n      ') : 'built pages differ from _src/ — run: node tools/build.mjs\n' + String(e.stdout || ''));
+}
 
 /* 1b. _src/ holds Markdown pages only, and the two libraries that read them are the ones committed */
 {
-  const stray = ['pages', 'posts'].flatMap(d => readdirSync(path.join(ROOT, '_src', d)).filter(f => !f.endsWith('.md')).map(f => `_src/${d}/${f}`));
+  const stray = ['pages', 'posts'].flatMap(d => readdirSync(path.join(ROOT, '_src', d)).filter(f => !f.endsWith('.md')).map(f => `_src/${d}/${f}`));   // build.mjs reads the same: *.md, lowercase
   if (stray.length) fail(`_src/pages and _src/posts take .md files only (YAML front matter + Markdown, see _src/README.md); found: ${stray.join(', ')}`);
   else ok('_src/ holds only .md pages');
   const table = read('tools/vendor/README.md');
@@ -66,7 +69,8 @@ const SITE_PATH = new URL(C.siteUrl).pathname;            // "/semfealumni/"
 let links = 0, forwards = 0;
 for (const p of pages) {
   const html = read(p);
-  if (/\{\{[a-z:-]+\}\}|<!--\/?if:/.test(html)) fail(`${p}: unfilled placeholder ${html.match(/\{\{[a-z:-]+\}\}|<!--\/?if:[a-z]*-->/)[0]}`);
+  const loose = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, '');         // braces in a script or a style are code
+  if (/\{\{[^{}]{0,60}\}\}|<!--\s*\/?if:/i.test(loose)) fail(`${p}: unfilled placeholder ${loose.match(/\{\{[^{}]{0,60}\}\}|<!--\s*\/?if:[^>]*-->/i)[0]}`);
   for (const m of html.matchAll(/\s(?:href|src)="([^"]+)"/g)) {
     let u = m[1].replace(/&amp;/g, '&');
     if (/^(https?:|mailto:|tel:|data:|javascript:|#)/.test(u)) continue;

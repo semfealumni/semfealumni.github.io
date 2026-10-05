@@ -159,7 +159,7 @@
     });
     if (!description) description = oneLine(describe(raw, title), LIMITS.description);
 
-    var lines = ['---', 'title: ' + yamlText(title), 'date: ' + input.date, 'slug: ' + slug, 'category: ' + input.category];
+    var lines = ['---', 'title: ' + yamlText(title), 'date: ' + input.date, 'slug: ' + JSON.stringify(slug), 'category: ' + input.category];
     if (cover) lines.push('image: ' + nameOf(cover, figures[cover - 1]));
     lines.push('description: ' + yamlText(description), '---', '', body, '');
     var file = input.date + '-' + slug + '.md';

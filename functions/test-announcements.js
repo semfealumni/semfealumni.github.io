@@ -73,7 +73,7 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     const p = post({});
     assert.strictEqual(p.file, '2026-10-05-kopi-pitas.md');
     assert.strictEqual(p.path, '_src/posts/2026-10-05-kopi-pitas.md');
-    assert.strictEqual(p.text, '---\ntitle: "Κοπή πίτας"\ndate: 2026-10-05\nslug: kopi-pitas\ncategory: Εκδηλώσεις\ndescription: "Ένα κείμενο."\n---\n\nΈνα **κείμενο**.\n');
+    assert.strictEqual(p.text, '---\ntitle: "Κοπή πίτας"\ndate: 2026-10-05\nslug: "kopi-pitas"\ncategory: Εκδηλώσεις\ndescription: "Ένα κείμενο."\n---\n\nΈνα **κείμενο**.\n');
     assert.strictEqual(T.pathOf(p.date, p.slug), 'blog/2026/10/05/kopi-pitas/');
     assert.deepStrictEqual(p.images, []);
   });
@@ -165,6 +165,16 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     assert.ok(html.includes('<h2>Θέματα</h2>') && html.includes('<li>Απολογισμός</li>') && html.includes('<blockquote>'));
     assert.ok(html.includes('Με εκτίμηση,<br>\nΤο Δ.Σ.'), html);
     assert.ok(html.includes('<img src="{{root}}assets/img/posts/2026-10-05-prosklisi-se-geniki-syneleysi-archairesies-2026-1.jpg" alt="Αφίσα &amp; κείμενο" loading="lazy" style="max-width:600px;width:100%">'), html);
+  });
+  await t('a title that is a number or looks like one still gives a slug that stays text (2026, 007, 1e3)', async () => {
+    for (const title of ['2026', '007', '1e3', 'true', '12:30']) {
+      const p = post({ title });
+      const fm = md.splitFrontMatter(p.text, p.file);
+      assert.strictEqual(typeof fm.data.slug, 'string', title + ' -> ' + JSON.stringify(fm.data.slug));
+      assert.strictEqual(fm.data.slug, p.slug);
+      assert.strictEqual(typeof fm.data.title, 'string');
+      md.validateFrontMatter(fm.data, 'post', p.file);                  // the build accepts it
+    }
   });
   await t('the file name and slug follow the build\'s own rules for _src/posts', async () => {
     const p = post({ title: 'Ωραία μέρα!' });
@@ -274,7 +284,7 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     assert.ok(c.message.includes('kstouras@gmail.com') && c.message.startsWith('Announcement: kopi-pitas-2026'));
     const files = g.trees[c.tree];
     assert.ok(files['_src/posts/2025-03-02-2025-taktiki-gs.md'], 'the older announcement is kept');
-    assert.ok(/^---\ntitle: "Κοπή πίτας 2026"\ndate: 2026-10-05\nslug: kopi-pitas-2026\ncategory: Εκδηλώσεις\nimage: 2026-10-05-kopi-pitas-2026-1.jpg\n/.test(files['_src/posts/2026-10-05-kopi-pitas-2026.md']));
+    assert.ok(/^---\ntitle: "Κοπή πίτας 2026"\ndate: 2026-10-05\nslug: "kopi-pitas-2026"\ncategory: Εκδηλώσεις\nimage: 2026-10-05-kopi-pitas-2026-1.jpg\n/.test(files['_src/posts/2026-10-05-kopi-pitas-2026.md']));
     assert.ok(Buffer.isBuffer(files['assets/img/posts/2026-10-05-kopi-pitas-2026-1.jpg']) && files['assets/img/posts/2026-10-05-kopi-pitas-2026-1.jpg'].toString('base64') === JPG);
     assert.strictEqual(Object.keys(files).length, 4);
   });
