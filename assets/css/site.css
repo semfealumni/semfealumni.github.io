@@ -643,6 +643,7 @@ section.dark a:not(.btn) { color: var(--gold); }
 .video iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
 .video::before { content: 'Το βίντεο φορτώνει από το YouTube…'; position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: grid; place-items: center; color: rgba(255,255,255,.7); font-weight: 700; padding: 16px; text-align: center; }
 @supports not (aspect-ratio: 1 / 1) { .video { height: 0; padding-bottom: 56.25%; } }
+.post-admin { margin: 28px 0 0; }
 .post-nav { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; margin-top: 44px; }
 .post-nav a { display: block; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius-sm); text-decoration: none; background: var(--surface); }
 .post-nav small { display: block; color: var(--muted); font-weight: 700; }
@@ -1121,6 +1122,9 @@ tr.an-other .an-bar { background: var(--muted); }
 .ed-note:empty { display: none; }
 .ed-actions .section-foot { margin-top: 0; }
 .ed-after { margin: 10px 0 0; font-size: .88rem; }
+.ed-editing { margin: -2px 0 14px; overflow-wrap: anywhere; }
+.ed-link { margin: 14px 0 6px; overflow-wrap: anywhere; }
+.ed-ready { color: var(--ok); font-weight: 700; }
 @media (max-width: 560px) {
   .ed-fig { grid-template-columns: minmax(0, 1fr); }
   .ed-fig > img { width: 100%; height: 160px; }

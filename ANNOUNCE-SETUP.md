@@ -14,7 +14,10 @@ It opens a box like a forum post:
 * **Pictures** (up to 8): drop them in, paste one, or choose files. They are made
   smaller automatically, each gets a description and a width, and one can be the
   picture on the announcement's card.
-* **«Δημοσίευση»**: it asks "Να δημοσιευτεί τώρα;", then sends it.
+* **«Δημοσίευση»**: it asks "Να δημοσιευτεί τώρα;", then sends it, and shows
+  the new page's address as a link.
+* **«Επεξεργασία»**: right after sending, and under every announcement on its own
+  page (for an admin), to correct it later in the same box (below).
 
 The text is kept on the admin's own computer while it is being written, so a
 closed tab does not lose it.
@@ -36,15 +39,39 @@ closed tab does not lose it.
    (see `_src/README.md`) in **one commit** with its pictures.
 2. The workflow `.github/workflows/publish.yml` builds the pages from it and
    commits them. GitHub Pages publishes. It is on the site **2 to 4 minutes**
-   after the button; the editor says so and shows a link when the page exists.
+   after the button. The editor shows the address as a link at once (until the
+   page is built it may say "not found"), says when the page exists, and offers
+   «Επεξεργασία».
 3. The e-mail alerts pick it up from `feed.json` within two hours like any
    other announcement.
 
-It is an ordinary file in the repository: to **correct or remove** an
-announcement afterwards, edit or delete its file in `_src/posts/` on github.com
-(the workflow rebuilds the pages: a deleted file takes its page, and the page's
-folders, with it; delete its pictures in `assets/img/posts/` too), or in a clone
-and `node tools/build.mjs`.
+**To correct an announcement afterwards**, press «Επεξεργασία»: on the panel
+right after «Δημοσίευση», or under the announcement on its own page (an admin
+sees the button there; it opens `blog/?edit=<its file>`). It opens in the same
+editor, with its text, kind, card picture and pictures; «Αποθήκευση αλλαγών»
+sends it back as ONE commit titled `Announcement: <slug>` like a new one, so the
+same checks and the same take-back apply. What an edit keeps and what it does not:
+
+* the **address** stays the same, whatever the new title;
+* the published **pictures** keep their files; a new one is added after them, and
+  one taken out of the text stays in `assets/img/posts/` (delete it there if you
+  want it gone);
+* **nobody is e-mailed again**: the alerts already know the address;
+* if somebody else changed the announcement after you opened it, nothing is
+  saved and the editor says so (open it again and redo the change).
+
+Only announcements written in the editor open there. One written by hand on
+GitHub (the older ones) would lose its layout, so the editor says so and links
+to its file on github.com instead. The function checks this by building the file
+again from what it read: anything that does not come back identical is not
+offered. **Editing needs the functions deployed after 5 October 2026**
+(`firebase deploy --only functions --project semfe-alumni`); until then the
+editor says exactly that.
+
+It is an ordinary file in the repository: to **remove** an announcement, delete
+its file in `_src/posts/` on github.com (the workflow rebuilds the pages: a
+deleted file takes its page, and the page's folders, with it; delete its
+pictures in `assets/img/posts/` too), or in a clone and `node tools/build.mjs`.
 
 **If the build stops** (it should not: the text is made safe, and the checks run on
 the built site) the workflow **takes the announcement back**: a second commit

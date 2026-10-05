@@ -26,8 +26,18 @@
  *   { action: 'publish', title, category, description?, body, cover?,
  *     figures: [{ data: <base64>, size?: 'full'|'medium'|'small' }] }
  *                          -> { ok, url, path, file, slug, date, commit }
+ *   { action: 'load', file: 'YYYY-MM-DD-slug.md' }
+ *                          -> { ok, editable: true, file, sha, url, raw, post: parsePost() }
+ *                             or { ok, editable: false, file, url, github }   (written by hand: edit it on GitHub)
+ *   { action: 'update', file, sha (from load), title, category, description?, body, cover?,
+ *     figures: [{ existing: <its file name>, size? } | { data: <base64>, size? }] }
+ *                          -> { ok, edited: true, unchanged?, url, path, file, slug, date, commit }
+ *     An edit keeps the date and the address; it is ONE commit titled
+ *     "Announcement: <slug>" like a new one (publish.yml checks it the same way),
+ *     and it e-mails nobody again (the alerts know the address already).
  * Errors are { error: <code> } with a status: not-signed-in 401, not-admin 403,
- * not-set-up 503, a code of announce-text.js 400, github-token 503, github-busy 409. */
+ * not-set-up 503, a code of announce-text.js 400, github-token 503, github-busy 409,
+ * post-missing 404, post-changed 409 (edited elsewhere since it was opened). */
 'use strict';
 
 const { HttpError } = require('./linkedin');
@@ -67,13 +77,18 @@ function refusal(r, what) {
   return e;
 }
 
-/** Decode and check the pictures: [{ ext, size, bytes }] in the order given. */
-function readFigures(list) {
+/** Decode and check the pictures: [{ ext, size, bytes }] in the order given; with
+    `edit`, an entry may instead name a picture already published: { name, ext, size }. */
+function readFigures(list, edit) {
   if (list === undefined) return [];
   if (!Array.isArray(list)) throw new HttpError(400, 'bad-request');
   if (list.length > T.LIMITS.figures) throw new HttpError(400, 'too-many-figures');
   let total = 0;
   return list.map(f => {
+    if (edit && f && f.existing !== undefined) {
+      if (typeof f.existing !== 'string' || !/^\d{4}-\d{2}-\d{2}-[a-z0-9_-]+-\d+\.(jpg|png|webp|gif)$/.test(f.existing)) throw new HttpError(400, 'figure-bad');
+      return { name: f.existing, ext: f.existing.split('.').pop(), size: f.size };
+    }
     if (!f || typeof f.data !== 'string' || !/^[A-Za-z0-9+/]+={0,2}$/.test(f.data)) throw new HttpError(400, 'figure-bad');
     const bytes = Buffer.from(f.data, 'base64');
     if (bytes.length > T.LIMITS.figureBytes) throw new HttpError(400, 'figure-too-big');
@@ -85,8 +100,10 @@ function readFigures(list) {
   });
 }
 
-/** Commit one announcement; resolves { post, commit }. `api` is github(); `now` gives the time in ms. */
-async function commitPost(api, cfg, input, figures, by, now) {
+/** One commit on the branch, prepared against its tip; resolves { post, commit }.
+    prepare(head) -> { post, message, figures } for build.mjs to write, or { post, unchanged: true }.
+    Somebody pushing in between (a workflow, a person) starts it again from the new tip. */
+async function commitWith(api, cfg, prepare) {
   const base = '/repos/' + cfg.repo;
   for (let attempt = 0; attempt < 4; attempt++) {
     const ref = await api('GET', base + '/git/ref/heads/' + encodeURIComponent(cfg.branch));
@@ -94,29 +111,74 @@ async function commitPost(api, cfg, input, figures, by, now) {
     const head = ref.json && ref.json.object && ref.json.object.sha;
     const parent = await api('GET', base + '/git/commits/' + head);
     if (!parent.ok) throw refusal(parent, 'commit');
-    const listing = await api('GET', base + '/contents/' + POSTS_DIR + '?ref=' + head);
-    if (!listing.ok || !Array.isArray(listing.json)) throw refusal(listing, 'listing');
-    // the slugs of the announcements already there: the build needs every slug to be its own
-    const taken = listing.json.map(x => String(x.name || '')).filter(n => /^\d{4}-\d{2}-\d{2}-.+\.md$/.test(n)).map(n => n.slice(11, -3));
-
-    const post = T.buildPost(Object.assign({}, input, { taken, figures: figures.map(f => ({ ext: f.ext, size: f.size })) }));
+    const plan = await prepare(head);
+    if (plan.unchanged) return { post: plan.post, commit: null };
+    const post = plan.post;
     const tree = [{ path: post.path, mode: '100644', type: 'blob', content: post.text }];
     for (const img of post.images) {
-      const blob = await api('POST', base + '/git/blobs', { content: figures[img.n - 1].bytes.toString('base64'), encoding: 'base64' });
+      if (img.existing) continue;                                              // a picture already published keeps its file
+      const blob = await api('POST', base + '/git/blobs', { content: plan.figures[img.n - 1].bytes.toString('base64'), encoding: 'base64' });
       if (!blob.ok) throw refusal(blob, 'blob');
       tree.push({ path: img.path, mode: '100644', type: 'blob', sha: blob.json.sha });
     }
     const t = await api('POST', base + '/git/trees', { base_tree: parent.json.tree.sha, tree });
     if (!t.ok) throw refusal(t, 'tree');
-    const message = 'Announcement: ' + post.slug + '\n\n' + input.title.replace(/\s+/g, ' ').trim() + '\n\nPublished from the website by ' + by + '.';
-    const c = await api('POST', base + '/git/commits', { message, tree: t.json.sha, parents: [head] });
+    const c = await api('POST', base + '/git/commits', { message: plan.message, tree: t.json.sha, parents: [head] });
     if (!c.ok) throw refusal(c, 'new commit');
     const upd = await api('PATCH', base + '/git/refs/heads/' + encodeURIComponent(cfg.branch), { sha: c.json.sha, force: false });
     if (upd.ok) return { post, commit: c.json.sha };
     if (upd.status !== 422 && upd.status !== 409) throw refusal(upd, 'update');
-    // somebody pushed in between (a workflow, a person): start again from the new tip
   }
   throw new HttpError(409, 'github-busy');
+}
+const titleLine = s => String(s).replace(/\s+/g, ' ').trim();
+
+/** Commit one NEW announcement; resolves { post, commit }. `api` is github(). */
+async function commitPost(api, cfg, input, figures, by) {
+  const base = '/repos/' + cfg.repo;
+  return commitWith(api, cfg, async head => {
+    const listing = await api('GET', base + '/contents/' + POSTS_DIR + '?ref=' + head);
+    if (!listing.ok || !Array.isArray(listing.json)) throw refusal(listing, 'listing');
+    // the slugs of the announcements already there: the build needs every slug to be its own
+    const taken = listing.json.map(x => String(x.name || '')).filter(n => /^\d{4}-\d{2}-\d{2}-.+\.md$/.test(n)).map(n => n.slice(11, -3));
+    const post = T.buildPost(Object.assign({}, input, { taken, figures: figures.map(f => ({ ext: f.ext, size: f.size })) }));
+    return { post, figures, message: 'Announcement: ' + post.slug + '\n\n' + titleLine(input.title) + '\n\nPublished from the website by ' + by + '.' };
+  });
+}
+
+/* ---- editing an announcement already published ---------------------------- */
+const FILE_RE = /^(\d{4}-\d{2}-\d{2})-([a-z0-9_-]+)\.md$/;
+/** the file of an announcement at `ref`: { text, sha }, or null when there is none */
+async function readPostFile(api, cfg, file, ref) {
+  const r = await api('GET', '/repos/' + cfg.repo + '/contents/' + POSTS_DIR + '/' + file + '?ref=' + encodeURIComponent(ref));
+  if (r.status === 404) return null;
+  if (!r.ok || !r.json || typeof r.json.content !== 'string') throw refusal(r, 'file');
+  return { text: Buffer.from(r.json.content, 'base64').toString('utf8'), sha: r.json.sha };
+}
+/** the pictures of the announcement date-slug already in the repository at `ref`: their file names */
+async function postImages(api, cfg, date, slug, ref) {
+  const r = await api('GET', '/repos/' + cfg.repo + '/contents/assets/img/posts?ref=' + encodeURIComponent(ref));
+  if (r.status === 404) return [];
+  if (!r.ok || !Array.isArray(r.json)) throw refusal(r, 'pictures');
+  const mine = new RegExp('^' + date + '-' + slug + '-(\\d+)\\.(jpg|png|webp|gif)$');
+  return r.json.map(x => String(x.name || '')).filter(n => mine.test(n));
+}
+/** Commit an edit of `file`, which must still be the version `sha` the admin opened. */
+async function commitEdit(api, cfg, file, sha, input, figures, by) {
+  const [, date, slug] = FILE_RE.exec(file);
+  return commitWith(api, cfg, async head => {
+    const now = await readPostFile(api, cfg, file, head);
+    if (!now) throw new HttpError(404, 'post-missing');
+    if (now.sha !== sha) throw new HttpError(409, 'post-changed');
+    const have = await postImages(api, cfg, date, slug, head);
+    for (const f of figures) if (f.name && have.indexOf(f.name) === -1) throw new HttpError(400, 'figure-missing');
+    // a new picture never takes the name of one already there, used or not
+    const nextImage = have.reduce((m, n) => Math.max(m, +n.slice(date.length + slug.length + 2).split('.')[0]), 0) + 1;
+    const post = T.buildPost(Object.assign({}, input, { date, keepSlug: slug, nextImage,
+      figures: figures.map(f => f.name ? { name: f.name, ext: f.ext, size: f.size } : { ext: f.ext, size: f.size }) }));
+    if (post.text === now.text && !post.images.some(i => !i.existing)) return { post, unchanged: true };
+    return { post, figures, message: 'Announcement: ' + post.slug + '\n\n' + titleLine(input.title) + '\n\nEdited from the website by ' + by + '.' };
+  });
 }
 
 /* The HTTP handler. deps: { auth, fetch, clock, log }; cfg: { allowedOrigins[], token, repo, branch, siteUrl }. */
@@ -146,20 +208,50 @@ async function handle(req, res, deps, cfg) {
 
     const ready = !!cfg.token && cfg.token !== 'none' && /^[\w-]+\/[\w.-]+$/.test(cfg.repo || '');
     if (body.action === 'status') return res.status(200).json({ ok: true, ready });
-    if (body.action !== 'publish') throw new HttpError(400, 'bad-request');
+    if (['publish', 'load', 'update'].indexOf(body.action) === -1) throw new HttpError(400, 'bad-request');
     if (!ready) throw new HttpError(503, 'not-set-up');
+    const site = String(cfg.siteUrl).replace(/\/?$/, '/');
+    const api = github(deps, cfg);
+
+    if (body.action === 'load') {
+      const m = typeof body.file === 'string' && FILE_RE.exec(body.file);
+      if (!m) throw new HttpError(400, 'bad-request');
+      const f = await readPostFile(api, cfg, body.file, cfg.branch);
+      if (!f) throw new HttpError(404, 'post-missing');
+      const url = site + T.pathOf(m[1], m[2]);
+      let post;
+      try { post = T.parsePost(f.text); } catch (e) {
+        if (!(e && e.code === 'not-editable')) throw e;
+        return res.status(200).json({ ok: true, editable: false, file: body.file, url,
+          github: 'https://github.com/' + cfg.repo + '/edit/' + encodeURIComponent(cfg.branch) + '/' + POSTS_DIR + '/' + body.file });
+      }
+      return res.status(200).json({ ok: true, editable: true, file: body.file, sha: f.sha, url, post,
+        raw: 'https://raw.githubusercontent.com/' + cfg.repo + '/' + encodeURIComponent(cfg.branch) + '/' });
+    }
     for (const k of ['title', 'category', 'body']) if (typeof body[k] !== 'string') throw new HttpError(400, 'bad-request');
     if (body.description !== undefined && typeof body.description !== 'string') throw new HttpError(400, 'bad-request');
     const cover = body.cover === undefined || body.cover === null || body.cover === 0 ? 0 : body.cover;
     if (cover && !Number.isInteger(cover)) throw new HttpError(400, 'bad-request');
+
+    if (body.action === 'update') {
+      const m = typeof body.file === 'string' && FILE_RE.exec(body.file);
+      if (!m || typeof body.sha !== 'string' || !body.sha) throw new HttpError(400, 'bad-request');
+      const figures = readFigures(body.figures, true);
+      const input = { title: body.title, category: body.category, description: body.description || '', body: body.body, cover };
+      // the same cheap check first, with the address it keeps
+      T.buildPost(Object.assign({}, input, { date: m[1], keepSlug: m[2], figures: figures.map(f => f.name ? { name: f.name, ext: f.ext, size: f.size } : { ext: f.ext, size: f.size }) }));
+      const { post, commit } = await commitEdit(api, cfg, body.file, body.sha, input, figures, me.email);
+      return res.status(200).json(Object.assign({ ok: true, edited: true, url: site + T.pathOf(post.date, post.slug), path: post.path, file: post.file, slug: post.slug, date: post.date, commit },
+        commit ? {} : { unchanged: true }));
+    }
 
     const figures = readFigures(body.figures);
     const input = { title: body.title, category: body.category, description: body.description || '', body: body.body, cover, date: T.athensDate(deps.clock()) };
     // a cheap check before GitHub is asked anything: this throws the same codes the real build will
     T.buildPost(Object.assign({}, input, { taken: [], figures: figures.map(f => ({ ext: f.ext, size: f.size })) }));
 
-    const { post, commit } = await commitPost(github(deps, cfg), cfg, input, figures, me.email, deps.clock);
-    return res.status(200).json({ ok: true, url: String(cfg.siteUrl).replace(/\/?$/, '/') + T.pathOf(post.date, post.slug), path: post.path, file: post.file, slug: post.slug, date: post.date, commit });
+    const { post, commit } = await commitPost(api, cfg, input, figures, me.email);
+    return res.status(200).json({ ok: true, url: site + T.pathOf(post.date, post.slug), path: post.path, file: post.file, slug: post.slug, date: post.date, commit });
   } catch (e) {
     const mine = e instanceof HttpError || !!(e && e.announce);          // an HttpError of this file, or a rule of announce-text.js
     const status = e instanceof HttpError ? e.status : (e && e.announce ? 400 : 500);
@@ -169,4 +261,4 @@ async function handle(req, res, deps, cfg) {
   }
 }
 
-module.exports = { handle, commitPost, readFigures, github, refusal };
+module.exports = { handle, commitPost, commitEdit, readFigures, github, refusal };

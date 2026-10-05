@@ -405,7 +405,9 @@ function renderRaw(page) {
     const i = posts.indexOf(page);
     const newer = posts[i - 1], older = posts[i + 1];
     const nav = `<nav class="post-nav" aria-label="Άλλες ανακοινώσεις">${older ? `<a class="prev" href="${root}${older.path}"><small>← Προηγούμενη</small>${esc(older.meta.title)}</a>` : '<span></span>'}${newer ? `<a class="next" href="${root}${newer.path}"><small>Επόμενη →</small>${esc(newer.meta.title)}</a>` : ''}</nav>`;
-    main = `<section class="tight"><div class="wrap"><article class="prose">\n${fill(page.body, root, page)}\n</article>\n${nav}</div></section>`;
+    // «Επεξεργασία», for an admin only (auth.js shows [data-admin-only]): opens this announcement in the editor on blog/
+    const edit = `<p class="post-admin" data-admin-only hidden><a class="btn btn-outline btn-sm" href="${root}blog/?edit=${encodeURIComponent(page.file.split('/').pop())}">${ICONS.form} Επεξεργασία</a></p>`;
+    main = `<section class="tight"><div class="wrap"><article class="prose">\n${fill(page.body, root, page)}\n</article>\n${edit}\n${nav}</div></section>`;
   } else {
     main = fill(page.body, root, page);
   }

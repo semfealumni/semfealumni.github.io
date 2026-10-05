@@ -19,7 +19,15 @@
  *
  * What is kept on this device: the draft's text, under the admin's own id
  * (localStorage), so a reload or a closed tab does not lose it. Pictures are
- * not kept; they are shrunk in the browser to about half a megabyte each. */
+ * not kept; they are shrunk in the browser to about half a megabyte each.
+ *
+ * Editing one already published (owner, 2026-10-05): «Επεξεργασία» on the
+ * success panel, or on the announcement's own page (blog/?edit=FILE), opens it
+ * in this same editor. The function reads its file back (action "load", which
+ * refuses one written by hand on GitHub and says where to change it instead);
+ * «Αποθήκευση αλλαγών» sends it back (action "update"): the same address, the
+ * published pictures kept, one commit, no e-mail again. An edit keeps no draft
+ * on this device, and leaves the draft of a new announcement where it was. */
 (function () {
   'use strict';
   var A = window.SemfeAuth, T = window.SemfeAnnounce;
@@ -33,6 +41,8 @@
   var user = null, open = false, ready = null;           // ready: null = asking, true / false / 'unreachable'
   var figures = [], cover = 0, state = { title: '', category: T.CATEGORIES[0], description: '', body: '' };
   var busy = false, tab = 'write', tips = false, md = null, poll = null, droppedPictures = false;
+  var edit = null;                                       // while editing a published one: { file, sha, url, date, slug, raw }
+  var pendingEdit = (function () { try { var f = new URLSearchParams(location.search).get('edit'); return /^\d{4}-\d{2}-\d{2}-[a-z0-9_-]+\.md$/.test(f || '') ? f : null; } catch (e) { return null; } })();
 
   /* ---- messages ---------------------------------------------------------- */
   var CODES = {
@@ -62,6 +72,10 @@
     'publishAnnouncement-unreachable': 'Η υπηρεσία δημοσίευσης δεν απαντά: είτε δεν έχει εγκατασταθεί ακόμα (ANNOUNCE-SETUP.md) είτε υπάρχει πρόβλημα στο δίκτυο. Το κείμενό σας δεν χάθηκε. Αν η αποστολή είχε ήδη ξεκινήσει, κοιτάξτε πρώτα τη λίστα των ανακοινώσεων και μετά ξαναστείλτε την.',
     'internal': 'Κάτι πήγε στραβά στον διακομιστή. Το κείμενό σας δεν χάθηκε. Αν δεν είστε σίγουροι ότι δεν δημοσιεύτηκε, κοιτάξτε πρώτα τη λίστα των ανακοινώσεων και μετά ξαναστείλτε την.',
     'file-too-big': 'Η εικόνα είναι πολύ μεγάλη (έως 25 MB).',
+    'post-missing': 'Η ανακοίνωση δεν βρέθηκε στο αποθετήριο (μήπως σβήστηκε;).',
+    'post-changed': 'Η ανακοίνωση άλλαξε από άλλον στο μεταξύ. Οι αλλαγές σας δεν αποθηκεύτηκαν: ανοίξτε την ξανά με «Επεξεργασία» και κάντε τες πάλι.',
+    'slug-bad': 'Η διεύθυνση της ανακοίνωσης δεν είναι έγκυρη.',
+    'edit-not-deployed': 'Η επεξεργασία χρειάζεται την ενημερωμένη υπηρεσία δημοσίευσης. Τρέξτε μία φορά: firebase deploy --only functions --project semfe-alumni (ANNOUNCE-SETUP.md).'
   };
   function explain(e) {
     var c = (e && e.code) || '';
@@ -70,7 +84,7 @@
   }
 
   /* a repaint replaces the elements: remember which control had the focus and give it back */
-  var FOCUS_ATTRS = ['id', 'data-del', 'data-put', 'data-cover', 'data-size', 'data-alt', 'data-send', 'data-cancel', 'data-yes', 'data-no', 'data-tool', 'data-tips', 'data-tab'];
+  var FOCUS_ATTRS = ['id', 'data-del', 'data-put', 'data-cover', 'data-size', 'data-alt', 'data-send', 'data-cancel', 'data-yes', 'data-no', 'data-tool', 'data-tips', 'data-tab', 'data-edit-file'];
   function focusKey() {
     var a = document.activeElement;
     if (!a || a === document.body || !box.contains(a)) return null;
@@ -98,10 +112,11 @@
   }
   var saveTimer = null;
   function saveDraft() {
+    if (edit) return;                                        // an edit is not a draft: the new announcement's draft stays as it was
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function () { try { localStorage.setItem(DRAFT_KEY + user.uid, JSON.stringify(state)); } catch (e) {} }, 300);
   }
-  function clearDraft() { try { localStorage.removeItem(DRAFT_KEY + user.uid); } catch (e) {} }
+  function clearDraft() { if (edit) return; try { localStorage.removeItem(DRAFT_KEY + user.uid); } catch (e) {} }
 
   /* ---- toolbar actions on the text ---------------------------------------------- */
   function ta() { return $('[data-body]'); }
@@ -247,8 +262,10 @@
   /* ---- what is sent, and the preview -------------------------------------------- */
   function today() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   function plan() {
-    return T.buildPost({ title: state.title, category: state.category, description: state.description, body: bodyWithAlts(), date: today(), cover: cover || 0,
-      figures: figures.map(function (f) { return { ext: 'jpg', size: f.size }; }) });
+    var input = { title: state.title, category: state.category, description: state.description, body: bodyWithAlts(), date: edit ? edit.date : today(), cover: cover || 0,
+      figures: figures.map(function (f) { return f.existing ? { name: f.existing, ext: f.existing.split('.').pop(), size: f.size } : { ext: 'jpg', size: f.size }; }) };
+    if (edit) { input.keepSlug = edit.slug; input.nextImage = 900; }        // the real number of a new picture is the function's to choose
+    return T.buildPost(input);
   }
   function loadMd() {
     if (md) return Promise.resolve(md);
@@ -285,7 +302,7 @@
     return figures.map(function (f, i) {
       var n = i + 1;
       return '<li class="ed-fig" data-fig="' + i + '"><img src="' + f.dataUrl + '" alt="" width="96" height="96">' +
-        '<div class="ed-fig-body"><p class="ed-fig-name"><strong>Εικόνα ' + n + '</strong> <span class="muted">' + esc(f.name) + ' · ' + Math.round(f.bytes / 1000) + ' KB</span></p>' +
+        '<div class="ed-fig-body"><p class="ed-fig-name"><strong>Εικόνα ' + n + '</strong> <span class="muted">' + esc(f.name) + (f.existing ? ' · ήδη δημοσιευμένη' : ' · ' + Math.round(f.bytes / 1000) + ' KB') + '</span></p>' +
         '<div class="field"><label for="ed-alt-' + n + '">Περιγραφή <span class="hint">(για όσους δεν βλέπουν την εικόνα· κενή αν είναι διακοσμητική)</span></label>' +
         '<input id="ed-alt-' + n + '" type="text" data-alt="' + i + '" maxlength="' + T.LIMITS.alt + '" value="' + esc(f.alt) + '"></div>' +
         '<div class="ed-fig-row"><div class="field"><label for="ed-size-' + n + '">Πλάτος</label><select id="ed-size-' + n + '" data-size="' + i + '">' +
@@ -323,11 +340,12 @@
     if (!open) { box.hidden = true; box.innerHTML = ''; bar.setAttribute('aria-expanded', 'false'); return; }
     bar.setAttribute('aria-expanded', 'true');
     box.hidden = false;
-    box.innerHTML = '<section class="panel ed" aria-labelledby="ed-h"><h2 id="ed-h">Νέα ανακοίνωση</h2>' + statusLine() +
+    box.innerHTML = '<section class="panel ed" aria-labelledby="ed-h"><h2 id="ed-h" tabindex="-1">' + (edit ? 'Επεξεργασία ανακοίνωσης' : 'Νέα ανακοίνωση') + '</h2>' + statusLine() +
+      (edit ? '<p class="muted ed-editing">Αλλάζετε την ανακοίνωση <a href="' + esc(edit.url) + '">' + esc(edit.url.replace(/^https?:\/\/[^/]+/, '')) + '</a>. Η διεύθυνσή της μένει η ίδια, και δεν στέλνεται ξανά e-mail στα μέλη.</p>' : '') +
       '<form class="form ed-form" data-form novalidate>' +
       '<div class="field"><label for="ed-title">Τίτλος <span class="req" aria-hidden="true">*</span></label>' +
       '<input id="ed-title" type="text" data-title maxlength="' + T.LIMITS.title + '" autocomplete="off" placeholder="π.χ. Πρόσκληση σε Γενική Συνέλευση" value="' + esc(state.title) + '">' +
-      '<span class="hint">Η διεύθυνση της σελίδας φτιάχνεται από τον τίτλο.</span></div>' +
+      '<span class="hint">' + (edit ? 'Η διεύθυνση της σελίδας δεν αλλάζει με τον τίτλο.' : 'Η διεύθυνση της σελίδας φτιάχνεται από τον τίτλο.') + '</span></div>' +
       '<fieldset class="fb-kinds"><legend>Είδος <span class="hint">(καθορίζει ποια μέλη θα ειδοποιηθούν με e-mail)</span></legend>' +
       T.CATEGORIES.map(function (c) { return '<label class="fb-kind"><input type="radio" name="ed-cat" value="' + esc(c) + '"' + (state.category === c ? ' checked' : '') + '><span>' + esc(c) + '</span></label>'; }).join('') + '</fieldset>' +
       '<div class="field"><div class="ed-tabs" role="tablist" aria-label="Κείμενο"><button type="button" role="tab" id="ed-tab-write" aria-selected="' + (tab === 'write') + '" tabindex="' + (tab === 'write' ? 0 : -1) + '" aria-controls="ed-pane-write" data-tab="write">Γράψιμο</button>' +
@@ -351,23 +369,34 @@
   function paintActions() {
     var a = $('[data-actions]'); if (!a) return;
     var key = focusKey(); setTimeout(function () { restoreFocus(key); }, 0);
-    if (busy) { a.innerHTML = '<p class="muted"><span class="spinner" aria-hidden="true"></span>Δημοσίευση…</p>'; return; }
+    if (busy) { a.innerHTML = '<p class="muted"><span class="spinner" aria-hidden="true"></span>' + (edit ? 'Αποθήκευση…' : 'Δημοσίευση…') + '</p>'; return; }
     if (a.getAttribute('data-confirm')) {
-      a.innerHTML = '<p><strong>Να δημοσιευτεί τώρα;</strong> Η ανακοίνωση θα μπει στον ιστότοπο και θα σταλεί e-mail στα μέλη που επέλεξαν «' + esc(state.category) + '».</p>' +
-        '<p class="section-foot"><button type="button" class="btn btn-primary" data-yes>Ναι, δημοσίευση</button> <button type="button" class="btn btn-outline" data-no>Όχι, πίσω</button></p>';
+      a.innerHTML = (edit
+        ? '<p><strong>Να αποθηκευτούν οι αλλαγές;</strong> Η σελίδα της ανακοίνωσης θα αλλάξει σε 2 με 4 λεπτά. Δεν στέλνεται ξανά e-mail.</p>' +
+          '<p class="section-foot"><button type="button" class="btn btn-primary" data-yes>Ναι, αποθήκευση</button> <button type="button" class="btn btn-outline" data-no>Όχι, πίσω</button></p>'
+        : '<p><strong>Να δημοσιευτεί τώρα;</strong> Η ανακοίνωση θα μπει στον ιστότοπο και θα σταλεί e-mail στα μέλη που επέλεξαν «' + esc(state.category) + '».</p>' +
+          '<p class="section-foot"><button type="button" class="btn btn-primary" data-yes>Ναι, δημοσίευση</button> <button type="button" class="btn btn-outline" data-no>Όχι, πίσω</button></p>');
       return;
     }
-    a.innerHTML = '<p class="section-foot"><button type="submit" class="btn btn-primary" data-send' + (ready === true ? '' : ' disabled') + '>Δημοσίευση</button> ' +
-      '<button type="button" class="btn btn-outline" data-cancel>Ακύρωση</button></p><p class="muted ed-after">Για να διορθώσετε ή να σβήσετε μια ανακοίνωση μετά τη δημοσίευση, αλλάξτε το αρχείο της στο GitHub (<code>_src/posts/</code>).</p>';
+    a.innerHTML = '<p class="section-foot"><button type="submit" class="btn btn-primary" data-send' + (ready === true ? '' : ' disabled') + '>' + (edit ? 'Αποθήκευση αλλαγών' : 'Δημοσίευση') + '</button> ' +
+      '<button type="button" class="btn btn-outline" data-cancel>Ακύρωση</button></p>' +
+      (edit ? '' : '<p class="muted ed-after">Μετά τη δημοσίευση μπορείτε να τη διορθώσετε με το κουμπί «Επεξεργασία» στη σελίδα της. Για να σβήσετε μια ανακοίνωση, σβήστε το αρχείο της στο GitHub (<code>_src/posts/</code>).</p>');
   }
   function done(res) {
     clearTimeout(poll); poll = null;
-    var url = String((res && res.url) || '');
+    var url = String((res && res.url) || ''), file = String((res && res.file) || ''), edited = !!(res && res.edited), same = !!(res && res.unchanged);
+    if (!/^https?:\/\//.test(url)) url = '';
+    if (!/^\d{4}-\d{2}-\d{2}-[a-z0-9_-]+\.md$/.test(file)) file = '';
     open = true; box.hidden = false; bar.setAttribute('aria-expanded', 'true');             // the panel must be seen even if the box was collapsed meanwhile
-    box.innerHTML = '<section class="panel ed" aria-labelledby="ed-h"><h2 id="ed-h" tabindex="-1">Η ανακοίνωση στάλθηκε</h2>' +
-      '<div class="notice ok"><strong>Ο ιστότοπος ενημερώνεται.</strong><p>Η σελίδα θα είναι έτοιμη σε 2 με 4 λεπτά' + (url ? ', στη διεύθυνση <code>' + esc(url.replace(/^https?:\/\/[^/]+/, '')) + '</code>' : '') + '.</p></div>' +
-      (url ? '<p class="muted" data-wait role="status"><span class="spinner" aria-hidden="true"></span>Περιμένουμε να εμφανιστεί…</p>' : '') +
-      '<p class="section-foot"><button type="button" class="btn btn-dark" data-new>Νέα ανακοίνωση</button> <button type="button" class="btn btn-outline" data-close>Κλείσιμο</button></p></section>';
+    // the address is a link at once (owner, 2026-10-05); until the site is rebuilt it may still show the page as it was, or "not found"
+    box.innerHTML = '<section class="panel ed" aria-labelledby="ed-h"><h2 id="ed-h" tabindex="-1">' + (edited ? 'Οι αλλαγές αποθηκεύτηκαν' : 'Η ανακοίνωση στάλθηκε') + '</h2>' +
+      (same ? '<div class="notice"><strong>Δεν άλλαξε τίποτα.</strong><p>Η ανακοίνωση είναι ήδη έτσι στον ιστότοπο.</p></div>'
+        : '<div class="notice ok"><strong>Ο ιστότοπος ενημερώνεται.</strong><p>' + (edited ? 'Οι αλλαγές θα φανούν σε 2 με 4 λεπτά· ως τότε η σελίδα δείχνει την προηγούμενη μορφή.' : 'Η σελίδα θα είναι έτοιμη σε 2 με 4 λεπτά· ως τότε ο σύνδεσμος μπορεί να δείχνει «δεν βρέθηκε».') + '</p></div>') +
+      (url ? '<p class="ed-link">Διεύθυνση: <a href="' + esc(url) + '" data-done-link>' + esc(url) + '</a></p>' : '') +
+      (url && !edited ? '<p class="muted" data-wait role="status"><span class="spinner" aria-hidden="true"></span>Περιμένουμε να εμφανιστεί…</p>' : '') +
+      '<p class="section-foot">' + (url ? '<a class="btn btn-primary" href="' + esc(url) + '">Δείτε την ανακοίνωση</a> ' : '') +
+      (file ? '<button type="button" class="btn btn-outline" data-edit-file="' + esc(file) + '">Επεξεργασία</button> ' : '') +
+      '<button type="button" class="btn btn-dark" data-new>Νέα ανακοίνωση</button> <button type="button" class="btn btn-outline" data-close>Κλείσιμο</button></p></section>';
     var h = $('#ed-h'); if (h) h.focus();
     var tries = 0;
     (function again() {
@@ -375,7 +404,7 @@
       tries++;
       fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 'check=' + tries, { cache: 'no-store' }).then(function (r) {
         var w = box.querySelector('[data-wait]'); if (!w) return;
-        if (r.ok) { w.innerHTML = '<a class="btn btn-primary btn-sm" href="' + esc(url) + '">Δείτε την ανακοίνωση</a>'; return; }
+        if (r.ok) { w.innerHTML = '✓ Η σελίδα είναι έτοιμη: <a href="' + esc(url) + '">Δείτε την ανακοίνωση</a>'; w.className = 'ed-ready'; return; }
         throw new Error('not yet');
       }).catch(function () {
         var w = box.querySelector('[data-wait]'); if (!w) return;
@@ -385,8 +414,51 @@
     })();
   }
 
+  /* ---- editing one already published ------------------------------------------------------- */
+  function editPanel(html) {
+    open = true; box.hidden = false; bar.setAttribute('aria-expanded', 'true');
+    box.innerHTML = '<section class="panel ed" aria-labelledby="ed-h"><h2 id="ed-h" tabindex="-1">Επεξεργασία ανακοίνωσης</h2>' + html + '</section>';
+  }
+  function startEdit(file, fromAddress) {
+    if (!user || busy) return;
+    clearTimeout(poll); poll = null;
+    busy = true; edit = null;
+    editPanel('<p class="muted" role="status"><span class="spinner" aria-hidden="true"></span>Άνοιγμα της ανακοίνωσης…</p>');
+    var h = $('#ed-h'); if (h) h.focus();
+    A.callFunction('publishAnnouncement', { action: 'load', file: file }).then(function (r) {
+      busy = false;
+      if (!r || !r.editable || !r.post) {
+        editPanel('<div class="notice warn"><strong>Αυτή η ανακοίνωση γράφτηκε απευθείας στο GitHub</strong><p>Δεν ανοίγει στον επεξεργαστή, για να μη χαλάσει η μορφή της. Αλλάξτε την στο αρχείο της' +
+          (r && /^https:\/\/github\.com\//.test(r.github || '') ? ': <a href="' + esc(r.github) + '" target="_blank" rel="noopener">άνοιγμα στο GitHub</a>.' : ' (<code>_src/posts/' + esc(file) + '</code>).') + '</p></div>' +
+          '<p class="section-foot"><button type="button" class="btn btn-outline" data-close>Κλείσιμο</button></p>');
+        var h2 = $('#ed-h'); if (h2) h2.focus();
+        return;
+      }
+      var p = r.post, raw = /^https:\/\//.test(r.raw || '') ? r.raw : A.root;
+      edit = { file: r.file || file, sha: r.sha, url: /^https?:\/\//.test(r.url || '') ? r.url : '', date: p.date, slug: p.slug };
+      state = { title: p.title, category: T.CATEGORIES.indexOf(p.category) < 0 ? T.CATEGORIES[0] : p.category, description: p.description || '', body: p.body };
+      figures = (p.figures || []).map(function (f) {
+        return { existing: f.name, name: f.name, dataUrl: raw + 'assets/img/posts/' + encodeURIComponent(f.name), base64: '', bytes: 0, alt: f.alt || '', size: T.SIZES[f.size] ? f.size : 'full' };
+      });
+      cover = p.cover || 0; tab = 'write';
+      if (fromAddress && window.history.replaceState) { try { window.history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
+      ready = true; paint();
+      var h3 = $('#ed-h'); if (h3) h3.focus();
+    }, function (e) {
+      busy = false;
+      var c = String((e && e.code) || '').replace(/^semfe\//, '');
+      editPanel('<p class="form-error" role="alert">' + esc(c === 'bad-request' ? CODES['edit-not-deployed'] : explain(e)) + '</p>' +
+        '<p class="section-foot"><button type="button" class="btn btn-outline" data-close>Κλείσιμο</button></p>');
+      var h4 = $('#ed-h'); if (h4) h4.focus();
+    });
+  }
+
   /* ---- events ------------------------------------------------------------------------------ */
-  function reset() { state = { title: '', category: T.CATEGORIES[0], description: '', body: '' }; figures = []; cover = 0; tab = 'write'; busy = false; clearDraft(); }
+  function reset() {
+    var wasEdit = !!edit;
+    clearDraft(); edit = null; state = { title: '', category: T.CATEGORIES[0], description: '', body: '' }; figures = []; cover = 0; tab = 'write'; busy = false;
+    if (wasEdit) loadDraft();                                   // after an edit, «Νέα ανακοίνωση» finds the draft it left
+  }
   function submit() {
     note('', false);
     try { plan(); } catch (e) { note(explain({ code: 'semfe/' + e.code })); $('[data-note]').className = 'ed-note form-error'; return false; }
@@ -397,13 +469,15 @@
   function publish() {
     var a = $('[data-actions]'); a.removeAttribute('data-confirm');
     busy = true; paintActions();
-    var payload = { action: 'publish', title: state.title, category: state.category, description: state.description, body: bodyWithAlts(), cover: cover || 0,
-      figures: figures.map(function (f) { return { data: f.base64, size: f.size }; }) };
+    var payload = { action: edit ? 'update' : 'publish', title: state.title, category: state.category, description: state.description, body: bodyWithAlts(), cover: cover || 0,
+      figures: figures.map(function (f) { return f.existing ? { existing: f.existing, size: f.size } : { data: f.base64, size: f.size }; }) };
+    if (edit) { payload.file = edit.file; payload.sha = edit.sha; }
     A.callFunction('publishAnnouncement', payload).then(function (res) {
       busy = false; reset(); done(res);
     }, function (e) {
       busy = false; paintActions();
-      var n = $('[data-note]'); if (n) { n.textContent = explain(e); n.className = 'ed-note form-error'; }
+      var c = String((e && e.code) || '').replace(/^semfe\//, '');
+      var n = $('[data-note]'); if (n) { n.textContent = edit && c === 'bad-request' ? CODES['edit-not-deployed'] : explain(e); n.className = 'ed-note form-error'; }
       var sb = $('[data-send]'); if (sb) sb.focus();
     });
   }
@@ -458,8 +532,9 @@
     else if (b.hasAttribute('data-del')) removeFigure(+b.getAttribute('data-del'));
     else if (b.hasAttribute('data-yes')) publish();
     else if (b.hasAttribute('data-no')) { $('[data-actions]').removeAttribute('data-confirm'); paintActions(); var sb = $('[data-send]'); if (sb) sb.focus(); }
-    else if (b.hasAttribute('data-cancel') || b.hasAttribute('data-close')) { open = false; clearTimeout(poll); paint(); bar.focus(); }
-    else if (b.hasAttribute('data-new')) { open = true; paint(); var ti = $('[data-title]'); if (ti) ti.focus(); }
+    else if (b.hasAttribute('data-cancel') || b.hasAttribute('data-close')) { if (busy) return; leaveEdit(); open = false; clearTimeout(poll); paint(); bar.focus(); }
+    else if (b.hasAttribute('data-new')) { leaveEdit(); open = true; paint(); checkReady(); var ti = $('[data-title]'); if (ti) ti.focus(); }
+    else if (b.hasAttribute('data-edit-file')) startEdit(b.getAttribute('data-edit-file'));
   });
   box.addEventListener('submit', function (e) { e.preventDefault(); if (!busy) submit(); });
   box.addEventListener('keydown', function (e) {
@@ -486,8 +561,14 @@
       if (name === 'drop' && e.dataTransfer) addFiles(e.dataTransfer.files);
     });
   });
+  /* back from an edit to the draft of a new announcement (kept on this device all along) */
+  function leaveEdit() {
+    if (!edit && !figures.some(function (f) { return f.existing; })) return;
+    edit = null; state = { title: '', category: T.CATEGORIES[0], description: '', body: '' }; figures = []; cover = 0; tab = 'write'; loadDraft();
+  }
   bar.addEventListener('click', function () {
     if (!user || busy) return;                                  // not while an announcement is being sent: it would hide the answer
+    if (edit) { leaveEdit(); open = true; paint(); checkReady(); var t1 = $('[data-title]'); if (t1) t1.focus(); return; }   // «Νέα ανακοίνωση» while editing: a new one
     open = !open;
     if (open) { if (!state.title && !state.body) loadDraft(); paint(); checkReady(); var ti = $('[data-title]'); if (ti) ti.focus(); } else { paint(); }
   });
@@ -497,10 +578,15 @@
     var admin = !!(u && A.isAdmin(u));
     if (admin && (!user || user.uid !== u.uid)) {
       var switched = !!user;
-      user = u; state = { title: '', category: T.CATEGORIES[0], description: '', body: '' }; figures = []; cover = 0; tab = 'write'; loadDraft();
+      user = u; edit = null; state = { title: '', category: T.CATEGORIES[0], description: '', body: '' }; figures = []; cover = 0; tab = 'write'; loadDraft();
       if (switched && open && !busy) { paint(); checkReady(); }        // another admin signed in while the box was open: show THEIR draft, not the last one's
     }
-    if (!admin) { user = null; open = false; box.innerHTML = ''; box.hidden = true; }
+    if (!admin) { user = null; open = false; edit = null; box.innerHTML = ''; box.hidden = true; }
     host.hidden = !admin;
+    if (admin && pendingEdit && !busy && !edit) {                       // blog/?edit=FILE: the «Επεξεργασία» of an announcement's own page
+      var asked = pendingEdit; pendingEdit = null;
+      startEdit(asked, true);
+      if (host.scrollIntoView) host.scrollIntoView({ block: 'start' });
+    }
   }, { passive: true });         // a visitor who never signed in must not make this page load the sign-in library
 })();

@@ -259,6 +259,7 @@ const TOOLS = path.join(__dirname, '..', 'tools');
   const JPG = Buffer.concat([Buffer.from([0xFF, 0xD8, 0xFF, 0xE0]), Buffer.alloc(200, 7)]).toString('base64');
   const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]), Buffer.alloc(100, 1)]).toString('base64');
   const TOKEN = 'ghp_SECRET_TOKEN_VALUE';
+  const sha1 = b => require('node:crypto').createHash('sha1').update(b).digest('hex');
 
   function fakeGithub(opts) {
     opts = opts || {};
@@ -282,6 +283,18 @@ const TOOLS = path.join(__dirname, '..', 'tools');
       if (method === 'GET' && p === '/contents/_src/posts') {
         const tree = g.trees[g.commits[u.searchParams.get('ref')].tree];
         return reply(200, Object.keys(tree).filter(k => k.startsWith('_src/posts/')).map(k => ({ name: k.slice(11), path: k, type: 'file' })));
+      }
+      // a file and a folder listing at a ref (a branch name or a commit), for editing
+      const at = u.searchParams.get('ref') === 'main' ? g.head : u.searchParams.get('ref');
+      if (method === 'GET' && /^\/contents\/_src\/posts\/[^/]+$/.test(p)) {
+        const content = g.commits[at] && g.trees[g.commits[at].tree][p.slice(10)];
+        if (content === undefined) return reply(404, { message: 'Not Found' });
+        const buf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+        return reply(200, { content: buf.toString('base64').replace(/(.{60})/g, '$1\n'), encoding: 'base64', sha: sha1(buf) });
+      }
+      if (method === 'GET' && p === '/contents/assets/img/posts') {
+        const tree = g.trees[g.commits[at].tree];
+        return reply(200, Object.keys(tree).filter(k => k.startsWith('assets/img/posts/')).map(k => ({ name: k.slice(17), path: k, type: 'file' })));
       }
       if (method === 'POST' && p === '/git/blobs') { const sha = 'b' + (++g.n); g.blobs[sha] = Buffer.from(body.content, body.encoding); assert.strictEqual(body.encoding, 'base64'); return reply(201, { sha }); }
       if (method === 'POST' && p === '/git/trees') {
@@ -436,6 +449,128 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     const r = await call(OK, { github: g });
     assert.deepStrictEqual([r.code, r.body.error], [500, 'internal']);
     assert.strictEqual(r.logged.length, 1);
+  });
+
+  /* ---- editing an announcement already published ---------------------------- */
+  const fs = require('node:fs');
+  await t('parsePost: what the editor wrote comes back as the editor\'s form, and builds the very same file', async () => {
+    const input = { title: 'Ομιλία & συζήτηση <νέα>', category: 'Εκδηλώσεις', description: '', date: '2026-10-05', cover: 3,
+      body: 'Πρώτη παράγραφος με **έντονο**, & και <b> και {x}.\n\n![Η αφίσα & το λογότυπο](figure-1)\n\n```\nκώδικας\n```\n\n![](figure-2)\n\n- ένα\n- δύο',
+      figures: [{ ext: 'jpg', size: 'medium' }, { ext: 'png', size: 'small' }, { ext: 'jpg', size: 'full' }] };
+    const built = T.buildPost(input);
+    const p = T.parsePost(built.text);
+    assert.strictEqual(p.title, 'Ομιλία & συζήτηση', 'the title as it was written to the file (anything like a tag is dropped)'); assert.strictEqual(p.category, 'Εκδηλώσεις'); assert.strictEqual(p.slug, built.slug); assert.strictEqual(p.date, '2026-10-05');
+    assert.strictEqual(p.description, '', 'a description made from the text is left empty, so it follows the text');
+    assert.strictEqual(p.body, 'Πρώτη παράγραφος με **έντονο**, & και <b> και ｛x｝.\n\n![](figure-1)\n\n```\nκώδικας\n```\n\n![](figure-2)\n\n- ένα\n- δύο');
+    assert.deepStrictEqual(p.figures.map(f => [f.name, f.size, f.alt]), [
+      [built.date + '-' + built.slug + '-1.jpg', 'medium', 'Η αφίσα & το λογότυπο'], [built.date + '-' + built.slug + '-2.png', 'small', ''], [built.date + '-' + built.slug + '-3.jpg', 'full', '']]);
+    assert.strictEqual(p.cover, 3, 'the card picture, used nowhere in the text, is still one of the pictures');
+    assert.strictEqual(T.buildPost(T.editInput(p)).text, built.text, 'built again it is the same file');
+    const typed = T.buildPost(Object.assign({}, input, { description: 'Μια δική μας περίληψη για την κάρτα.' }));
+    assert.strictEqual(T.parsePost(typed.text).description, 'Μια δική μας περίληψη για την κάρτα.', 'a description someone typed is kept');
+  });
+  await t('parsePost: a file written or changed by hand is never offered for editing', async () => {
+    const dir = path.join(__dirname, '..', '_src', 'posts');
+    const byHand = fs.readdirSync(dir).filter(f => f.endsWith('.md') && f < '2026-10-01');
+    assert.ok(byHand.length >= 5);
+    for (const f of byHand) assert.throws(() => T.parsePost(fs.readFileSync(path.join(dir, f), 'utf8')), e => e.code === 'not-editable', f);
+    const ok = T.buildPost({ title: 'Τίτλος', category: 'Ανακοινώσεις', body: 'Κείμενο εδώ.', date: '2026-10-05' }).text;
+    assert.ok(T.parsePost(ok));
+    assert.throws(() => T.parsePost(ok.replace('Κείμενο εδώ.', 'Κείμενο εδώ.\n{ .lead }')), e => e.code === 'not-editable', 'an attribute list');
+    assert.throws(() => T.parsePost(ok.replace('Κείμενο εδώ.', 'Κείμενο {{root}} εδώ.')), e => e.code === 'not-editable', 'a placeholder');
+    assert.throws(() => T.parsePost(ok.replace('category:', 'author: x\ncategory:')), e => e.code === 'not-editable', 'a front matter key of its own');
+    assert.throws(() => T.parsePost(ok.replace('Κείμενο εδώ.', 'Κείμενο <b>εδώ</b>.')), e => e.code === 'not-editable', 'raw HTML (not what the editor writes)');
+    assert.throws(() => T.parsePost(ok + '\n'), e => e.code === 'not-editable', 'one more empty line at the end');
+  });
+  await t('unescapeBody undoes escapeBody exactly', async () => {
+    for (const raw of ['a & b < c', '\\& \\\\< \\\\\\&', '<!-- x --> <!x', '```js\nx\n```', '~~~\n   ```', 'plain text', '\\<\\!']) {
+      const e = T.escapeBody(raw);
+      assert.strictEqual(T.escapeBody(T.unescapeBody(e)), e, JSON.stringify(raw));
+    }
+    assert.strictEqual(T.unescapeBody(T.escapeBody('Εγγραφές & Δωρεές <3')), 'Εγγραφές & Δωρεές <3');
+  });
+
+  // a repository with one announcement written by the editor (two pictures, a third left over) and one written by hand
+  const EDITED = T.buildPost({ title: 'Κοπή πίτας 2026', category: 'Εκδηλώσεις', date: '2026-10-01', cover: 1,
+    body: 'Η πίτα κόβεται την Παρασκευή.\n\n![Η αφίσα](figure-1)\n\n![](figure-2)', figures: [{ ext: 'jpg', size: 'medium' }, { ext: 'jpg' }] });
+  const FILE = EDITED.file;
+  function repo() {
+    const g = fakeGithub();
+    Object.assign(g.trees.t0, {
+      [EDITED.path]: EDITED.text,
+      ['assets/img/posts/2026-10-01-kopi-pitas-2026-1.jpg']: Buffer.from('one'), ['assets/img/posts/2026-10-01-kopi-pitas-2026-2.jpg']: Buffer.from('two'),
+      ['assets/img/posts/2026-10-01-kopi-pitas-2026-3.jpg']: Buffer.from('three, no longer used'),
+      ['_src/posts/2025-03-02-2025-taktiki-gs.md']: '---\ntitle: Πρόσκληση\ndate: 2025-03-02\n---\n\n<p class="date-right">x</p>\n'
+    });
+    return g;
+  }
+  await t('load: an announcement the editor wrote opens as its form, with the version it is', async () => {
+    const r = await call({ action: 'load', file: FILE }, { github: repo() });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.body));
+    assert.strictEqual(r.body.editable, true);
+    assert.strictEqual(r.body.sha, sha1(Buffer.from(EDITED.text)));
+    assert.strictEqual(r.body.url, 'https://semfealumni.gr/blog/2026/10/01/kopi-pitas-2026/');
+    assert.strictEqual(r.body.raw, 'https://raw.githubusercontent.com/o/r/main/');
+    assert.strictEqual(r.body.post.title, 'Κοπή πίτας 2026');
+    assert.deepStrictEqual(r.body.post.figures.map(f => f.name), ['2026-10-01-kopi-pitas-2026-1.jpg', '2026-10-01-kopi-pitas-2026-2.jpg']);
+    assert.ok(r.gh.calls.every(c => c.method === 'GET'), 'opening writes nothing');
+  });
+  await t('load: one written by hand is not opened in the editor; the answer says where to change it', async () => {
+    const r = await call({ action: 'load', file: '2025-03-02-2025-taktiki-gs.md' }, { github: repo() });
+    assert.strictEqual(r.code, 200);
+    assert.deepStrictEqual([r.body.editable, r.body.github], [false, 'https://github.com/o/r/edit/main/_src/posts/2025-03-02-2025-taktiki-gs.md']);
+    assert.strictEqual(r.body.post, undefined);
+  });
+  await t('load: a missing announcement, a strange file name, and a non-admin', async () => {
+    assert.deepStrictEqual(await call({ action: 'load', file: '2026-01-01-none.md' }, { github: repo() }).then(r => [r.code, r.body.error]), [404, 'post-missing']);
+    for (const file of ['../../secrets.md', '2026-10-01-x.txt', 'README.md', 7]) assert.deepStrictEqual(await call({ action: 'load', file }).then(r => [r.code, r.body.error]), [400, 'bad-request'], String(file));
+    const r = await call({ action: 'load', file: FILE }, { token: 'other', github: repo() });
+    assert.deepStrictEqual([r.code, r.body.error, r.gh.calls.length], [403, 'not-admin', 0]);
+  });
+  const opened = async g => (await call({ action: 'load', file: FILE }, { github: g })).body;
+  await t('update: one commit, the same address, published pictures kept, a new one numbered after every picture already there', async () => {
+    const g = repo(), o = await opened(g);
+    const r = await call({ action: 'update', file: FILE, sha: o.sha, title: 'Κοπή πίτας 2026: νέα ώρα', category: 'Εκδηλώσεις', description: '', cover: 1,
+      body: 'Η πίτα κόβεται την Παρασκευή στις 19:00 & όχι στις 18:00.\n\n![Η αφίσα](figure-1)\n\n![Η αίθουσα](figure-3)',
+      figures: [{ existing: o.post.figures[0].name, size: 'medium' }, { existing: o.post.figures[1].name }, { data: JPG }] }, { github: g });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.body));
+    assert.strictEqual(r.body.edited, true); assert.strictEqual(r.body.unchanged, undefined);
+    assert.strictEqual(r.body.url, 'https://semfealumni.gr/blog/2026/10/01/kopi-pitas-2026/', 'a new title does not move the address');
+    const c = g.commits[g.head], files = g.trees[c.tree];
+    assert.ok(/^Announcement: kopi-pitas-2026\n\nΚοπή πίτας 2026: νέα ώρα\n\nEdited from the website by kstouras@gmail.com\.$/.test(c.message), c.message);
+    const text = files[EDITED.path];
+    assert.ok(/^title: "Κοπή πίτας 2026: νέα ώρα"$/m.test(text) && /^date: 2026-10-01$/m.test(text) && /^slug: "kopi-pitas-2026"$/m.test(text), text);
+    assert.ok(text.includes('19:00 \\& όχι') && text.includes('kopi-pitas-2026-1.jpg){ loading=lazy style="max-width:600px;width:100%" }') && text.includes('![Η αίθουσα]({{root}}assets/img/posts/2026-10-01-kopi-pitas-2026-4.jpg)'), text);
+    assert.ok(!text.includes('kopi-pitas-2026-2.jpg'), 'a picture taken out of the text is no longer named');
+    assert.strictEqual(Buffer.from(files['assets/img/posts/2026-10-01-kopi-pitas-2026-4.jpg']).toString('base64'), JPG, 'the new picture is -4: -3 is still in the repository');
+    assert.strictEqual(files['assets/img/posts/2026-10-01-kopi-pitas-2026-1.jpg'].toString(), 'one', 'a published picture is not uploaded again');
+    assert.strictEqual(r.gh.calls.filter(x => x.path.endsWith('/git/blobs')).length, 1, 'only the new picture is uploaded');
+    assert.strictEqual(Object.keys(files).filter(k => k.startsWith('_src/posts/2026-10-01')).length, 1, 'no second file for the same announcement');
+    const again = T.parsePost(text);
+    assert.strictEqual(again.title, 'Κοπή πίτας 2026: νέα ώρα', 'and it can be edited again');
+  });
+  await t('update: edited elsewhere since it was opened, nothing is written', async () => {
+    const g = repo(), o = await opened(g);
+    const r = await call({ action: 'update', file: FILE, sha: 'an-older-version', title: 'x', category: 'Εκδηλώσεις', body: 'y', figures: [] }, { github: g });
+    assert.deepStrictEqual([r.code, r.body.error, g.head], [409, 'post-changed', 'c0']);
+    assert.ok(o.sha);
+  });
+  await t('update: nothing changed commits nothing', async () => {
+    const g = repo(), o = await opened(g);
+    const r = await call(Object.assign({ action: 'update', file: FILE, sha: o.sha }, T.editInput(o.post), {
+      figures: o.post.figures.map(f => ({ existing: f.name, size: f.size })) }), { github: g });
+    assert.strictEqual(r.code, 200, JSON.stringify(r.body));
+    assert.deepStrictEqual([r.body.unchanged, r.body.commit, g.head], [true, null, 'c0']);
+  });
+  await t('update: a picture that is not there, one of another announcement, a deleted announcement, a bad request', async () => {
+    const g = repo(), o = await opened(g);
+    const base = { action: 'update', file: FILE, sha: o.sha, title: 'x', category: 'Εκδηλώσεις', body: '![](figure-1)' };
+    assert.deepStrictEqual(await call(Object.assign({}, base, { figures: [{ existing: '2026-10-01-kopi-pitas-2026-9.jpg' }] }), { github: repo() }).then(r => [r.code, r.body.error]), [400, 'figure-missing']);
+    assert.deepStrictEqual(await call(Object.assign({}, base, { figures: [{ existing: '2025-01-27-2025-kopi-pitas-1.jpg' }] }), { github: repo() }).then(r => [r.code, r.body.error]), [400, 'figure-bad']);
+    assert.deepStrictEqual(await call(Object.assign({}, base, { figures: [{ existing: '../../x.jpg' }] }), { github: repo() }).then(r => [r.code, r.body.error]), [400, 'figure-bad']);
+    assert.deepStrictEqual(await call(Object.assign({}, base, { file: '2026-01-01-none.md', body: 'y', figures: [] }), { github: repo() }).then(r => [r.code, r.body.error]), [404, 'post-missing']);
+    assert.deepStrictEqual(await call(Object.assign({}, base, { sha: '' }), { github: repo() }).then(r => [r.code, r.body.error]), [400, 'bad-request']);
+    assert.deepStrictEqual(await call(Object.assign({}, base, { body: 'x {{root}}', figures: [] }), { github: repo() }).then(r => [r.code, r.body.error]), [400, 'braces']);
   });
   await t('ADMIN_EMAILS is the one accounts.js keeps (nothing else decides who may publish)', async () => {
     assert.ok(accounts.ADMIN_EMAILS.includes('kstouras@gmail.com'));

@@ -839,6 +839,18 @@
     icon: function (k) { return ICONS[k] || ''; },
     user: function () { return current; }
   };
+  /* what a static page shows to an admin only ([data-admin-only], hidden until
+     then): the «Επεξεργασία» of an announcement's page. Passive: a visitor who
+     never signed in does not load the sign-in library for it. It decides what
+     is SHOWN; what an admin may do is decided by the Cloud Function. */
+  (function () {
+    var only = document.querySelectorAll('[data-admin-only]');
+    if (!only.length) return;
+    onChange(function (u) {
+      var yes = !!(u && isAdmin(u));
+      for (var i = 0; i < only.length; i++) only[i].hidden = !yes;
+    }, { passive: true });
+  })();
 
   /* ---- start -------------------------------------------------------------- */
   paintHeader();

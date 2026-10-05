@@ -37,7 +37,7 @@
    request is answered locally. */
 import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
-import { readFileSync, mkdtempSync, symlinkSync, unlinkSync, rmdirSync } from 'node:fs';
+import { readFileSync, mkdtempSync, symlinkSync, unlinkSync, rmdirSync, readdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -2584,6 +2584,94 @@ await scenario('P7', 'blog/: publishing: confirmation, the request, the success 
   mode = 'ok';
   await page.click('[data-send]'); await page.click('[data-yes]');
   t(await waitFor(page, () => /Η ανακοίνωση στάλθηκε/.test(document.querySelector('[data-announce-box]').textContent)), 'and when the service is back, the same text goes through');
+});
+
+await scenario('P14', 'blog/: the success panel links at once and offers «Επεξεργασία»; an edit opens the published announcement and saves it back', ADMIN_OPTS(), async (page, env) => {
+  const FILE = '2026-10-01-kopi-pitas-2026.md', URL1 = ORIGIN + SUB + 'blog/2026/10/01/kopi-pitas-2026/';
+  const POST = { title: 'Κοπή πίτας 2026', category: 'Εκδηλώσεις', description: '', body: 'Η πίτα κόβεται την Παρασκευή & το Σάββατο.\n\n![](figure-1)', date: '2026-10-01', slug: 'kopi-pitas-2026', cover: 1,
+    figures: [{ name: '2026-10-01-kopi-pitas-2026-1.jpg', ext: 'jpg', size: 'medium', alt: 'Η αφίσα' }] };
+  let load = 'ok';
+  publishServer(env, async b => {
+    if (b.action === 'status') return { json: { ok: true, ready: true } };
+    if (b.action === 'publish') return { json: { ok: true, url: URL1, file: FILE, path: '_src/posts/' + FILE, slug: 'kopi-pitas-2026', date: '2026-10-01', commit: 'c1' } };
+    if (b.action === 'load') {
+      if (load === 'old') return { status: 400, json: { error: 'bad-request' } };
+      if (load === 'hand') return { json: { ok: true, editable: false, file: b.file, url: URL1, github: 'https://github.com/o/r/edit/main/_src/posts/' + b.file } };
+      return { json: { ok: true, editable: true, file: FILE, sha: 'sha-1', url: URL1, raw: ORIGIN + SUB, post: POST } };
+    }
+    if (b.action === 'update') return { json: { ok: true, edited: true, url: URL1, file: FILE, path: '_src/posts/' + FILE, slug: 'kopi-pitas-2026', date: '2026-10-01', commit: 'c2' } };
+    return { status: 400, json: { error: 'bad-request' } };
+  });
+  await page.goto(URL_('blog/'));
+  await visible(page.locator('[data-announce-open]'), 8000);
+  await openEditor(page);
+  await waitFor(page, () => !document.querySelector('[data-send]').disabled);
+  await page.fill('#ed-title', 'Κοπή πίτας 2026');
+  await page.fill('#ed-body', 'Κείμενο που θα μείνει ως πρόχειρο;');
+  await page.fill('#ed-body', 'Η πίτα κόβεται την Παρασκευή.');
+  await page.click('[data-send]'); await page.click('[data-yes]');
+  t(await waitFor(page, () => /Η ανακοίνωση στάλθηκε/.test(document.querySelector('[data-announce-box]').textContent)), 'sent');
+  t(await page.$eval('[data-done-link]', a => a.href) === URL1 && await hasText(page.locator('[data-announce-box] .ed-link'), URL1), 'the address is a link at once, before the page exists');
+  t(await page.locator('[data-announce-box] a.btn', { hasText: 'Δείτε την ανακοίνωση' }).count() === 1, '… with «Δείτε την ανακοίνωση»');
+  t(await visible(page.locator('[data-edit-file="' + FILE + '"]')), '… and «Επεξεργασία»');
+
+  // a draft of a NEW announcement is waiting on this device: an edit must leave it alone
+  await page.evaluate(() => localStorage.setItem('semfe:announce-draft:u-admin', JSON.stringify({ title: 'Το πρόχειρό μου', category: 'Ανακοινώσεις', description: '', body: 'Μισογραμμένο.' })));
+  await page.click('[data-edit-file="' + FILE + '"]');
+  t(await waitFor(page, () => document.querySelector('#ed-title') && document.querySelector('#ed-title').value === 'Κοπή πίτας 2026'), '«Επεξεργασία» opens the published announcement in the editor');
+  const loadReq = env.pubCalls.filter(c => c.body.action === 'load');
+  t(loadReq.length === 1 && loadReq[0].body.file === FILE && /^Bearer /.test(loadReq[0].auth), '… asking the function for its file, with the ID token');
+  t(await hasText(page.locator('#ed-h'), 'Επεξεργασία ανακοίνωσης') && await hasText(page.locator('.ed-editing'), 'blog/2026/10/01/kopi-pitas-2026/'), '… titled as an edit, naming the address it keeps');
+  t(await bodyOf(page) === POST.body, '… the text as written (the & shown plainly)' + list([await bodyOf(page)]));
+  t(await page.locator('.ed-fig').count() === 1 && await page.$eval('#ed-alt-1', i => i.value) === 'Η αφίσα' && await page.$eval('#ed-size-1', x => x.value) === 'medium' && await hasText(page.locator('.ed-fig'), 'ήδη δημοσιευμένη'), '… its picture listed, with its description and width');
+  t(await page.$eval('input[name="ed-cat"]:checked', i => i.value) === 'Εκδηλώσεις' && await hasText(page.locator('[data-send]'), 'Αποθήκευση αλλαγών'), '… its kind, and «Αποθήκευση αλλαγών»');
+  await page.fill('#ed-title', 'Κοπή πίτας 2026: νέα ώρα');
+  await select(page, 0, 0);
+  await page.setInputFiles('[data-file]', { name: 'b.png', mimeType: 'image/png', buffer: await pngOf(page, 600, 400) });
+  await waitFor(page, () => document.querySelectorAll('.ed-fig').length === 2);
+  await page.click('[data-send]');
+  t(await hasText(page.locator('[data-actions]'), 'Να αποθηκευτούν οι αλλαγές;') && await hasText(page.locator('[data-actions]'), 'Δεν στέλνεται ξανά e-mail'), 'it asks first, and says no e-mail goes out again');
+  await page.click('[data-yes]');
+  t(await waitFor(page, () => /Οι αλλαγές αποθηκεύτηκαν/.test(document.querySelector('[data-announce-box]').textContent)), 'after «Ναι» the panel says the changes are saved');
+  const up = env.pubCalls.filter(c => c.body.action === 'update');
+  t(up.length === 1, 'exactly one update request');
+  const u = up[0].body;
+  t(u.file === FILE && u.sha === 'sha-1' && u.title === 'Κοπή πίτας 2026: νέα ώρα' && u.category === 'Εκδηλώσεις' && u.cover === 1, '… naming the file and the version it changes' + list([JSON.stringify(Object.assign({}, u, { figures: u.figures.length, body: u.body.length }))]));
+  t(u.figures.length === 2 && u.figures[0].existing === '2026-10-01-kopi-pitas-2026-1.jpg' && u.figures[0].data === undefined && /^\/9j\//.test(u.figures[1].data || ''), '… the published picture by its name, only the new one as data');
+  t(/!\[Η αφίσα\]\(figure-1\)/.test(u.body) && /\]\(figure-2\)/.test(u.body), '… the text with both pictures' + list([u.body]));
+  t(await page.$eval('[data-done-link]', a => a.href) === URL1 && await page.locator('[data-wait]').count() === 0, 'the same address, as a link (no waiting: the page exists already)');
+  t(JSON.parse(await page.evaluate(() => localStorage.getItem('semfe:announce-draft:u-admin'))).title === 'Το πρόχειρό μου', 'the draft of the new announcement is still on this device');
+  await page.click('[data-new]');
+  t(await page.$eval('#ed-title', i => i.value) === 'Το πρόχειρό μου' && await hasText(page.locator('#ed-h'), 'Νέα ανακοίνωση'), '«Νέα ανακοίνωση» after an edit finds that draft');
+  // one written by hand on GitHub, and a function not updated yet
+  load = 'hand';
+  await page.click('[data-cancel]');
+  await page.goto(URL_('blog/?edit=2025-03-02-2025-taktiki-gs.md'));
+  t(await waitFor(page, () => /γράφτηκε απευθείας στο GitHub/.test((document.querySelector('[data-announce-box]') || {}).textContent || ''), null, 9000), 'blog/?edit= of one written by hand: it does not open in the editor, and says why');
+  t(await page.$eval('[data-announce-box] a[href^="https://github.com/"]', a => a.href) === 'https://github.com/o/r/edit/main/_src/posts/2025-03-02-2025-taktiki-gs.md', '… with a link to change it on GitHub');
+  load = 'old';
+  await page.goto(URL_('blog/?edit=' + FILE));
+  t(await waitFor(page, () => /firebase deploy --only functions/.test((document.querySelector('[data-announce-box]') || {}).textContent || ''), null, 9000), 'a function not updated yet: the editor says what to run');
+  load = 'ok';
+  await page.goto(URL_('blog/?edit=' + FILE));
+  t(await waitFor(page, () => document.querySelector('#ed-title') && document.querySelector('#ed-title').value === 'Κοπή πίτας 2026', null, 9000), 'blog/?edit=FILE opens it in the editor');
+  t(!/[?&]edit=/.test(page.url()), '… and the address no longer asks for it (a reload does not reopen it)');
+});
+
+await scenario('P15', 'an announcement\'s page: «Επεξεργασία» for an admin only, leading to the editor', ADMIN_OPTS(), async (page) => {
+  const posts = readdirSync(path.join(ROOT, '_src/posts')).filter(f => f.endsWith('.md')).sort();
+  const file = posts[posts.length - 1], m = file.match(/^(\d{4})-(\d{2})-(\d{2})-(.+)\.md$/);
+  await page.goto(URL_(`blog/${m[1]}/${m[2]}/${m[3]}/${m[4]}/`));
+  t(await visible(page.locator('.post-admin a'), 8000), 'an admin sees «Επεξεργασία» under the announcement');
+  t((await page.getAttribute('.post-admin a', 'href')).endsWith('blog/?edit=' + file), '… leading to blog/?edit=' + file);
+});
+await scenario('P16', 'an announcement\'s page: a visitor sees no «Επεξεργασία», and loads no sign-in library', { cfg: 'oidc' }, async (page, env) => {
+  const posts = readdirSync(path.join(ROOT, '_src/posts')).filter(f => f.endsWith('.md')).sort();
+  const m = posts[posts.length - 1].match(/^(\d{4})-(\d{2})-(\d{2})-(.+)\.md$/);
+  await page.goto(URL_(`blog/${m[1]}/${m[2]}/${m[3]}/${m[4]}/`));
+  await sleep(600);
+  t(await page.locator('.post-admin').isHidden(), 'no «Επεξεργασία» for a visitor');
+  t(env.sdkUrls.length === 0, '… and the page did not load the sign-in library for it' + list(env.sdkUrls));
 });
 
 await scenario('P8', 'blog/: while publishing is not set up the editor still opens, and says so before anyone writes', ADMIN_OPTS(), async (page, env) => {
