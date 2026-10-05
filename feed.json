@@ -6,6 +6,17 @@
  "language": "el",
  "items": [
   {
+   "id": "https://semfealumni.gr/blog/2026/10/05/hello-test-announcment/",
+   "url": "https://semfealumni.gr/blog/2026/10/05/hello-test-announcment/",
+   "title": "Hello test announcment",
+   "summary": "mia nea perilipsi edw",
+   "content_html": "<p>Hello test <strong>announcment</strong></p>",
+   "date_published": "2026-10-05T12:00:00Z",
+   "tags": [
+    "Ανακοινώσεις"
+   ]
+  },
+  {
    "id": "https://semfealumni.gr/blog/2026/02/11/2026-kopi-pitas/",
    "url": "https://semfealumni.gr/blog/2026/02/11/2026-kopi-pitas/",
    "title": "Πρόσκληση για Κοπή Πίτας στις 27 Φεβρουαρίου 2026",
