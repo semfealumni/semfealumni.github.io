@@ -11,7 +11,10 @@ repository before, is kept in `_past-website-versions/mkdocs-material-site/`.
 > then the Pages source and the custom domain on this repository): since then
 > **https://semfealumni.gr/ is served by this repository**, and
 > `https://semfealumni.github.io/` forwards to it. What is left is "A week later"
-> below (the personal feedback log is already deleted). The rest of this file is kept as the record of how it was done, and as
+> below (the personal feedback log is already deleted, the old repository's
+> Pages site is unpublished, and old `www.stouras.com/semfealumni/...` links
+> forward to semfealumni.gr). The rest of this file is kept as the record of
+> how it was done, and as
 > the way back.
 
 **Nothing changes for visitors or members:** the address is still
@@ -187,18 +190,21 @@ depend on GitHub.
 
 * **papaki**: delete the old TXT record `_github-pages-challenge-konstantinosstouras`.
 * **The old repository `konstantinosStouras/semfealumni`**: archiving does **not**
-  stop a Pages site, so first **Settings > Pages**, the three dots next to the
-  live address, **Unpublish site**. Delete its Actions secrets
+  stop a Pages site, so first **Settings > Pages**: under **Branch** choose
+  **None** and **Save** (or, if the page shows a "Your site is live" box, the
+  three dots next to the address, **Unpublish site**). Done on 5 October 2026.
+  Delete its Actions secrets
   `FIREBASE_SERVICE_ACCOUNT`, `FEEDBACK_LOG_TOKEN` and any `GA4_*` (an archived
   repository keeps them). Then **archive** it (not delete).
 * **The old preview address `www.stouras.com/semfealumni/...`** used to forward
-  to semfealumni.gr (through the old repository's custom domain). Since the
-  switch it shows a frozen copy of the site (its canonical address says
-  semfealumni.gr, so nothing breaks). After "Unpublish site" it would answer
-  "not found". To keep old links working, first add small forwarding pages for
-  `semfealumni/` to the homepage repository (`konstantinosStouras.github.io`), as
-  a deliberate exception to its rule that the first version of the site stays
-  under an underscore folder.
+  to semfealumni.gr (through the old repository's custom domain), then showed a
+  frozen copy of the site, and answered "not found" once the old site was
+  unpublished. Since 5 October 2026 the homepage repository
+  (`konstantinosStouras.github.io`) holds a forwarding page for every page of
+  the site in `semfealumni/` (written by its `tools/semfealumni-forwards.mjs`),
+  and its root `404.html` forwards any other address under `/semfealumni/`, so
+  every old link lands on the same page here. Never publish a Pages site from
+  the old repository again: it would claim that address.
 * **Keep the branch `gh-pages` of the new repository.** It holds the finished
   pages of the old site (`_past-website-versions/README.md` says so) and is not
   part of `main`'s history. If you ever want it gone, keep a copy first:

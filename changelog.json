@@ -2,6 +2,19 @@
   "about": "The «Τι νέο» list (whats-new/). Newest first. Each entry is a SUGGESTION: it is shown publicly only after an admin approves it on the page. Fields: id (lowercase letters, digits, dashes; never reuse one), date (YYYY-MM-DD), title, summary, url (optional: a page of the site, or https://).",
   "updates": [
     {
+      "id": "2026-10-05-rss-atom-odigies",
+      "date": "2026-10-05",
+      "title": "Πιο απλή εγγραφή στις ροές RSS και Atom",
+      "summary": "Τα κουμπιά RSS και Atom στη σελίδα «Ανακοινώσεις» ανοίγουν τώρα ένα σύντομο πλαίσιο με τη διεύθυνση της ροής, κουμπί αντιγραφής και συνδέσμους για προσθήκη στο Feedly ή στο Inoreader. Και αν ανοίξετε το αρχείο της ροής, βλέπετε μια ευανάγνωστη λίστα με τις ανακοινώσεις.",
+      "url": "blog/"
+    },
+    {
+      "id": "2026-10-05-keimeno-plates",
+      "date": "2026-10-05",
+      "title": "Κείμενα σε όλο το πλάτος της σελίδας",
+      "summary": "Τα κείμενα του ιστότοπου γεμίζουν πλέον όλο το πλάτος της σελίδας και είναι στοιχισμένα και από τις δύο πλευρές, ώστε να διαβάζονται πιο άνετα."
+    },
+    {
       "id": "2026-10-01-email-alerts",
       "date": "2026-10-01",
       "title": "Ειδοποιήσεις με e-mail",

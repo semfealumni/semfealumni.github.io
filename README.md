@@ -169,7 +169,10 @@ that move. Its code moved into the GitHub organisation SEMFE Alumni on
 `siteUrl` in `assets/js/config.js`, and `node tools/migrate.mjs --verify` checks
 the live result. The addresses of the association's earlier MkDocs site (the
 blog's year and category pages, its PDFs, logos and pictures) keep working
-through small forwarding pages.
+through small forwarding pages. So do the old preview links,
+`www.stouras.com/semfealumni/...`: forwarding pages in the homepage repository
+(`konstantinosStouras.github.io`, folder `semfealumni/`, written by its
+`tools/semfealumni-forwards.mjs`) send each one to the same page here.
 
 ## Tests
 

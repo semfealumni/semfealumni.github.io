@@ -102,6 +102,14 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   pages (`data-firestore`), and `settleMotion` in `tools/smoke.mjs` scrolls a
   page through before anything is measured. A new kind of block that should
   rise goes into `RISE`; a new number into the markup with `data-count`.
+* **Text fills its box and is justified** (owner, 2026-10-05: "any text on the
+  website should extend all the way to the right and justified"). Running text
+  (`p`, `li`, `dd`, `blockquote`, `.notice`…) is aligned on both sides with
+  `hyphens: auto` at every width, by three weightless (`:where`) rules under the
+  `p` rule in `site.css`; titles, rows of buttons, button-cards and the centred
+  «Γίνετε μέλος» band keep their own alignment. No reading-width cap
+  (`max-width` in `em`/`ch`/px) on a block of text: it reaches the right edge
+  of its column. A new centred block needs its own `text-align: center`.
 * **Node:** the GitHub workflows run on Node 24 (`actions/checkout@v5`,
   `actions/setup-node@v5`). The Cloud Functions stay on Node 22
   (`functions/package.json` engines + `runtime` in `firebase.json`): Firebase
@@ -282,7 +290,12 @@ active) chooses kinds of news on account/ > «Ειδοποιήσεις με e-ma
 * **Feeds**: `tools/build.mjs` writes `feed.xml` (Atom), `rss.xml` (RSS 2.0)
   and `feed.json` (JSON Feed 1.1, what the mailer reads) from the posts, with
   absolute links, and every page's `<head>` names the first two. The
-  announcements page links them (`.follow`).
+  announcements page links them (`.follow`); a click on RSS or Atom opens a
+  short panel under the buttons (`site.js`: the address with a copy button,
+  Feedly, Inoreader, the file) instead of the bare file, and both feeds name
+  `assets/css/feed.css`, so a browser that opens one shows a readable list.
+  Plain CSS, not XSLT: browsers are removing XSLT. Both feeds stay (owner,
+  2026-10-05: "I want both").
 * Tests: `functions/test-alerts.js`, the merge/cleanup tests, auth-flow
   T1-T2, rules-test (alertPrefs, alertState), smoke section 6 (feeds).
 

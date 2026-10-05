@@ -31,7 +31,11 @@ there and one more key in `alertTopics()` in `firestore.rules`
 
 Every page names the first two in its `<head>`, so pasting
 `https://semfealumni.gr/` into a feed reader finds them. The links are also at
-the bottom of the «Ανακοινώσεις» page.
+the bottom of the «Ανακοινώσεις» page: a click on RSS or Atom opens a short
+panel there with the feed's address, a copy button and one-click links to add
+it to Feedly or Inoreader. Someone who opens `rss.xml` or `feed.xml` itself in
+a browser sees a readable list of the announcements (`assets/css/feed.css`),
+not code. Feed readers read the same files as before.
 
 ## Switching it on (10 minutes, once)
 
