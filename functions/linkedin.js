@@ -210,6 +210,10 @@ async function cleanupUser({ db, uid }) {
       if (col === 'feedback') for (let i = 1; i <= 5; i++) refs.push(d.ref.collection('shots').doc(String(i)));
     });
   }
+  // the log of the merges INTO this account (functions/accounts.js step 7)
+  // goes with it: the privacy page names the account's life as its retention
+  const merges = await db.collection('accountMerges').where('keep', '==', uid).get();
+  merges.forEach(d => refs.push(d.ref));
   await Promise.all(refs.map(r => r.delete()));
   return refs.length;
 }

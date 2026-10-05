@@ -217,21 +217,23 @@ async function run(opts) {
     await handle(req({ code: 'C', redirectUri: RU }), r, { fetch: fakeFetch(P), auth, db: fakeDb(), now: () => 1, log: () => {} }, CFG);
     assert.strictEqual(r.statusCode, 500); assert.deepStrictEqual(r.body, { error: 'internal' });
   });
-  await t('cleanup of a deleted account removes its application, directory card, e-mail alerts, LinkedIn links and feedback', async () => {
+  await t('cleanup of a deleted account removes its application, directory card, e-mail alerts, LinkedIn links, feedback and the log of merges into it', async () => {
     const docs = new Map([['members/u1', {}], ['directory/u1', {}], ['alertPrefs/u1', { topics: ['site'] }], ['alertPrefs/u2', { topics: ['events'] }], ['linkedinLinks/a', { uid: 'u1' }], ['linkedinLinks/b', { uid: 'u2' }], ['members/u2', {}],
+      ['accountMerges/m1', { keep: 'u1', drop: 'old1' }], ['accountMerges/m2', { keep: 'u2', drop: 'u1' }],
       ['feedback/SEMFE-260930-AAAA', { uid: 'u1' }], ['feedback/SEMFE-260930-AAAA/shots/1', { url: 'x' }], ['feedback/SEMFE-260930-AAAA/shots/2', { url: 'x' }],
       ['feedback/SEMFE-260930-BBBB', { uid: 'u2' }], ['feedback/SEMFE-260930-BBBB/shots/1', { url: 'y' }]]);
     const ref = key => ({ key, delete: async () => { docs.delete(key); }, collection: name => ({ doc: id => ref(key + '/' + name + '/' + id) }) });
     const db = { collection(name) { return {
       doc: id => ref(name + '/' + id),
-      where(f, op, v) { assert.strictEqual(f, 'uid'); assert.strictEqual(op, '=='); return { async get() {
-        const hits = [...docs.entries()].filter(([k, d]) => k.startsWith(name + '/') && d.uid === v).map(([k]) => ({ ref: ref(k) }));
+      where(f, op, v) { assert.strictEqual(f, name === 'accountMerges' ? 'keep' : 'uid'); assert.strictEqual(op, '=='); return { async get() {
+        const hits = [...docs.entries()].filter(([k, d]) => k.startsWith(name + '/') && d[f] === v).map(([k]) => ({ ref: ref(k) }));
         return { forEach: fn => hits.forEach(fn) };
       } }; }
     }; } };
     const n = await cleanupUser({ db, uid: 'u1' });
     assert.ok(n >= 4);
-    assert.deepStrictEqual([...docs.keys()].sort(), ['alertPrefs/u2', 'feedback/SEMFE-260930-BBBB', 'feedback/SEMFE-260930-BBBB/shots/1', 'linkedinLinks/b', 'members/u2']);
+    // a merge INTO u2 that dropped u1 stays: it belongs to the account that was kept
+    assert.deepStrictEqual([...docs.keys()].sort(), ['accountMerges/m2', 'alertPrefs/u2', 'feedback/SEMFE-260930-BBBB', 'feedback/SEMFE-260930-BBBB/shots/1', 'linkedinLinks/b', 'members/u2']);
   });
   console.log(failed ? `\n${failed} failed, ${passed} passed` : `\nall ${passed} passed`);
   process.exit(failed ? 1 : 0);

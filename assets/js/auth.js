@@ -463,6 +463,17 @@
      account page: the application's status and how many ways in), kept per
      account in this browser, so the menu costs no reads of its own. */
   var MENU_KEY = 'semfe:menu:';
+  /* these per-account notes (and account.js's 'semfe:no-method-prompt:<uid>')
+     go with the session: a shared computer must not keep a signed-out or
+     deleted account's application status (privacy policy, «Cookies») */
+  function forgetNotes() {
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i--) {
+        var k = localStorage.key(i);
+        if (k && (k.indexOf(MENU_KEY) === 0 || k.indexOf('semfe:no-method-prompt:') === 0)) localStorage.removeItem(k);
+      }
+    } catch (e) {}
+  }
   function menuInfo(uid) { try { return JSON.parse(localStorage.getItem(MENU_KEY + uid) || '{}') || {}; } catch (e) { return {}; } }
   function noteMenu(patch) {
     var u = current;
@@ -871,7 +882,7 @@
   /* opts.stay: do not reload a member page afterwards (the verification
      card's «Αποσύνδεση», which turns the dialog into the sign-in form) */
   function signOut(opts) {
-    clearHint(); clearPending();
+    clearHint(); clearPending(); forgetNotes();
     pendingUser = null; watchVerify(false); verifyState = null; verifyErr = null;
     resetDialog();
     if (!configured) { current = null; paintHeader(); return Promise.resolve(); }
@@ -1166,7 +1177,7 @@
     friendly: friendly, flash: flash, esc: esc, avatarHtml: avatarHtml, displayName: displayName,
     enabledProviders: function () { return enabled.slice(); }, providerInfo: function (k) { return PROVIDERS[k]; }, methodsText: methodsText,
     callAccounts: callAccounts, callFunction: callFunction, mergeWith: mergeWith, mergeSummary: mergeSummary, linkedinStart: linkedinStart,
-    noteMenu: noteMenu, menuInfo: menuInfo, freshToken: freshToken,
+    noteMenu: noteMenu, menuInfo: menuInfo, forgetNotes: forgetNotes, freshToken: freshToken,
     // set the second sign-in window up BEFORE the click: a popup opened after
     // several awaited steps can be blocked (Safari keeps a click "fresh" briefly)
     prepareMerge: function () { if (configured) otherAuth().catch(function () {}); },
