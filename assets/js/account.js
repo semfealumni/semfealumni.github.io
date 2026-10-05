@@ -355,6 +355,10 @@
     var blocked = needsEmailCheck();
     var msg = formErr || (blocked ? 'Επιβεβαιώστε πρώτα το e-mail σας (δείτε παραπάνω).' : '');
     var active = !!member && member.status === 'active';
+    // a first application starts with the four boxes ticked (owner,
+    // 2026-10-05); the applicant may untick any. A saved application shows
+    // what was saved, so a missing answer is never turned into a yes.
+    var tick = function (v) { return member ? !!v : v !== false; };
     return '<div class="panel" id="apply"><h2 tabindex="-1">' + (member ? 'Επεξεργασία στοιχείων' : 'Αίτηση μέλους') + '</h2>' +
       (member ? '' : '<p class="muted intro">Συμπληρώστε τα στοιχεία σας. Τα πεδία με <span class="req">*</span> είναι υποχρεωτικά. Θα τα ελέγξουμε και θα ενεργοποιήσουμε την ιδιότητα μέλους μόλις λάβουμε τη συνδρομή των ' + esc(C.annualFee || 10) + '€ (δεν ισχύει για μέλη ΔΕΠ).</p>') +
       '<form class="form" novalidate data-apply>' +
@@ -375,10 +379,10 @@
       field('linkedin', 'Προφίλ LinkedIn', m.linkedin, { type: 'url', max: 200, placeholder: 'https://www.linkedin.com/in/…', hint: 'Ο πιο εύκολος τρόπος να επιβεβαιώσουμε ότι είστε απόφοιτος ΣΕΜΦΕ.' }) +
       '<div class="field"><label for="f-note">Σημείωση προς το Δ.Σ.</label><textarea id="f-note" name="note" maxlength="1000" aria-describedby="f-note-hint" data-hint="f-note-hint">' + esc(m.note || '') + '</textarea><span class="hint" id="f-note-hint">Προαιρετικό</span></div>' +
       '<fieldset><legend>Επικοινωνία</legend><div class="form" style="gap:10px">' +
-      check('consentNewsletter', 'Θέλω να λαμβάνω το ενημερωτικό newsletter του Συλλόγου.', m.consentNewsletter) +
-      check('consentJobs', 'Θέλω να λαμβάνω ανακοινώσεις θέσεων εργασίας και πρακτικής άσκησης.', m.consentJobs) +
-      check('consentDirectory', (active ? 'Θέλω να εμφανίζομαι' : 'Όταν ενεργοποιηθεί η ιδιότητά μου, θέλω να εμφανίζομαι') + ' στον κατάλογο μελών (τον βλέπουν μόνο ενεργά μέλη).', m.consentDirectory) +
-      check('acceptedPrivacy', 'Έχω διαβάσει την <a href="' + A.root + 'privacy/" target="_blank" rel="noopener">πολιτική απορρήτου</a> και συμφωνώ να αποθηκευτούν τα στοιχεία μου για την τήρηση του μητρώου μελών.', m.acceptedPrivacy, true) +
+      check('consentNewsletter', 'Θέλω να λαμβάνω το ενημερωτικό newsletter του Συλλόγου.', tick(m.consentNewsletter)) +
+      check('consentJobs', 'Θέλω να λαμβάνω ανακοινώσεις θέσεων εργασίας και πρακτικής άσκησης.', tick(m.consentJobs)) +
+      check('consentDirectory', (active ? 'Θέλω να εμφανίζομαι' : 'Όταν ενεργοποιηθεί η ιδιότητά μου, θέλω να εμφανίζομαι') + ' στον κατάλογο μελών (τον βλέπουν μόνο ενεργά μέλη).', tick(m.consentDirectory)) +
+      check('acceptedPrivacy', 'Έχω διαβάσει την <a href="' + A.root + 'privacy/" target="_blank" rel="noopener">πολιτική απορρήτου</a> και συμφωνώ να αποθηκευτούν τα στοιχεία μου για την τήρηση του μητρώου μελών.', tick(m.acceptedPrivacy), true) +
       '</div></fieldset>' +
       '<div class="form-error" role="alert" id="apply-msg" tabindex="-1" data-form-msg>' + esc(msg) + '</div>' +
       '<div class="section-foot" style="margin-top:0"><button type="submit" class="btn btn-primary"' + (blocked || saving ? ' disabled' : '') + '>' + (saving ? 'Αποθήκευση…' : member ? 'Αποθήκευση' : 'Υποβολή αίτησης') + '</button>' +

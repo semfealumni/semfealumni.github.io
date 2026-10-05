@@ -554,6 +554,9 @@ await scenario('F2', 'account page: the application (validate, refused write, cr
   t(await visible(form), 'signed in with no application: the form is shown');
   t(await hasText(page.locator('#account-app .profile-head'), 'Χωρίς αίτηση'), '… with the «Χωρίς αίτηση» badge');
   const msg = page.locator('#account-app [data-form-msg]');
+  const boxes = () => page.evaluate(() => ['consentNewsletter', 'consentJobs', 'consentDirectory', 'acceptedPrivacy'].map(k => k + '=' + document.getElementById('f-' + k).checked));
+  const fresh = await boxes();
+  t(fresh.every(x => x.endsWith('=true')), 'a first application starts with the four boxes ticked (the applicant may untick them)' + list(fresh));
   const submit = () => page.click('#account-app form[data-apply] [type=submit]');
   const good = { firstName: 'Μαρία', lastName: 'Παπαδοπούλου', email: MARIA.email, phone: '6900000000', stage: 'graduate', direction: 'Εφαρμοσμένα Μαθηματικά',
     entryYear: '2008', gradYear: '2013', position: 'Data Scientist', employer: 'ACME', city: 'Αθήνα', linkedin: 'linkedin.com/in/maria-p', note: 'Γεια σας' };
@@ -631,6 +634,8 @@ await scenario('F2', 'account page: the application (validate, refused write, cr
   await page.click('#account-app [data-edit]');
   t(await visible(page.locator('#account-app form[data-apply]')) && (await text(page.locator('#account-app form[data-apply] [type=submit]'))) === 'Αποθήκευση', '«Επεξεργασία στοιχείων» opens the form with «Αποθήκευση»');
   t((await page.inputValue('#f-employer')) === 'ACME' && (await page.inputValue('#f-gradYear')) === '2013', 'the form holds the saved values');
+  const saved = await boxes();
+  t(saved.join() === 'consentNewsletter=true,consentJobs=false,consentDirectory=true,acceptedPrivacy=true', '… and the saved ticks, the unticked one included' + list(saved));
   t((await page.inputValue('#f-industry')) === 'data' && (await page.inputValue('#f-gender')) === 'female' && (await page.inputValue('#f-country')) === 'GR', '… the optional answers included');
   t(await page.locator('#account-app form[data-apply] a[href$="analytics/#meli"]').count() === 1, 'the form says the answers are counted only anonymously, with a link to the statistics');
   await page.fill('#f-city', 'Θεσσαλονίκη');
