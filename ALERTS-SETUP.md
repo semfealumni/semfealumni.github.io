@@ -47,8 +47,10 @@ From the repository folder, on your computer:
     firebase deploy --only firestore:rules --project semfe-alumni
     firebase deploy --only functions --project semfe-alumni
 
-**Count the functions in the output: there should be nine**, the two new ones
-being `alertsMailer` and `alertsUnsubscribe`.
+**Count the functions in the output: there should be ten**, the two new ones
+being `alertsMailer` and `alertsUnsubscribe` (the tenth, `publishAnnouncement`, is
+the editor on the «Ανακοινώσεις» page: ANNOUNCE-SETUP.md; the deploy asks for its
+GitHub token, and you can answer `none` until you set that up).
 
 * `alertsMailer` runs by itself every 2 hours. It is the site's first
   *scheduled* function, so the first deploy switches on Google's **Cloud

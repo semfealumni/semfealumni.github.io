@@ -38,6 +38,8 @@
   <script src="../assets/js/site.js" defer></script>
   <script src="../assets/js/auth.js" defer></script>
   <script src="../assets/js/visit.js" defer></script>
+  <script src="../assets/js/announce-text.js" defer></script>
+  <script src="../assets/js/announce.js" defer></script>
 </head>
 <body>
 <a class="skip" href="#main">Μετάβαση στο περιεχόμενο</a>
@@ -98,6 +100,13 @@
 </section>
 <section class="tight">
 <div class="wrap">
+<div class="announce" data-announce hidden>
+  <div class="announce-bar">
+    <button type="button" class="btn btn-dark" data-announce-open aria-expanded="false" aria-controls="announce-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg> Νέα ανακοίνωση</button>
+    <p class="muted">Ορατό μόνο στους διαχειριστές.</p>
+  </div>
+  <div id="announce-box" data-announce-box hidden></div>
+</div>
 <div class="filters" role="group" aria-label="Φίλτρο κατηγορίας" data-post-filter hidden>
   <button type="button" aria-pressed="true" data-cat="">Όλες</button>
   <button type="button" aria-pressed="false" data-cat="Ανακοινώσεις">Ανακοινώσεις</button>

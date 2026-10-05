@@ -31,6 +31,7 @@
  *   providers(user)       ['google','facebook','linkedin','password'] linked
  *   link(key)             Promise: link another provider to this account
  *   reauth(user)          Promise: re-prove identity (before deleting)
+ *   callFunction(name, body)  Promise<json>: one of the site's Cloud Functions, as the signed-in person
  *   friendly(err)         Greek message for a Firebase error
  *   root                  relative path back to the site root
  */
@@ -169,27 +170,31 @@
     return fsPromise;
   }
 
-  /* ---- the accounts Cloud Function (functions/accounts.js) ----------------
-     The admin page's list of registered accounts, and merging two accounts of
-     one person. Until that function is deployed the call fails as
-     semfe/accounts-unreachable, and the pages say so instead of breaking. */
+  /* ---- the site's Cloud Functions ----------------------------------------
+     callFunction('accounts', body) is the admin page's list of registered
+     accounts and the merging of two accounts of one person (functions/accounts.js);
+     callFunction('publishAnnouncement', body) is the editor on blog/
+     (functions/announcements.js). Both take the caller's ID token and answer
+     JSON. Until a function is deployed the call fails as
+     semfe/<name>-unreachable, and the pages say so instead of breaking. */
   var FN_BASE = 'https://' + (C.FUNCTIONS_REGION || 'europe-west1') + '-' + FB.projectId + '.cloudfunctions.net/';
-  function callAccounts(body, idToken) {
+  function callFunction(name, body, idToken) {
     if (!configured) return Promise.reject({ code: 'auth/operation-not-allowed' });
     return loadSdk().then(function () {
       if (idToken) return idToken;
       if (!auth.currentUser) throw { code: 'semfe/relogin' };
       return freshToken(auth.currentUser).then(function () { return auth.currentUser.getIdToken(); });
     }).then(function (tok) {
-      return fetch(FN_BASE + 'accounts', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify(body) })
+      return fetch(FN_BASE + name, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + tok }, body: JSON.stringify(body) })
         .then(function (r) {
           return r.json().then(function (j) { return { ok: r.ok, status: r.status, j: j || {} }; }, function () { return { ok: false, status: r.status, j: {} }; });
-        }, function () { throw { code: 'semfe/accounts-unreachable' }; });   // not deployed yet (no CORS answer), or offline
+        }, function () { throw { code: 'semfe/' + name + '-unreachable' }; });   // not deployed yet (no CORS answer), or offline
     }).then(function (x) {
-      if (!x.ok) throw { code: 'semfe/' + (x.j.error || (x.status === 404 ? 'accounts-unreachable' : 'internal')) };
+      if (!x.ok) throw { code: 'semfe/' + (x.j.error || (x.status === 404 ? name + '-unreachable' : 'internal')) };
       return x.j;
     });
   }
+  function callAccounts(body, idToken) { return callFunction('accounts', body, idToken); }
   /* Sign in to ANOTHER account without touching this page's session: a second
      Firebase app that keeps nothing (Persistence.NONE), used only to prove the
      person owns that account too. Then the server merges it into this one. */
@@ -826,7 +831,7 @@
     linkedinViaFunction: function () { return LI_FUNCTION; },
     friendly: friendly, flash: flash, esc: esc, avatarHtml: avatarHtml, displayName: displayName,
     enabledProviders: function () { return enabled.slice(); }, providerInfo: function (k) { return PROVIDERS[k]; }, methodsText: methodsText,
-    callAccounts: callAccounts, mergeWith: mergeWith, mergeSummary: mergeSummary, linkedinStart: linkedinStart,
+    callAccounts: callAccounts, callFunction: callFunction, mergeWith: mergeWith, mergeSummary: mergeSummary, linkedinStart: linkedinStart,
     noteMenu: noteMenu, menuInfo: menuInfo, freshToken: freshToken,
     // set the second sign-in window up BEFORE the click: a popup opened after
     // several awaited steps can be blocked (Safari keeps a click "fresh" briefly)

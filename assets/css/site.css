@@ -1053,3 +1053,51 @@ tr.an-other .an-bar { background: var(--muted); }
   section { padding: 16px 0 !important; }
   body { font-size: 12pt; background: #fff; color: #000; }
 }
+
+/* ---- the announcement editor on blog/ (admins only; assets/js/announce.js) ---- */
+.announce { margin: 0 0 28px; }
+.announce-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.announce-bar .muted { margin: 0; font-size: .9rem; }
+.ed { margin-top: 18px; }
+.ed-form { margin-top: 12px; }
+.ed-tabs { display: inline-flex; gap: 6px; margin-bottom: 10px; }
+.ed-tabs button { min-height: 40px; padding: 8px 16px; border: 1.5px solid var(--field-line); border-radius: 999px; background: none; color: var(--ink); font: inherit; font-weight: 800; font-size: .92rem; cursor: pointer; }
+.ed-tabs button[aria-selected="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+.ed-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px; border: 1.5px solid var(--field-line); border-bottom: 0; border-radius: 10px 10px 0 0; background: var(--mist); }
+.ed-tool { display: inline-grid; place-items: center; min-width: 40px; min-height: 40px; padding: 0 8px; border: 0; border-radius: 8px; background: none; color: var(--ink); font: inherit; font-size: 1rem; cursor: pointer; }
+.ed-tool:hover { background: var(--surface); }
+.ed-tool:focus-visible, .ed-tipsbtn:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+.ed-tool svg { width: 20px; height: 20px; }
+.ed-tipsbtn { margin-left: auto; min-height: 40px; padding: 4px 8px; border: 0; background: none; color: var(--navy); font: inherit; font-weight: 700; font-size: .9rem; text-decoration: underline; text-underline-offset: .18em; cursor: pointer; }
+.ed-tips { border: 1.5px solid var(--field-line); border-bottom: 0; background: var(--surface); padding: 10px 14px; font-size: .9rem; }
+.ed-tips pre { margin: 0 0 8px; padding: 0; background: none; border: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+.ed-tips p { margin: 0 0 6px; }
+.ed-tips code, .ed-hint code, .ed-after code, .ed-address code { font-size: .88em; }
+.field.ed-body textarea, .ed textarea { width: 100%; min-height: 280px; border-radius: 0 0 10px 10px; line-height: 1.55; resize: vertical; }
+.ed-hint { display: flex; justify-content: flex-end; margin: 4px 0 0; }
+.ed-hint .over { color: var(--err); font-weight: 800; }
+.ed-preview { border: 1.5px solid var(--field-line); border-radius: 12px; padding: 18px; background: var(--surface); min-height: 160px; }
+.ed-article > :first-child { margin-top: 0; }
+.ed-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 6px; color: var(--muted); font-size: .9rem; }
+.ed-title { margin: 0 0 14px; }
+.ed-address { margin: 12px 0 0; font-size: .88rem; overflow-wrap: anywhere; }
+.ed-figlist { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 12px; }
+.ed-fig { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.ed-fig > img { width: 96px; height: 96px; object-fit: cover; border-radius: 8px; margin: 0; box-shadow: none; }
+.ed-fig-body { min-width: 0; display: grid; gap: 10px; }
+.ed-fig-name { margin: 0; overflow-wrap: anywhere; }
+.ed-fig-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px 20px; }
+.ed-fig-row .field { min-width: 160px; }
+.ed-cover { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; font-weight: 700; font-size: .92rem; cursor: pointer; }
+.ed-cover input { width: 18px; height: 18px; margin: 0; accent-color: var(--navy); }
+.ed-nocover { margin-top: 10px; }
+.ed-fig-acts { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ed-warn { font-size: .85rem; }
+.ed-note:empty { display: none; }
+.ed-actions .section-foot { margin-top: 0; }
+.ed-after { margin: 10px 0 0; font-size: .88rem; }
+@media (max-width: 560px) {
+  .ed-fig { grid-template-columns: minmax(0, 1fr); }
+  .ed-fig > img { width: 100%; height: 160px; }
+  .ed-tipsbtn { margin-left: 0; }
+}

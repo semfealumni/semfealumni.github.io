@@ -26,6 +26,10 @@
  *                       «Τι νέο» entries an admin approved). The first run
  *                       only records what is already published (alerts.js)
  *   alertsUnsubscribe   the "stop the alerts" link in those e-mails (alerts.js)
+ *   publishAnnouncement an admin's new announcement from the editor on blog/:
+ *                       written as a Markdown file + pictures in the site's
+ *                       GitHub repository, in one commit; a workflow then
+ *                       builds the page (announcements.js, ANNOUNCE-SETUP.md)
  *
  * Settings (asked for by the Firebase CLI on the first deploy, stored in
  * functions/.env.<project-id>; the secret goes to Google Secret Manager):
@@ -37,6 +41,11 @@
  *   SITE_URL                the site's address, for the links in e-mails
  *   FEEDBACK_TO             comma-separated addresses that receive new feedback
  *   SMTP_HOST, SMTP_PORT    the mail server (default: Gmail, smtp.gmail.com:465)
+ *   PUBLISH_REPO, PUBLISH_BRANCH   the GitHub repository (owner/name) and branch the
+ *                           announcements are committed to
+ *   GITHUB_PUBLISH_TOKEN    (SECRET) a fine-grained GitHub token with "Contents:
+ *                           read and write" on that one repository, or "none" to
+ *                           leave publishing off: ANNOUNCE-SETUP.md
  *   SMTP_USER, SMTP_PASS    (SECRETS) the sending account and its app password:
  *                           firebase functions:secrets:set SMTP_USER / SMTP_PASS
  *                           (FEEDBACK-SETUP.md)
@@ -58,6 +67,7 @@ const { handle, cleanupUser, splitList } = require('./linkedin');
 const accounts = require('./accounts');
 const feedback = require('./feedback');
 const alerts = require('./alerts');
+const announcements = require('./announcements');
 
 initializeApp();
 
@@ -82,6 +92,12 @@ const FEEDBACK_TO = defineString('FEEDBACK_TO', {
 });
 const SMTP_HOST = defineString('SMTP_HOST', { default: 'smtp.gmail.com', description: 'Mail server for the feedback e-mails' });
 const SMTP_PORT = defineString('SMTP_PORT', { default: '465', description: 'Mail server port (465 = SSL)' });
+const PUBLISH_REPO = defineString('PUBLISH_REPO', {
+  default: 'konstantinosStouras/semfealumni',
+  description: 'The GitHub repository (owner/name) the announcements written on blog/ are committed to'
+});
+const PUBLISH_BRANCH = defineString('PUBLISH_BRANCH', { default: 'main', description: 'The branch the site is published from' });
+const GITHUB_PUBLISH_TOKEN = defineSecret('GITHUB_PUBLISH_TOKEN');
 const SMTP_USER = defineSecret('SMTP_USER');
 const SMTP_PASS = defineSecret('SMTP_PASS');
 
@@ -111,6 +127,23 @@ exports.accounts = onRequest(
     clock: () => Date.now(),
     log: e => logger.error('accounts failed', e)
   }, { allowedOrigins: splitList(ALLOWED_ORIGINS.value()) })
+);
+
+/* The editor on blog/ (assets/js/announce.js): an admin's announcement becomes a file in the repository (announcements.js). */
+exports.publishAnnouncement = onRequest(
+  { region: 'europe-west1', secrets: [GITHUB_PUBLISH_TOKEN], invoker: 'public', maxInstances: 2, timeoutSeconds: 90, memory: '512MiB' },
+  (req, res) => announcements.handle(req, res, {
+    auth: getAuth(),
+    fetch: globalThis.fetch,
+    clock: () => Date.now(),
+    log: e => logger.error('publishAnnouncement failed', e)
+  }, {
+    allowedOrigins: splitList(ALLOWED_ORIGINS.value()),
+    token: GITHUB_PUBLISH_TOKEN.value(),
+    repo: PUBLISH_REPO.value(),
+    branch: PUBLISH_BRANCH.value(),
+    siteUrl: SITE_URL.value()
+  })
 );
 
 /* Firebase Auth has no 2nd-generation "user deleted" trigger, so this one is 1st generation. */

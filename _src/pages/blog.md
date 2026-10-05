@@ -1,6 +1,7 @@
 ---
 path: blog/
 nav: blog
+scripts: [announce-text.js, announce.js]
 title: Ανακοινώσεις
 description: Ανακοινώσεις, προσκλήσεις και εκδηλώσεις του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ.
 hero:
@@ -13,6 +14,13 @@ crumbs:
 
 <section class="tight">
 <div class="wrap">
+<div class="announce" data-announce hidden>
+  <div class="announce-bar">
+    <button type="button" class="btn btn-dark" data-announce-open aria-expanded="false" aria-controls="announce-box">{{icon:form}} Νέα ανακοίνωση</button>
+    <p class="muted">Ορατό μόνο στους διαχειριστές.</p>
+  </div>
+  <div id="announce-box" data-announce-box hidden></div>
+</div>
 <div class="filters" role="group" aria-label="Φίλτρο κατηγορίας" data-post-filter hidden>
   <button type="button" aria-pressed="true" data-cat="">Όλες</button>
   <button type="button" aria-pressed="false" data-cat="Ανακοινώσεις">Ανακοινώσεις</button>

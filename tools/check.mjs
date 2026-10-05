@@ -175,6 +175,20 @@ function jpegSize(b) {
   ok(`e-mail alerts: ${T.KEYS.join(', ')} match the rules; feed.json lists ${feed.items.length} announcement(s)`);
 }
 
+/* 3b3. the editor on blog/: what an admin previews is what the Cloud Function
+   publishes (one copy of the rules in both), the categories it offers are the
+   ones an e-mail alert covers, and the publishing workflow builds from _src */
+{
+  const A = require(path.join(ROOT, 'assets/js/announce-text.js'));
+  const T = require(path.join(ROOT, 'assets/js/alert-topics.js'));
+  if (read('assets/js/announce-text.js') !== read('functions/announce-text.js')) fail('functions/announce-text.js must be a copy of assets/js/announce-text.js (cp assets/js/announce-text.js functions/)');
+  const cats = [...new Set(T.TOPICS.filter(x => x.source === 'posts').map(x => x.category))].sort();
+  if (JSON.stringify([...A.CATEGORIES].sort()) !== JSON.stringify(cats)) fail(`the editor offers ${A.CATEGORIES} but the e-mail alerts cover ${cats}: announce-text.js and alert-topics.js must name the same categories`);
+  const wf = read('.github/workflows/publish.yml');
+  if (!/_src\/\*\*/.test(wf) || !/node tools\/build\.mjs/.test(wf) || !/assets\/img\/posts\/\*\*/.test(wf)) fail('.github/workflows/publish.yml must run node tools/build.mjs when _src/** or assets/img/posts/** change');
+  ok(`announcement editor: rules shared with the Cloud Function, categories ${cats.join(' + ')}, publish workflow in place`);
+}
+
 /* 3c. «Στατιστικά»: the profile answers are the same everywhere, the two
    copies of the lists are one file, and the visit counter is on every page
    except the admin and sign-in pages */

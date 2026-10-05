@@ -19,6 +19,9 @@ generated `index.html` files by hand: the next build erases the change.
 
 ## An announcement
 
+(An admin can also write one on the website, on the «Ανακοινώσεις» page: it creates
+exactly this file. See `ANNOUNCE-SETUP.md` in the repository's root.)
+
 ```markdown
 ---
 title: Πρόσκληση σε γενική συνέλευση
