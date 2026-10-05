@@ -322,7 +322,7 @@ function footer(root) {
       <div>
         <div class="footer-brand">
           <img src="${root}assets/img/logos/semfe_alumni_logo.jpg" alt="" width="46" height="46" loading="lazy">
-          <p><strong style="color:#fff">Σύλλογος Διπλωματούχων ΣΕΜΦΕ&nbsp;ΕΜΠ</strong><br>Ο επίσημος φορέας των αποφοίτων της Σχολής Εφαρμοσμένων Μαθηματικών και Φυσικών Επιστημών του ΕΜΠ, από το 2013.</p>
+          <p><strong style="color:#fff">Σύλλογος Διπλωματούχων<br>ΣΕΜΦΕ&nbsp;ΕΜΠ</strong><br>Ο επίσημος φορέας των αποφοίτων της Σχολής Εφαρμοσμένων Μαθηματικών και Φυσικών Επιστημών του ΕΜΠ, από το 2013.</p>
         </div>
         <div class="footer-social">${social}</div>
       </div>
