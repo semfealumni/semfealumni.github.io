@@ -2,6 +2,13 @@
   "about": "The «Τι νέο» list (whats-new/). Newest first. Each entry is a SUGGESTION: it is shown publicly only after an admin approves it on the page. Fields: id (lowercase letters, digits, dashes; never reuse one), date (YYYY-MM-DD), title, summary, url (optional: a page of the site, or https://).",
   "updates": [
     {
+      "id": "2026-10-05-epivevaiosi-email",
+      "date": "2026-10-05",
+      "title": "Επιβεβαίωση του e-mail στην εγγραφή",
+      "summary": "Όταν δημιουργείτε λογαριασμό με e-mail και κωδικό, σας στέλνουμε ένα e-mail με σύνδεσμο. Μόλις τον πατήσετε, η διεύθυνσή σας επιβεβαιώνεται και μπορείτε να συνδεθείτε και να κάνετε την αίτηση μέλους. Αν το e-mail δεν έφτασε, μπορείτε να ζητήσετε νέο από την ίδια σελίδα. Με Google ή LinkedIn η σύνδεση γίνεται όπως πριν.",
+      "url": "account/"
+    },
+    {
       "id": "2026-10-05-rss-atom-odigies",
       "date": "2026-10-05",
       "title": "Πιο απλή εγγραφή στις ροές RSS και Atom",

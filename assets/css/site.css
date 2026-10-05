@@ -200,6 +200,9 @@ html:not(.js) .nav-more:hover .nav-more-panel, html:not(.js) .nav-more:focus-wit
 /* account button / chip (filled in by auth.js) */
 .acct-slot { display: flex; align-items: center; }
 .acct-signin { white-space: nowrap; }
+/* an account that has not confirmed its e-mail yet (auth.js): the same place,
+   an envelope and «Επιβεβαίωση e-mail»; on a phone the envelope alone (below) */
+.acct-verify { gap: 8px; }
 .acct-chip {
   display: inline-flex; align-items: center; gap: 8px; max-width: 220px; min-height: 44px;
   padding: 4px 12px 4px 4px; border-radius: 999px; border: 1px solid rgba(255,255,255,.28);
@@ -324,6 +327,9 @@ html.js.nav-tight .nav .nav-more-panel a[aria-current="page"] { color: #fff; bac
   .acct-chip .nm { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   .acct-chip { padding-right: 8px; }
   .acct-signin { padding-left: 12px; padding-right: 12px; }
+  /* the envelope alone: «Επιβεβαίωση e-mail» stays its accessible name */
+  .acct-verify .tx { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .acct-verify { min-width: 44px; min-height: 44px; padding-left: 0; padding-right: 0; justify-content: center; }
 }
 @media (max-width: 380px) {
   .brand-text .top { letter-spacing: .06em; font-size: .56rem; }
@@ -772,6 +778,13 @@ legend { font-weight: 800; padding: 0 6px; }
 .modal-head h2 { font-size: 1.5rem; margin-bottom: 6px; padding-right: 40px; }
 .modal-head p { color: var(--muted); margin: 0; font-size: .95rem; }
 .modal-body { padding: 20px 26px 26px; display: grid; gap: 14px; }
+/* the sign-in form and the verification card take turns in the dialog body */
+.auth-main, .verify-box { display: grid; gap: 14px; }
+.verify-box { gap: 12px; }
+.verify-box [data-verify-lede] { margin: 0; font-size: 1.02rem; }
+.verify-box [data-verify-lede]:focus { outline: none; }
+.verify-ic { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--gold-soft); color: var(--gold-text); }
+.verify-ic svg { width: 26px; height: 26px; }
 .modal-x { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--mist); color: var(--ink); cursor: pointer; display: grid; place-items: center; }
 .modal-x svg { width: 20px; height: 20px; }
 .tabs2 { display: grid; grid-template-columns: 1fr 1fr; background: var(--mist); border-radius: 999px; padding: 4px; }
