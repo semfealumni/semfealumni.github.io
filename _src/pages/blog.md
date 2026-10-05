@@ -37,8 +37,8 @@ crumbs:
 
 <div class="follow-links">
   <a class="btn btn-dark btn-sm" href="{{root}}account/#alerts">{{icon:mail}} Ειδοποιήσεις με e-mail</a>
-  <a class="btn btn-outline btn-sm" href="{{root}}rss.xml" type="application/rss+xml">{{icon:rss}} RSS</a>
-  <a class="btn btn-outline btn-sm" href="{{root}}feed.xml" type="application/atom+xml">{{icon:rss}} Atom</a>
+  <a class="btn btn-outline btn-sm" href="{{root}}rss.xml" type="application/rss+xml" data-feed="RSS">{{icon:rss}} RSS</a>
+  <a class="btn btn-outline btn-sm" href="{{root}}feed.xml" type="application/atom+xml" data-feed="Atom">{{icon:rss}} Atom</a>
 </div>
 </div>
 </div>

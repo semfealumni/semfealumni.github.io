@@ -340,6 +340,71 @@
     });
   });
 
+  /* ---- RSS and Atom under the announcements ----
+     A click on either button opens a short panel under the buttons instead of
+     the bare feed file, which a browser shows as code: the feed's address with a
+     copy button, one-click links to add it to Feedly or Inoreader, and the file
+     itself for whoever wants it. A second click, or Esc, closes it. Without
+     JavaScript the buttons simply open the file (feed.css makes it readable). */
+  var feedBtns = $$('a[data-feed]');
+  if (feedBtns.length) {
+    var feedPanel = document.createElement('div');
+    feedPanel.className = 'feed-help';
+    feedPanel.id = 'feed-help';
+    feedPanel.hidden = true;
+    feedPanel.setAttribute('role', 'region');
+    var feedRow = closest(feedBtns[0], '.follow-links');
+    feedRow.parentNode.insertBefore(feedPanel, feedRow.nextSibling);
+    var mailLink = $('a[href$="account/#alerts"]', feedRow.parentNode);
+    var openFeed = null;
+    var closeFeed = function (focusBack) {
+      feedPanel.hidden = true;
+      feedBtns.forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
+      if (focusBack && openFeed) openFeed.focus();
+      openFeed = null;
+    };
+    var escHtml = function (x) { return String(x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+    feedBtns.forEach(function (btn) {
+      btn.setAttribute('aria-expanded', 'false');
+      btn.setAttribute('aria-controls', 'feed-help');
+      btn.addEventListener('click', function (e) {
+        if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button) return;   // a new tab or a download stays the reader's choice
+        e.preventDefault();
+        if (openFeed === btn) { closeFeed(false); return; }
+        var kind = btn.getAttribute('data-feed');
+        var url = new URL(btn.getAttribute('href'), location.href).href;
+        var other = kind === 'RSS' ? 'Atom' : 'RSS';
+        var enc = encodeURIComponent(url);
+        feedPanel.setAttribute('aria-label', 'Η ροή ' + kind);
+        feedPanel.innerHTML =
+          '<h3 class="feed-help-h">Η ροή ' + kind + ' των ανακοινώσεων</h3>' +
+          '<p>Προσθέστε αυτή τη διεύθυνση στο πρόγραμμα ανάγνωσης ειδήσεων που χρησιμοποιείτε (Feedly, Inoreader, NetNewsWire, Thunderbird και άλλα). Κάθε νέα ανακοίνωση θα εμφανίζεται εκεί μόνη της. Το ' + kind + ' και το ' + other + ' έχουν τις ίδιες ανακοινώσεις· διαλέξτε όποιο δέχεται το πρόγραμμά σας.</p>' +
+          '<div class="feed-url"><code id="feed-url">' + escHtml(url) + '</code><button class="copy-btn" type="button" data-feed-copy>Αντιγραφή<span class="sr-only"> της διεύθυνσης</span></button></div>' +
+          '<div class="feed-acts">' +
+            '<a class="btn btn-outline btn-sm" href="https://feedly.com/i/subscription/feed%2F' + enc + '" target="_blank" rel="noopener">Προσθήκη στο Feedly</a>' +
+            '<a class="btn btn-outline btn-sm" href="https://www.inoreader.com/?add_feed=' + enc + '" target="_blank" rel="noopener">Προσθήκη στο Inoreader</a>' +
+            '<a class="btn btn-outline btn-sm" href="' + escHtml(btn.getAttribute('href')) + '" type="' + escHtml(btn.getAttribute('type') || '') + '">Το αρχείο ' + kind + '</a>' +
+          '</div>' +
+          (mailLink ? '<p class="muted">Δεν χρησιμοποιείτε τέτοιο πρόγραμμα; Οι <a href="' + escHtml(mailLink.getAttribute('href')) + '">ειδοποιήσεις με e-mail</a> είναι πιο απλές.</p>' : '');
+        var copy = $('[data-feed-copy]', feedPanel);
+        copy.addEventListener('click', function () {
+          copyText(url, function (ok) {
+            clearTimeout(copy._t);
+            var msg = ok ? 'Αντιγράφηκε ✓' : 'Επιλέξτε και αντιγράψτε';
+            copy.textContent = msg; copy.classList.toggle('done', ok); announce(msg);
+            copy._t = setTimeout(function () { copy.innerHTML = 'Αντιγραφή<span class="sr-only"> της διεύθυνσης</span>'; copy.classList.remove('done'); }, 2200);
+          });
+        });
+        feedBtns.forEach(function (b) { b.setAttribute('aria-expanded', b === btn ? 'true' : 'false'); });
+        feedPanel.hidden = false;
+        openFeed = btn;
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && openFeed && (feedPanel.contains(document.activeElement) || feedBtns.indexOf(document.activeElement) !== -1)) closeFeed(true);
+    });
+  }
+
   /* ---- the footer's year: never behind the calendar, without a rebuild each January ---- */
   $$('[data-year]').forEach(function (el) { var y = new Date().getFullYear(); if (+el.textContent < y) el.textContent = String(y); });
 

@@ -956,6 +956,29 @@ try {
     try { items = JSON.parse(jf.body).items; } catch (e) { items = []; }
     t(jf.ok && items.length === n && items.every(i => /^https:\/\//.test(i.url) && i.tags && i.tags.length === 1), `feed.json (read by the e-mail alerts) lists all ${n}, each with its category`);
     t(!/\{\{root\}\}|src="\.\.\//.test(atom.body + rss.body + jf.body), 'links inside the posts are absolute in every feed');
+    // opened in a browser, a feed reads as a list (feed.css), not as code
+    const PI = /^<\?xml[^>]*\?>\s*<\?xml-stylesheet type="text\/css" href="assets\/css\/feed\.css"\?>/;
+    const fcss = await get('assets/css/feed.css');
+    t(PI.test(atom.body) && PI.test(rss.body) && fcss.ok && /rss::before/.test(fcss.body) && /feed::before/.test(fcss.body),
+      'both feeds name assets/css/feed.css, and it is served: a browser shows them as a readable list');
+    // a click on RSS or Atom opens a short panel (site.js), not the bare file
+    for (const [kind, file] of [['RSS', 'rss.xml'], ['Atom', 'feed.xml']]) {
+      await page.locator(`a[data-feed="${kind}"]`).click();
+      const h = await page.evaluate(() => {
+        const p = document.getElementById('feed-help');
+        return { shown: !!p && !p.hidden, url: (document.getElementById('feed-url') || {}).textContent || '', here: location.pathname,
+          links: p ? [...p.querySelectorAll('a')].map(a => a.href) : [], copy: !!(p && p.querySelector('[data-feed-copy]')),
+          exp: [...document.querySelectorAll('a[data-feed]')].map(a => a.getAttribute('data-feed') + '=' + a.getAttribute('aria-expanded')) };
+      });
+      const enc = encodeURIComponent(h.url);
+      t(h.shown && h.here === SUB + 'blog/' && h.url === ORIGIN + SUB + file && h.copy &&
+        h.links.includes('https://feedly.com/i/subscription/feed%2F' + enc) && h.links.includes('https://www.inoreader.com/?add_feed=' + enc) &&
+        h.links.includes(ORIGIN + SUB + file) && h.exp.includes(kind + '=true') && h.exp.filter(x => /=true$/.test(x)).length === 1,
+        `${kind}: a click opens the panel with its address, a copy button, Feedly, Inoreader and the file, and stays on the page` + list(h.links));
+    }
+    await page.locator('a[data-feed="Atom"]').click();
+    t(await page.evaluate(() => document.getElementById('feed-help').hidden && [...document.querySelectorAll('a[data-feed]')].every(a => a.getAttribute('aria-expanded') === 'false')),
+      'a second click on the same button closes the panel');
     if (log.errors.length) t(false, 'blog: script errors' + list(log.errors));
     await ctx.close();
   }

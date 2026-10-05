@@ -615,6 +615,15 @@ section.dark a:not(.btn) { color: var(--gold); }
 .follow { margin-top: 32px; padding: 18px 20px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
 .follow p { margin: 0 0 12px; }
 .follow-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.follow-links a[aria-expanded="true"] { background: var(--sky); border-color: var(--navy); }
+/* the panel a click on RSS or Atom opens (site.js) */
+.feed-help { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.feed-help-h { font-size: 1.05rem; margin: 0 0 6px; }
+.feed-help p { margin: 0 0 12px; }
+.feed-help p:last-child { margin-bottom: 0; }
+.feed-url { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; }
+.feed-url code { padding: 6px 10px; border-radius: 8px; background: var(--mist); border: 1px solid var(--line); overflow-wrap: anywhere; font-size: .92rem; }
+.feed-acts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
 
 /* long-form content (announcements, legal pages, about text) */
 /* long text fills the page like every other block of text (the rules after

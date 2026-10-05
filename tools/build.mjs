@@ -524,7 +524,11 @@ const isoDay = d => d + 'T12:00:00Z';
 const rfc822 = d => new Date(isoDay(d)).toUTCString().replace('GMT', '+0000');
 const cdata = s => '<![CDATA[' + String(s).replace(/]]>/g, ']]]]><![CDATA[>') + ']]>';
 const newest = feedPosts.length ? feedPosts[0].date : '2026-01-01';
+/* both feeds name assets/css/feed.css, so a browser that opens one shows a
+   readable list, not code (feed readers ignore the line) */
+const FEED_CSS = '<?xml-stylesheet type="text/css" href="assets/css/feed.css"?>';
 out.push(['feed.xml', `<?xml version="1.0" encoding="utf-8"?>
+${FEED_CSS}
 <feed xmlns="http://www.w3.org/2005/Atom" xml:lang="el">
   <title>Ανακοινώσεις · ${esc(C.siteName)}</title>
   <subtitle>Ανακοινώσεις, προσκλήσεις και εκδηλώσεις του Συλλόγου</subtitle>
@@ -547,6 +551,7 @@ ${feedPosts.map(p => `  <entry>
 </feed>
 `]);
 out.push(['rss.xml', `<?xml version="1.0" encoding="utf-8"?>
+${FEED_CSS}
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>Ανακοινώσεις · ${esc(C.siteName)}</title>
