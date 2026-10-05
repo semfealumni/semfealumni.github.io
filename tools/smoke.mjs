@@ -934,6 +934,20 @@ try {
       t(r.shown.length === want.length && r.shown.every(c => !cat || c === cat) && r.pressed.length === 1 && r.pressed[0] === label,
         `"${label}" shows ${r.shown.length} of ${cats.length} cards (expected ${want.length}) and is the one pressed button`);
     }
+    // the admins' «Νέα ανακοίνωση» bar sits in the MIDDLE of the space between the
+    // page's title band and the filter buttons, on a desktop and on a phone
+    for (const v of [{ width: 1280 }, { width: 390, height: 844, phone: true }]) {
+      const o = await open(SUB + 'blog/', v);
+      const g = await o.page.evaluate(() => {
+        const a = document.querySelector('[data-announce]'); a.hidden = false;
+        const f = document.querySelector('[data-post-filter]'); f.hidden = false;
+        const hero = document.querySelector('.page-hero').getBoundingClientRect();
+        const bar = a.querySelector('.announce-bar').getBoundingClientRect();
+        return { above: Math.round(bar.top - hero.bottom), below: Math.round(f.getBoundingClientRect().top - bar.bottom) };
+      });
+      t(g.above > 0 && Math.abs(g.above - g.below) <= 1, `at ${v.width}px the «Νέα ανακοίνωση» bar is centred: ${g.above}px above, ${g.below}px below`);
+      await o.ctx.close();
+    }
     // following the announcements: e-mail alerts and the feeds (built by build.mjs)
     const follow = await page.$$eval('.follow a', as => as.map(a => a.getAttribute('href')));
     t(follow.length === 3 && /account\/#alerts$/.test(follow[0]) && /rss\.xml$/.test(follow[1]) && /feed\.xml$/.test(follow[2]),
