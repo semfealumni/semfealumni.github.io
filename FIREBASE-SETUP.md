@@ -118,6 +118,13 @@ Tab **Templates**:
 The free plan sends up to 1,000 verification e-mails and 150 password-reset
 e-mails a day, far more than the association needs.
 
+The verification e-mail matters: an account made with e-mail and password
+**cannot sign in until its link is pressed** (the site shows «Επιβεβαιώστε το
+e-mail σας» with a button to send it again). Google and LinkedIn sign-ins are
+confirmed by Google and LinkedIn and are not held. If members say the e-mail
+never arrives, check this template's sender and ask them to look in spam;
+an admin can see an unconfirmed account on the admin page («ανεπιβεβαίωτο»).
+
 ### A6. The member database (Firestore)
 
 1. Left menu: **Databases & Storage > Firestore** (older screens: "Build >

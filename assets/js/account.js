@@ -49,6 +49,7 @@
       deleted = false;              // …until someone signs in again on this page
     }
     if (!A.configured) return renderOffline();
+    if (!u && A.pending && A.pending()) return renderPending(A.pending());
     if (!u) return renderSignedOut();
     html('<div class="loading"><span class="spinner" aria-hidden="true"></span>Φόρτωση του λογαριασμού σας…</div>');
     // LinkedIn connected through the Cloud Function shows up only in the token's claims
@@ -99,16 +100,24 @@
     if (/register|apply/.test(location.hash)) A.open('register');
     else if (/signin/.test(location.hash)) A.open('signin');
   }
+  /* an e-mail + password account that has not confirmed its address is held
+     by auth.js (the page hears null): it cannot use the site until it does */
+  function renderPending(p) {
+    html('<div class="panel" id="verify-pending"><h2 tabindex="-1">Επιβεβαιώστε το e-mail σας</h2>' +
+      '<p>Ο λογαριασμός με το <strong>' + esc(p.email) + '</strong> ενεργοποιείται μόλις πατήσετε τον σύνδεσμο που σας στείλαμε με e-mail. ' +
+      'Μετά μπαίνετε εδώ κανονικά και κάνετε την <strong>αίτηση μέλους</strong>.</p>' +
+      '<div class="section-foot" style="margin-top:8px"><button type="button" class="btn btn-primary" data-open="verify">Επιβεβαίωση e-mail</button>' +
+      '<button type="button" class="btn btn-outline" data-signout>Αποσύνδεση</button></div></div>');
+    app.querySelector('[data-open]').addEventListener('click', function (e) { A.open('verify', e.currentTarget); });
+    app.querySelector('[data-signout]').addEventListener('click', function () { A.signOut(); });
+  }
   function renderError(e) {
     html('<div class="notice err"><strong>Δεν ήταν δυνατή η φόρτωση</strong><p>' + esc(A.friendly(e)) + '</p></div>');
   }
 
-  /* an e-mail + password account with nothing else linked must confirm its
-     address before applying (firestore.rules emailConfirmed() agrees) */
-  function needsEmailCheck() {
-    return user && !user.emailVerified && (user.providerData || []).some(function (p) { return p.providerId === 'password'; })
-      && !(user.providerData || []).some(function (p) { return p.providerId !== 'password'; });
-  }
+  /* (an e-mail + password account with nothing else linked that has not
+     confirmed its address never reaches this page signed in: auth.js holds it
+     at the «Επιβεβαιώστε το e-mail σας» card, and renderPending() shows) */
   /* connecting another sign-in method needs a proven address: otherwise
      someone could register with another person's e-mail, never confirm it,
      attach their own Google/Facebook/LinkedIn, and keep a way in after the
@@ -123,7 +132,7 @@
   function focusKey() {
     var el = document.activeElement;
     if (!el || el === document.body || !app.contains(el)) return null;
-    var attrs = ['data-dir', 'data-edit', 'data-cancel', 'data-verified', 'data-resend', 'data-send-verify', 'data-verified-li',
+    var attrs = ['data-dir', 'data-edit', 'data-cancel', 'data-send-verify', 'data-verified-li',
       'data-reset', 'data-signout', 'data-del-open', 'data-del-go', 'data-setpw', 'data-pw-cancel', 'data-merge-open', 'data-merge-cancel',
       'data-merge-conflict', 'data-prompt-hide'], sel = el.id ? '#' + el.id : null;
     for (var i = 0; !sel && i < attrs.length; i++) if (el.hasAttribute(attrs[i])) sel = '[' + attrs[i] + ']';
@@ -172,12 +181,6 @@
     var s = '<div class="panel profile-head">' + A.avatarHtml(name, user.photoURL, 'avatar-lg') +
       '<div class="who"><strong>' + esc(name) + '</strong><span class="muted">' + esc(user.email || '') + '</span></div>' + statusBadge(member) + '</div>';
 
-    if (needsEmailCheck()) {
-      s += '<div class="notice warn" style="margin-top:18px"><strong>Επιβεβαιώστε το e-mail σας</strong>' +
-        '<p>Σας στείλαμε e-mail στο ' + esc(user.email) + '. Πατήστε τον σύνδεσμο που περιέχει (δείτε και τα ανεπιθύμητα) και μετά το «Το επιβεβαίωσα». Χωρίς επιβεβαίωση δεν μπορείτε να υποβάλετε αίτηση μέλους.</p>' +
-        '<p class="section-foot" style="margin:0"><button type="button" class="btn btn-dark btn-sm" data-verified>Το επιβεβαίωσα</button><button type="button" class="btn btn-outline btn-sm" data-resend>Αποστολή ξανά</button></p>' +
-        '<p class="form-ok" data-verify-msg role="status" style="margin:8px 0 0"></p></div>';
-    }
 
     s += addMethodPrompt();
     s += '<div class="acct-grid" style="margin-top:18px"><div>';
@@ -278,7 +281,6 @@
       'Τις σταματάτε όποτε θέλετε, από εδώ ή από τον σύνδεσμο που έχει κάθε e-mail.</p>';
     if (!user.email) return s + '<div class="notice warn"><p>Για να λαμβάνετε ειδοποιήσεις, ο λογαριασμός σας χρειάζεται μια διεύθυνση e-mail. ' +
       'Συνδέστε το Google ή ορίστε e-mail και κωδικό στους <a href="#methods">τρόπους σύνδεσης</a>.</p></div></div>';
-    if (needsEmailCheck()) return s + '<p class="muted">Επιβεβαιώστε πρώτα το e-mail σας (δείτε παραπάνω), για να μπορείτε να επιλέξετε ειδοποιήσεις.</p></div>';
     if (alerts === null) return s + '<p class="muted"><span class="spinner" aria-hidden="true"></span> Φόρτωση των επιλογών σας…</p></div>';
     if (alerts.failed) return s + '<p class="form-error">Δεν φορτώθηκαν οι επιλογές σας. Ανανεώστε τη σελίδα για να δοκιμάσετε ξανά.</p></div>';
     var have = alertsDraft || AL.clean(alerts.topics);
@@ -352,8 +354,7 @@
     var first = frozen ? member.firstName : m.firstName != null ? m.firstName : (parts.length > 1 ? parts.slice(0, -1).join(' ') : parts[0] || '');
     var last = frozen ? member.lastName : m.lastName != null ? m.lastName : (parts.length > 1 ? parts[parts.length - 1] : '');
     var nameHint = frozen ? 'Για αλλαγή ονόματος <a href="' + A.root + 'contact/">επικοινωνήστε με τον Σύλλογο</a>.' : '';
-    var blocked = needsEmailCheck();
-    var msg = formErr || (blocked ? 'Επιβεβαιώστε πρώτα το e-mail σας (δείτε παραπάνω).' : '');
+    var msg = formErr;
     var active = !!member && member.status === 'active';
     // a first application starts with the four boxes ticked (owner,
     // 2026-10-05); the applicant may untick any. A saved application shows
@@ -385,7 +386,7 @@
       check('acceptedPrivacy', 'Έχω διαβάσει την <a href="' + A.root + 'privacy/" target="_blank" rel="noopener">πολιτική απορρήτου</a> και συμφωνώ να αποθηκευτούν τα στοιχεία μου για την τήρηση του μητρώου μελών.', tick(m.acceptedPrivacy), true) +
       '</div></fieldset>' +
       '<div class="form-error" role="alert" id="apply-msg" tabindex="-1" data-form-msg>' + esc(msg) + '</div>' +
-      '<div class="section-foot" style="margin-top:0"><button type="submit" class="btn btn-primary"' + (blocked || saving ? ' disabled' : '') + '>' + (saving ? 'Αποθήκευση…' : member ? 'Αποθήκευση' : 'Υποβολή αίτησης') + '</button>' +
+      '<div class="section-foot" style="margin-top:0"><button type="submit" class="btn btn-primary"' + (saving ? ' disabled' : '') + '>' + (saving ? 'Αποθήκευση…' : member ? 'Αποθήκευση' : 'Υποβολή αίτησης') + '</button>' +
       (member ? '<button type="button" class="btn btn-outline" data-cancel>Ακύρωση</button>' : '') + '</div>' +
       '</form></div>';
   }
@@ -409,11 +410,9 @@
           : '<button type="button" class="btn btn-outline btn-sm" data-link="' + k + '"' + dis + '>Σύνδεση</button>');
       rows += '<div class="row"><span>' + A.icon(k) + esc(info.name) + '</span>' + action + '</div>';
     });
-    // (an e-mail + password account that still has to confirm already has the box at the top)
-    var liNote = blocked && missing && !needsEmailCheck()
+    var liNote = blocked && missing
       ? '<p class="muted" id="link-needs-email" style="font-size:.88rem;margin:10px 0 0">Για να συνδέσετε κι άλλον τρόπο σύνδεσης χρειάζεται επιβεβαιωμένο e-mail (' + esc(user.email) + '). ' +
         '<button type="button" class="link-btn" data-send-verify>Στείλτε μου e-mail επιβεβαίωσης</button> · <button type="button" class="link-btn" data-verified-li>Το επιβεβαίωσα</button></p>'
-      : blocked && missing ? '<p class="muted" id="link-needs-email" style="font-size:.88rem;margin:10px 0 0">Για να συνδέσετε κι άλλον τρόπο σύνδεσης, επιβεβαιώστε πρώτα το e-mail σας (δείτε παραπάνω).</p>'
       : '';
     var pw = pwOpen && linked.indexOf('password') === -1 && user.email && !blocked
       ? '<form class="form sub-form" data-pw-form novalidate><p class="muted" style="margin:0 0 10px">Θα μπαίνετε και με <strong>' + esc(user.email) + '</strong> και αυτόν τον κωδικό.</p>' +
@@ -452,7 +451,7 @@
   /* one method only: say so at the top, name the others, and offer them */
   var PROMPT_KEY = 'semfe:no-method-prompt:';
   function addMethodPrompt() {
-    if (!user || needsEmailCheck() || linkNeedsVerifiedEmail() || linked.length !== 1) return '';
+    if (!user || linkNeedsVerifiedEmail() || linked.length !== 1) return '';
     try { if (localStorage.getItem(PROMPT_KEY + user.uid)) return ''; } catch (e) {}
     var missing = available().filter(function (k) { return linked.indexOf(k) === -1; });
     if (!missing.length) return '';
@@ -503,8 +502,6 @@
     on('[data-signout]', 'click', function () { A.signOut(); });
     on('[data-dir]', 'change', function (e) { toggleDirectory(e.target); });
     on('form[data-alerts]', 'submit', function (e) { e.preventDefault(); saveAlerts(e.target); });
-    on('[data-resend]', 'click', function () { sendVerify(q('[data-verify-msg]')); });
-    on('[data-verified]', 'click', function () { checkVerified(q('[data-verify-msg]'), '#apply h2'); });
     on('[data-send-verify]', 'click', function () { sendVerify(q('[data-methods-msg]')); });
     on('[data-verified-li]', 'click', function () { checkVerified(q('[data-methods-msg]'), '#methods h2'); });
     Array.prototype.forEach.call(app.querySelectorAll('[data-link]'), function (b) {

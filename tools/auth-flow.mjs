@@ -22,7 +22,9 @@
      B. the admin menu item: verified admin e-mail only
      C. "account exists with a different credential" -> sign in the first way ->
         the second provider is linked
-     D. e-mail registration: validation, create + name + verification e-mail
+     D. e-mail registration: validation, create + name + verification e-mail;
+        an unconfirmed e-mail account is HELD at the «Επιβεβαιώστε το e-mail σας»
+        card (not signed in) until its link is pressed, on every page
      E. e-mail sign-in: wrong password, forgotten password
      F. account page: signed out, application (create / validate / refused write /
         edit), unverified e-mail, directory listing, linking, deletion
@@ -258,6 +260,8 @@ async function scenario(id, title, opts, fn) {
   // a browser that signed in before also holds auth.js's note of it (saveHint), which the
   // public pages use to decide whether to load the sign-in library at all
   if (opts.hint) await ctx.addInitScript(h => { try { if (!localStorage.getItem('semfe:auth-hint')) localStorage.setItem('semfe:auth-hint', JSON.stringify(h)); } catch (e) {} }, opts.hint);
+  // …or, for an account that has not confirmed its e-mail, the note that it is pending
+  if (opts.pending) await ctx.addInitScript(h => { try { if (!sessionStorage.getItem('__pendSeeded')) { sessionStorage.setItem('__pendSeeded', '1'); localStorage.setItem('semfe:auth-pending', JSON.stringify(h)); } } catch (e) {} }, opts.pending);
   const page = await ctx.newPage();
   page.setDefaultTimeout(8000);
   const errors = [];
@@ -414,9 +418,10 @@ await scenario('B', 'the «Διαχείριση» menu item appears only for a V
   await page.fill('#auth-email', ADMIN.toUpperCase());
   await page.fill('#auth-pass', 'pass-word-123');
   await page.click('.modal [data-submit]');
-  t(await visible(page.locator('#acct-slot .acct-chip')), 'the unverified account signs in');
-  await page.click('#acct-slot .acct-chip');
-  t(await page.locator('#acct-menu a[href$="admin/"]').count() === 0, 'the same admin address, unverified, gets NO «Διαχείριση» item');
+  t(await hasText(page.locator('#auth-title'), 'Επιβεβαιώστε το e-mail σας'), 'the unverified account is held at the «Επιβεβαιώστε το e-mail σας» card');
+  t(await visible(page.locator('#acct-slot [data-verify-open]')) && await page.locator('#acct-slot .acct-chip').count() === 0,
+    '… it is NOT signed in: «Επιβεβαίωση e-mail» in the header, no name chip, so no «Διαχείριση» item');
+  t(await page.evaluate(() => window.SemfeAuth.user() === null), '… and SemfeAuth.user() is null');
 });
 
 /* ================================================================================== */
@@ -488,7 +493,8 @@ await scenario('D', 'e-mail registration: validation, account, name, verificatio
   t(await hasText(page.locator('.modal [data-status]'), 'Υπάρχει ήδη λογαριασμός με αυτό το e-mail'), 'an address in use gives the Greek «already in use» message');
   // the real thing
   await page.fill('#auth-email', 'giorgos@example.com');
-  await Promise.all([page.waitForURL(u => u.pathname === SUB + 'account/', { timeout: 8000 }).catch(() => {}), submit()]);
+  await submit();
+  t(await hasText(page.locator('#auth-title'), 'Επιβεβαιώστε το e-mail σας'), 'the dialog becomes the «Επιβεβαιώστε το e-mail σας» card');
   const all = await calls(page);
   const cr = all.filter(x => x.api === 'auth.createUserWithEmailAndPassword').pop();
   const up = all.filter(x => x.api === 'user.updateProfile').pop();
@@ -497,11 +503,138 @@ await scenario('D', 'e-mail registration: validation, account, name, verificatio
   t(up && up.args[0].displayName === 'Γιώργος Νικολάου', 'updateProfile({displayName: "First Last"})' + list([js(up && up.args[0])]));
   t(ve && ve.args[0] && ve.args[0].url === ORIGIN + SUB + 'account/', 'sendEmailVerification() with a continue URL back to /semfealumni/account/' + list([js(ve && ve.args[0])]));
   t(cr && up && ve && cr.i < up.i && up.i < ve.i, '… in that order: create, name, verification e-mail');
+  const card = page.locator('.modal [data-verify]');
+  t(await hasText(card, 'Σας στείλαμε e-mail στο giorgos@example.com'), 'the card says the e-mail went to giorgos@example.com' + list([await text(page.locator('.modal [data-verify-lede]'))]));
+  t(await page.$eval('.modal [data-auth-main]', e => e.hidden), '… in place of the sign-in form');
+  t((await page.inputValue('#auth-pass')) === '', '… and the typed password is gone from the hidden form');
+  t(await page.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-verify-lede')), '… with the keyboard on its message');
+  t(await page.$eval('.modal [data-verify-resend]', b => b.disabled), '«Στείλτε μου ξανά το e-mail» waits a minute after the e-mail just sent');
+  t(new URL(page.url()).pathname === SUB, 'the new account stays on the page (no account/#apply yet)');
+  t(await visible(page.locator('#acct-slot [data-verify-open]')) && await page.locator('#acct-slot .acct-chip').count() === 0, 'the header says «Επιβεβαίωση e-mail», not the name: the account is not signed in');
+  t(await page.evaluate(() => window.SemfeAuth.user() === null && !localStorage.getItem('semfe:auth-hint') &&
+    (JSON.parse(localStorage.getItem('semfe:auth-pending') || '{}').e === 'giorgos@example.com')),
+    'SemfeAuth.user() is null, no signed-in hint is kept, and the pending note names the address');
+  t(await page.evaluate(() => window.SemfeAuth.pending() && window.SemfeAuth.pending().email === 'giorgos@example.com'), 'SemfeAuth.pending() names the address');
+  // «Το επιβεβαίωσα» before the link has been pressed
+  await page.click('.modal [data-verify-check]');
+  t(await hasText(page.locator('.modal [data-verify-status]'), 'Δεν έχει επιβεβαιωθεί ακόμα'), '«Το επιβεβαίωσα» too early: «Δεν έχει επιβεβαιωθεί ακόμα…»');
+  t(await visible(card), '… and the card stays');
+  // the link in the e-mail is pressed
+  const uid = Object.values((await fbState(page)).accounts).find(a => a.email === 'giorgos@example.com').uid;
+  await server(page, 'verify', uid, true);
+  await Promise.all([page.waitForURL(u => u.pathname === SUB + 'account/', { timeout: 8000 }).catch(() => {}), page.click('.modal [data-verify-check]')]);
+  const after = await calls(page);
+  const rl = after.filter(x => x.api === 'user.reload').pop(), tk = after.filter(x => x.api === 'user.getIdToken' && x.args[0] === true);
+  t(rl && tk.length && tk.some(x => x.i > rl.i), 'once confirmed: reload() THEN getIdToken(true), a fresh token for the rules');
   const u = new URL(page.url());
-  t(u.pathname === SUB + 'account/' && u.hash === '#apply', 'the new account lands on account/#apply');
-  t(await hasText(page.locator('#account-app'), 'Επιβεβαιώστε το e-mail σας'), 'it is asked to confirm the e-mail');
-  t(await visible(page.locator('#account-app form[data-apply]')) && await page.$eval('#account-app form[data-apply] [type=submit]', b => b.disabled), 'the application form is there but its submit button is disabled');
+  t(u.pathname === SUB + 'account/' && u.hash === '#apply', '… and the new account lands on account/#apply');
+  t(await visible(page.locator('#account-app form[data-apply]')) && !(await page.$eval('#account-app form[data-apply] [type=submit]', b => b.disabled)), 'the application form is there, its submit button enabled');
   t(await hasText(page.locator('#acct-slot .acct-chip .nm'), 'Γιώργος Νικολάου'), 'the header chip shows the new name');
+  t(/Το e-mail σας επιβεβαιώθηκε/.test(await flashText(page)), 'a toast says the e-mail is confirmed' + list([await flashText(page)]));
+  t(await page.evaluate(() => !localStorage.getItem('semfe:auth-pending') && !!localStorage.getItem('semfe:auth-hint')), 'the pending note is gone and the signed-in hint is kept');
+});
+
+const NIKOS = acct('u-pw', { email: 'nikos@example.com', name: 'Νίκος Κάραλης', verified: false, providers: ['password'], password: 'pass-word-123' });
+await scenario('D2', 'an unconfirmed e-mail account signing in later is held, may ask again, and may sign out from the card', { cfg: 'oidc',
+  seed: { accounts: { 'u-pw': NIKOS } } }, async (page) => {
+  await page.goto(URL_(''));
+  await openDialog(page);
+  await page.fill('#auth-email', 'nikos@example.com');
+  await page.fill('#auth-pass', 'pass-word-123');
+  await page.click('.modal [data-submit]');
+  t(await hasText(page.locator('#auth-title'), 'Επιβεβαιώστε το e-mail σας'), 'signing in with the right password opens the card, not the account');
+  t(await hasText(page.locator('.modal [data-verify-lede]'), 'Ο λογαριασμός με το nikos@example.com δεν έχει επιβεβαιωθεί ακόμα'), '… saying the account is not confirmed yet' + list([await text(page.locator('.modal [data-verify-lede]'))]));
+  t(!(await page.$eval('.modal [data-verify-resend]', b => b.disabled)), '«Στείλτε μου ξανά το e-mail» is available (nothing was sent from here)');
+  t((await calls(page, 'user.sendEmailVerification')).length === 0, 'signing in sends nothing by itself');
+  t(await page.locator('#acct-slot .acct-chip').count() === 0, 'no name chip: not signed in');
+  await page.click('.modal [data-verify-resend]');
+  const sv = await waitCalls(page, 'user.sendEmailVerification', 1);
+  t(sv.length === 1 && sv[0].args[0] && sv[0].args[0].url === ORIGIN + SUB + 'account/', '«Στείλτε μου ξανά το e-mail» sends it, with a continue URL back to account/' + list(sv.map(x => js(x.args[0]))));
+  t(await hasText(page.locator('.modal [data-verify-status]'), 'Σας στείλαμε νέο e-mail επιβεβαίωσης στο nikos@example.com'), '… and says so');
+  t(await page.$eval('.modal [data-verify-resend]', b => b.disabled), '… and waits a minute before another');
+  // closing the card leaves the account pending
+  await page.click('.modal [data-close]');
+  t(await hidden(page.locator('.modal-backdrop')), 'the card closes');
+  t(await page.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-verify-open')), '… and the keyboard goes to «Επιβεβαίωση e-mail» in the header');
+  await page.click('#acct-slot [data-verify-open]');
+  t(await hasText(page.locator('#auth-title'), 'Επιβεβαιώστε το e-mail σας'), '«Επιβεβαίωση e-mail» in the header opens the card again');
+  await page.keyboard.press('Escape');
+  // a link that asks for the sign-in dialog gives the card too
+  await page.goto(URL_('?signin'));
+  t(await hasText(page.locator('#auth-title'), 'Επιβεβαιώστε το e-mail σας'), '?signin, while pending, opens the card');
+  await page.keyboard.press('Escape');
+  // a page that needs an account: held there too, and nothing of the account is read
+  await page.goto(URL_('members/'));
+  t(await hasText(page.locator('#auth-title'), 'Επιβεβαιώστε το e-mail σας'), 'the members page opens the card on its own');
+  t(!(await calls(page)).some(c => /^fs\./.test(c.api) && js(c.args).indexOf('u-pw') !== -1), '… and reads nothing of the account from Firestore');
+  await page.keyboard.press('Escape');
+  await page.goto(URL_('account/'));
+  t(await hasText(page.locator('#verify-pending'), 'Ο λογαριασμός με το nikos@example.com ενεργοποιείται μόλις πατήσετε τον σύνδεσμο'), 'the account page shows «Επιβεβαιώστε το e-mail σας», not the application');
+  t(await page.locator('#account-app form[data-apply]').count() === 0, '… and no application form');
+  t(await visible(page.locator('.modal [data-verify]')), '… with the card open over it');
+  // «Αποσύνδεση» from the card: out, and the dialog becomes the sign-in form
+  await page.click('.modal [data-verify-out]');
+  t(await hasText(page.locator('#auth-title'), 'Σύνδεση'), '«Αποσύνδεση» in the card turns it into the sign-in form');
+  t((await calls(page, 'auth.signOut')).length === 1, '… after auth.signOut()');
+  t(await visible(page.locator('#acct-slot [data-signin]')), '… the header says «Σύνδεση» again');
+  t(await page.evaluate(() => !localStorage.getItem('semfe:auth-pending')), '… and the pending note is gone');
+  t(new URL(page.url()).pathname === SUB + 'account/' && await dialogOpen(page), '… without reloading the page, so the form stays open');
+});
+
+await scenario('D3', 'the next page paints «Επιβεβαίωση e-mail» before the SDK, and a link pressed on another device is noticed', { cfg: 'oidc', sdkDelayMs: 1200,
+  pending: { e: 'nikos@example.com', u: 'u-pw' }, seed: signedInSeed(NIKOS) }, async (page) => {
+  await page.goto(URL_(''), { waitUntil: 'domcontentloaded' });
+  const early = await page.evaluate(() => ({ verify: !!document.querySelector('#acct-slot [data-verify-open]'), signin: !!document.querySelector('#acct-slot [data-signin]'), sdk: !!window.firebase }));
+  t(early.verify && !early.signin && !early.sdk, 'before the SDK has loaded, the header already says «Επιβεβαίωση e-mail» (from the note in this browser)' + list([js(early)]));
+  await sdkReady(page);
+  await sleep(100);
+  t(!(await dialogOpen(page)), 'a public page does not open the card on its own');
+  t(await visible(page.locator('#acct-slot [data-verify-open]')), '… the header still says «Επιβεβαίωση e-mail» once the SDK has answered');
+  await page.click('#acct-slot [data-verify-open]');
+  t(await hasText(page.locator('.modal [data-verify-lede]'), 'δεν έχει επιβεβαιωθεί ακόμα'), 'the card opens');
+  // the person presses the link on their phone, then comes back to this window
+  await server(page, 'verify', 'u-pw', true);
+  await Promise.all([page.waitForURL(u => u.pathname === SUB + 'account/', { timeout: 8000 }).catch(() => {}), page.evaluate(() => window.dispatchEvent(new Event('focus')))]);
+  t(new URL(page.url()).pathname === SUB + 'account/', 'coming back to the window, the card notices the confirmation and goes on to account/#apply');
+  t(await hasText(page.locator('#acct-slot .acct-chip .nm'), 'Νίκος Κάραλης'), '… signed in, with the name chip');
+  t(await visible(page.locator('#account-app form[data-apply]')), '… at the membership application');
+});
+
+await scenario('D4', 'a pending account confirmed elsewhere is simply signed in on its next page', { cfg: 'oidc',
+  pending: { e: 'nikos@example.com', u: 'u-pw' }, seed: signedInSeed(Object.assign({}, NIKOS, { emailVerified: true })) }, async (page) => {
+  await page.goto(URL_('account/'));
+  t(await hasText(page.locator('#acct-slot .acct-chip .nm'), 'Νίκος Κάραλης'), 'the name chip, not «Επιβεβαίωση e-mail»');
+  t(await visible(page.locator('#account-app form[data-apply]')), 'the application form');
+  t(!(await dialogOpen(page)), 'no card');
+  t(await page.evaluate(() => !localStorage.getItem('semfe:auth-pending')), 'the pending note is cleared');
+});
+
+await scenario('D5', 'registration: the verification e-mail did not go out', { cfg: 'oidc' }, async (page) => {
+  await page.goto(URL_(''));
+  await openDialog(page, 'register');
+  await page.fill('#auth-first', 'Άννα'); await page.fill('#auth-last', 'Ζαφειρίου');
+  await page.fill('#auth-email', 'anna@example.com'); await page.fill('#auth-pass', 'correct-horse-9');
+  await queue(page, 'sendEmailVerification', { reject: { code: 'auth/too-many-requests' } });
+  await page.click('.modal [data-submit]');
+  t(await hasText(page.locator('.modal [data-verify-lede]'), 'το e-mail επιβεβαίωσης δεν στάλθηκε στο anna@example.com'), 'the card says the e-mail did not go' + list([await text(page.locator('.modal [data-verify-lede]'))]));
+  t(await hasText(page.locator('.modal [data-verify-lede]'), 'Πολλές προσπάθειες'), '… and why, in Greek');
+  t(!(await page.$eval('.modal [data-verify-resend]', b => b.disabled)), '«Στείλτε μου ξανά το e-mail» can be pressed at once');
+  await page.click('.modal [data-verify-resend]');
+  t(await hasText(page.locator('.modal [data-verify-lede]'), 'Σας στείλαμε e-mail στο anna@example.com'), 'pressed: the e-mail goes and the card says so');
+});
+
+await scenario('D6', 'a phone: «Επιβεβαίωση e-mail» is an envelope that never squeezes the logo', { cfg: 'oidc', viewport: { width: 320, height: 640 },
+  pending: { e: 'nikos@example.com', u: 'u-pw' }, seed: signedInSeed(NIKOS) }, async (page) => {
+  await page.goto(URL_(''));
+  await sdkReady(page);
+  const g = await page.evaluate(() => {
+    const b = document.querySelector('#acct-slot [data-verify-open]'), r = b.getBoundingClientRect();
+    const brand = document.querySelector('.brand-text').getBoundingClientRect(), tx = b.querySelector('.tx').getBoundingClientRect();
+    return { w: r.width, h: r.height, brandRight: brand.right, left: r.left, txW: tx.width, name: b.textContent.trim(), scroll: document.documentElement.scrollWidth };
+  });
+  t(g.w >= 44 && g.h >= 44, 'the button is at least 44×44' + list([js(g)]));
+  t(g.txW <= 1 && g.name === 'Επιβεβαίωση e-mail', '… shows only the envelope, and is still called «Επιβεβαίωση e-mail»');
+  t(g.brandRight <= g.left + 0.5 && g.scroll <= 320, '… beside the logo, with nothing scrolling sideways');
 });
 
 /* ================================================================================== */
@@ -679,30 +812,25 @@ await scenario('F2', 'account page: the application (validate, refused write, cr
     '… «Ένωση» with LinkedIn through Firebase signs in to the other account in a popup (the page stays)');
 });
 
-await scenario('F3', 'account page: an e-mail + password account that has not confirmed its address', { cfg: 'oidc',
-  seed: signedInSeed(acct('u-pw', { email: 'nikos@example.com', name: 'Νίκος Κάραλης', verified: false, providers: ['password'], password: 'pass-word-123' })) }, async (page) => {
+await scenario('F3', 'account page: an e-mail + password account that has not confirmed its address is held, then let in', { cfg: 'oidc',
+  seed: signedInSeed(NIKOS) }, async (page) => {
   await page.goto(URL_('account/'));
   const app = page.locator('#account-app');
-  t(await hasText(app, 'Επιβεβαιώστε το e-mail σας'), 'the verification notice is shown');
-  t(await visible(page.locator('#account-app form[data-apply]')), 'the form is shown');
-  t(await page.$eval('#account-app form[data-apply] [type=submit]', b => b.disabled), '… with a DISABLED submit button');
-  t(await hasText(page.locator('#account-app [data-form-msg]'), 'Επιβεβαιώστε πρώτα το e-mail σας'), '… and a line saying why');
-  await page.click('#account-app [data-resend]');
-  const sv = await waitCalls(page, 'user.sendEmailVerification', 1);
-  t(sv.length === 1, '«Αποστολή ξανά» sends the verification e-mail again');
-  t(await hasText(page.locator('#account-app [data-verify-msg]'), 'Σας στείλαμε e-mail επιβεβαίωσης'), '… and says «Σας στείλαμε e-mail επιβεβαίωσης…»');
-  await page.click('#account-app [data-verified]');
-  const tok = await waitCalls(page, 'user.getIdToken', 1);
-  const all = await calls(page);
-  const rl = all.filter(x => x.api === 'user.reload');
-  t(rl.length === 1 && tok.length >= 1 && rl[0].i < tok[tok.length - 1].i, '«Το επιβεβαίωσα» calls reload() THEN getIdToken()');
-  t(tok.some(x => x.args[0] === true), '… getIdToken(true), forcing a fresh token for the rules');
-  t(await hasText(page.locator('#account-app [data-verify-msg]'), 'Δεν έχει επιβεβαιωθεί ακόμα'), 'still unconfirmed: «Δεν έχει επιβεβαιωθεί ακόμα…»');
+  t(await hasText(app, 'Επιβεβαιώστε το e-mail σας'), 'the account page asks to confirm the e-mail');
+  t(await page.locator('#account-app form[data-apply]').count() === 0, '… and shows no application form');
+  t(await visible(page.locator('.modal [data-verify]')), 'the card opens on its own');
+  t(!(await calls(page)).some(c => /^fs\./.test(c.api) && js(c.args).indexOf('u-pw') !== -1), 'nothing of the account is read from Firestore');
+  await page.click('.modal [data-verify-check]');
+  t(await hasText(page.locator('.modal [data-verify-status]'), 'Δεν έχει επιβεβαιωθεί ακόμα'), '«Το επιβεβαίωσα», still unconfirmed: «Δεν έχει επιβεβαιωθεί ακόμα…»');
   await server(page, 'verify', 'u-pw', true);       // the person clicks the link in the e-mail
-  await page.click('#account-app [data-verified]');
-  t(await waitFor(page, () => !/Επιβεβαιώστε το e-mail σας/.test(document.getElementById('account-app').textContent)), 'once confirmed, the notice disappears');
-  t(await waitFor(page, () => { const b = document.querySelector('#account-app form[data-apply] [type=submit]'); return !!b && !b.disabled; }), '… and the submit button is enabled');
-  t((await text(page.locator('#account-app [data-form-msg]'))) === '', '… and the "confirm first" line is gone');
+  await page.click('.modal [data-verify-check]');
+  t(await hidden(page.locator('.modal-backdrop')), 'once confirmed, the card closes');
+  t(await waitFor(page, () => { const b = document.querySelector('#account-app form[data-apply] [type=submit]'); return !!b && !b.disabled; }), '… and the application form is there, ready to send');
+  t(new URL(page.url()).pathname === SUB + 'account/', '… on the same page');
+  t(/Το e-mail σας επιβεβαιώθηκε/.test(await flashText(page)), '… with a toast saying so');
+  const all = await calls(page);
+  const rl = all.filter(x => x.api === 'user.reload').pop(), tk = all.filter(x => x.api === 'user.getIdToken' && x.args[0] === true);
+  t(rl && tk.some(x => x.i > rl.i), 'reload() THEN getIdToken(true), so the rules see the confirmed address');
 });
 
 await scenario('F4', 'account page: an active member and the members directory', { cfg: 'oidc',
@@ -911,7 +1039,9 @@ await scenario('H1', 'admin page: signed out / not an admin / an unverified admi
   await page.fill('#auth-email', ADMIN);
   await page.fill('#auth-pass', 'pass-word-123');
   await page.click('.modal [data-submit]');
-  t(await hasText(page.locator('#admin-app'), 'το e-mail δεν έχει επιβεβαιωθεί'), 'the admin address, unconfirmed: no access, «(το e-mail δεν έχει επιβεβαιωθεί)»');
+  t(await hasText(page.locator('#auth-title'), 'Επιβεβαιώστε το e-mail σας'), 'the admin address, unconfirmed: held at the «Επιβεβαιώστε το e-mail σας» card');
+  t(await hasText(page.locator('#admin-app'), 'Μόνο για διαχειριστές'), '… and the page stays as for a visitor who is not signed in');
+  t((await calls(page, 'fs.list')).length === 0, '… and the members list is never requested');
 });
 
 const ADMIN_SEED = signedInSeed(acct('u-admin', { email: ADMIN, name: 'Διαχειριστής' }), { docs: {
@@ -1162,18 +1292,8 @@ await scenario('K1', 'account page: what is typed survives a redraw (approval wh
   t(await waitFor(page, () => !document.querySelector('#account-app form[data-apply]')), 'the form closes after a successful save');
 });
 
-await scenario('K2', 'account page: an unconfirmed e-mail account keeps its typing when it confirms', { cfg: 'oidc',
-  seed: signedInSeed(acct('u-pw2', { email: 'eleni@example.com', name: 'Ελένη Σταύρου', verified: false, providers: ['password'], password: 'pass-word-123' })) }, async (page) => {
-  await page.goto(URL_('account/'));
-  await page.fill('#f-employer', 'CERN');
-  await page.fill('#f-city', 'Γενεύη');
-  await page.selectOption('#f-stage', 'graduate');
-  await server(page, 'verify', 'u-pw2', true);
-  await page.click('#account-app [data-verified]');
-  t(await waitFor(page, () => !/Επιβεβαιώστε το e-mail σας/.test(document.getElementById('account-app').textContent)), 'the address is confirmed');
-  t((await page.inputValue('#f-employer')) === 'CERN' && (await page.inputValue('#f-city')) === 'Γενεύη' && (await page.inputValue('#f-stage')) === 'graduate',
-    'the fields typed before confirming are still filled in');
-});
+// (K2, «an unconfirmed account keeps its typing when it confirms», went with the
+// verification hold: such an account no longer sees the application form, D2 and F3)
 
 await scenario('K3', 'account page: a mistyped year is refused, not saved', { cfg: 'oidc', seed: signedInSeed(mariaAcct()) }, async (page) => {
   await page.goto(URL_('account/'));
@@ -1626,8 +1746,14 @@ await scenario('R2', 'registering: the page hears of the new account only once i
   await page.fill('#auth-email', 'nikos.d@example.com'); await page.fill('#auth-pass', 'a-good-password-1');
   await page.click('.modal [data-submit]');
   await sleep(250);
-  t(await dialogOpen(page), 'while the name is being saved, the dialog stays open (nothing half-done on screen)');
-  t(await waitFor(page, () => document.getElementById('f-firstName') && document.getElementById('f-firstName').value === 'Νίκος', null, 6000), 'then the application form starts with the first name');
+  t(await dialogOpen(page) && await page.$eval('.modal [data-verify]', e => e.hidden), 'while the name is being saved, the dialog stays open and the card is not shown yet (nothing half-done on screen)');
+  t(await visible(page.locator('.modal [data-verify]')), 'then the «Επιβεβαιώστε το e-mail σας» card');
+  t((await calls(page, 'user.updateProfile')).length === 1 && (await calls(page, 'user.sendEmailVerification')).length === 1, '… once the name is saved and the e-mail sent');
+  t(await hasText(page.locator('#verify-pending'), 'nikos.d@example.com'), 'the account page behind it waits for the confirmation');
+  const uid = Object.values((await fbState(page)).accounts).find(a => a.email === 'nikos.d@example.com').uid;
+  await server(page, 'verify', uid, true);
+  await page.click('.modal [data-verify-check]');
+  t(await waitFor(page, () => document.getElementById('f-firstName') && document.getElementById('f-firstName').value === 'Νίκος', null, 6000), 'confirmed: the application form starts with the first name');
   t((await page.inputValue('#f-lastName')) === 'Δημητρίου', '… and the last name');
   t(await hasText(page.locator('#acct-slot .acct-chip .nm'), 'Νίκος Δημητρίου'), 'the header shows the full name, not the e-mail');
 });
@@ -1817,8 +1943,10 @@ await scenario('Q3', 'Σχόλια page: the member\'s messages, with the answer
   t(!(await xssFired(page)), 'an answer containing markup does not run');
 });
 
+// (an e-mail + password account with an unconfirmed address is held before it gets here, D2;
+// a Facebook sign-in whose address Facebook did not confirm is not, and is the case here)
 await scenario('Q4', 'Σχόλια page: an unconfirmed e-mail is told the answer shows only here; a taken ticket number is drawn again', { cfg: 'oidc',
-  seed: signedInSeed(acct('u-pw', { email: 'nikos@example.com', name: 'Νίκος', verified: false, providers: ['password'], password: 'pass-word-123' })) }, async (page) => {
+  seed: signedInSeed(acct('u-fbu', { email: 'nikos@example.com', name: 'Νίκος', verified: false, providers: ['facebook.com'] })) }, async (page) => {
   await page.goto(URL_('feedback/'));
   t(await hasText(page.locator('#feedback-app .fb-mail'), 'δεν έχει επιβεβαιωθεί'), 'the page says the answer will show only here');
   await queue(page, 'fs.batch', { reject: { code: 'permission-denied' } });
@@ -2263,8 +2391,9 @@ await scenario('P2', 'blog/: a member (not an admin) and an UNVERIFIED admin add
   await sleep(400);
   t(await page.locator('[data-announce]').isHidden() && !(await page.locator('[data-announce-open]').isVisible()), 'a member sees no «Νέα ανακοίνωση»');
 });
+// (as an e-mail + password account the same address would not even sign in, B; Facebook does not confirm it)
 await scenario('P3', 'blog/: an admin address that was never confirmed sees no editor', { cfg: 'oidc', hint: { n: 'Ψεύτικος', p: '', e: ADMIN },
-  seed: signedInSeed(acct('u-fake', { email: ADMIN, name: 'Ψεύτικος', verified: false, providers: ['password'], password: 'x-pass-123' })) }, async (page) => {
+  seed: signedInSeed(acct('u-fake', { email: ADMIN, name: 'Ψεύτικος', verified: false, providers: ['facebook.com'] })) }, async (page) => {
   await page.goto(URL_('blog/'));
   t(await visible(page.locator('#acct-slot .acct-chip'), 8000), 'signed in');
   await sleep(400);

@@ -188,6 +188,23 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   `isAdmin()`; check.mjs fails when they differ.
 * LinkedIn sign-in goes through the Cloud Function in `functions/`
   (`LINKEDIN.mode: 'function'` in config.js).
+* **An e-mail + password account must confirm its address before it can sign
+  in** (owner, 2026-10-05, as on operationsacademia.org). Registering sends
+  Firebase's verification e-mail (Greek template, FIREBASE-SETUP.md A5); until
+  its link is pressed the account is PENDING (`assets/js/auth.js`): Firebase
+  keeps the session, but the site treats it as signed out. `SemfeAuth.user()`
+  is null, every `onChange` listener hears null, no header hint is written
+  (a `semfe:auth-pending` note instead), the header shows «Επιβεβαίωση
+  e-mail», and the dialog shows the «Επιβεβαιώστε το e-mail σας» card (Το
+  επιβεβαίωσα, Στείλτε μου ξανά το e-mail, Αποσύνδεση), which also notices on
+  its own when the link is pressed on another device. The card opens by itself
+  on the member pages (`data-firestore`), and account/ shows a pending panel.
+  Only an account whose ONLY way in is the password is held:
+  `needsVerification()` in auth.js, the same test as `emailConfirmed()` in
+  `firestore.rules` (Google and LinkedIn vouch for the address). Nothing to
+  deploy for it: the rules already refused such an account's application and
+  alerts, and the feedback rule deliberately lets every sign-in report a
+  problem. Tests: `tools/auth-flow.mjs` B, D–D6, F3, H1, R2.
 * The admin page's list of every account, and merging two accounts of one
   person, run in the `accounts` Cloud Function (`functions/accounts.js`). Its
   safety rules (confirmed e-mail on the kept account, an admin is never the
