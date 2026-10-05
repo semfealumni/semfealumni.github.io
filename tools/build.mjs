@@ -479,12 +479,14 @@ for (const [from, to] of LEGACY) {
 /* At the root of its own domain (semfealumni.gr) GitHub Pages needs a CNAME
    file naming it, and robots.txt is read from there. Under a sub-path
    (the earlier preview, www.stouras.com/semfealumni/) neither may exist: a CNAME
-   would move the site. */
+   would move the site. The CNAME has NO trailing newline on purpose: it is the
+   exact form GitHub writes itself whenever someone presses Save under Settings,
+   Pages, Custom domain, so a rewrite by GitHub never turns the checks red. */
 const ROOTED = new URL(SITE_URL).pathname === '/';
 const HOST = new URL(SITE_URL).hostname;
 const DROP = [];
 if (ROOTED) {
-  out.push(['CNAME', HOST + '\n']);
+  out.push(['CNAME', HOST]);
   out.push(['robots.txt', 'User-agent: *\nAllow: /\n\nSitemap: ' + SITE_URL + 'sitemap.xml\n']);
 } else {
   for (const f of ['CNAME', 'robots.txt']) if (existsSync(path.join(ROOT, f))) DROP.push(f);
