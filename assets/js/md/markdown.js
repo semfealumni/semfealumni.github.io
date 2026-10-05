@@ -196,12 +196,13 @@ md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   let list;
   try { list = load(tok.content, { schema: CORE_SCHEMA }); }
   catch (e) { throw new Error(`${file}: the {${m[1]}} block is not valid YAML (${String(e.message).split('\n')[0]}${e.mark ? `, line ${e.mark.line + 1} of the block` : ''})`); }
-  return component.render(list, { file, name: m[1], extra: m[2].split(/[ \t]+/).filter(Boolean), inline: s => md.renderInline(String(s)) });
+  return component.render(list, { file, lang: (env && env.lang) || 'el', name: m[1], extra: m[2].split(/[ \t]+/).filter(Boolean), inline: s => md.renderInline(String(s)) });
 };
 
-/** Markdown (a body, not including front matter) as HTML. file only names the page in an error message. */
-export function renderMarkdown(src, file) {
-  try { return md.render(String(src), { file }); }
+/** Markdown (a body, not including front matter) as HTML. file only names the page in an error message;
+    lang 'en' (an English page, _src/en/) gives the components' own words in English. */
+export function renderMarkdown(src, file, lang) {
+  try { return md.render(String(src), { file, lang: lang || 'el' }); }
   catch (e) { if (file && !String(e.message).startsWith(file)) e.message = `${file}: ${e.message}`; throw e; }
 }
 

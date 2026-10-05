@@ -1,91 +1,153 @@
 {
-  "about": "The «Τι νέο» list (whats-new/). Newest first. Each entry is a SUGGESTION: it is shown publicly only after an admin approves it on the page. Fields: id (lowercase letters, digits, dashes; never reuse one), date (YYYY-MM-DD), title, summary, url (optional: a page of the site, or https://).",
+  "about": "The «Τι νέο» list (whats-new/). Newest first. Each entry is a SUGGESTION: it is shown publicly only after an admin approves it on the page. Fields: id (lowercase letters, digits, dashes; never reuse one), date (YYYY-MM-DD), title, summary, url (optional: a page of the site, or https://). Optional: en = { title, summary }, the entry in English for the English copy of the page (en/whats-new/); without it the English page shows the Greek.",
   "updates": [
+    {
+      "id": "2026-10-05-agglika",
+      "date": "2026-10-05",
+      "title": "Ο ιστότοπος και στα αγγλικά",
+      "summary": "Με τις δύο σημαίες στο πάνω μέρος κάθε σελίδας διαλέγετε ελληνικά ή αγγλικά. Στα αγγλικά εμφανίζεται όλος ο ιστότοπος, ο λογαριασμός και η αίτηση μέλους μαζί, εκτός από τις ανακοινώσεις, που μένουν όπως τις έγραψε ο Σύλλογος. Ο φυλλομετρητής σας θυμάται τη γλώσσα που διαλέξατε.",
+      "en": {
+        "title": "The website in English too",
+        "summary": "With the two flags at the top of every page you choose Greek or English. In English you see the whole website, your account and the membership application included, except the announcements, which stay as the Association wrote them. Your browser remembers the language you chose."
+      }
+    },
     {
       "id": "2026-10-05-rss-atom-odigies",
       "date": "2026-10-05",
       "title": "Πιο απλή εγγραφή στις ροές RSS και Atom",
       "summary": "Τα κουμπιά RSS και Atom στη σελίδα «Ανακοινώσεις» ανοίγουν τώρα ένα σύντομο πλαίσιο με τη διεύθυνση της ροής, κουμπί αντιγραφής και συνδέσμους για προσθήκη στο Feedly ή στο Inoreader. Και αν ανοίξετε το αρχείο της ροής, βλέπετε μια ευανάγνωστη λίστα με τις ανακοινώσεις.",
-      "url": "blog/"
+      "url": "blog/",
+      "en": {
+        "title": "Easier subscribing to the RSS and Atom feeds",
+        "summary": "The RSS and Atom buttons on the Announcements page now open a short panel with the feed's address, a copy button and links to add it to Feedly or Inoreader. And if you open the feed file itself, you see an easy-to-read list of the announcements."
+      }
     },
     {
       "id": "2026-10-05-keimeno-plates",
       "date": "2026-10-05",
       "title": "Κείμενα σε όλο το πλάτος της σελίδας",
-      "summary": "Τα κείμενα του ιστότοπου γεμίζουν πλέον όλο το πλάτος της σελίδας και είναι στοιχισμένα και από τις δύο πλευρές, ώστε να διαβάζονται πιο άνετα."
+      "summary": "Τα κείμενα του ιστότοπου γεμίζουν πλέον όλο το πλάτος της σελίδας και είναι στοιχισμένα και από τις δύο πλευρές, ώστε να διαβάζονται πιο άνετα.",
+      "en": {
+        "title": "Text across the full width of the page",
+        "summary": "The website's text now fills the whole width of the page and is justified on both sides, so it reads more comfortably."
+      }
     },
     {
       "id": "2026-10-01-email-alerts",
       "date": "2026-10-01",
       "title": "Ειδοποιήσεις με e-mail",
       "summary": "Από τον λογαριασμό σας διαλέγετε τι θέλετε να μαθαίνετε με e-mail: τις ανακοινώσεις του Συλλόγου, τις εκδηλώσεις και τις συναντήσεις αποφοίτων, και τα νέα του ιστότοπου. Όταν δημοσιεύεται κάτι νέο από όσα επιλέξατε, σας στέλνουμε ένα σύντομο e-mail. Τις σταματάτε όποτε θέλετε, με ένα κλικ.",
-      "url": "account/#alerts"
+      "url": "account/#alerts",
+      "en": {
+        "title": "E-mail alerts",
+        "summary": "In your account you choose what you want to hear about by e-mail: the Association's announcements, events and graduate meetups, and news about the website. When something new that you chose is published, we send you a short e-mail. You can stop them at any time, with one click."
+      }
     },
     {
       "id": "2026-10-01-rss-atom",
       "date": "2026-10-01",
       "title": "Οι ανακοινώσεις σε RSS και Atom",
       "summary": "Οι ανακοινώσεις και οι εκδηλώσεις του Συλλόγου διατίθενται ξανά ως ροές RSS και Atom, για όσους τις παρακολουθούν σε πρόγραμμα ανάγνωσης ειδήσεων. Οι σύνδεσμοι βρίσκονται στο τέλος της σελίδας «Ανακοινώσεις».",
-      "url": "blog/"
+      "url": "blog/",
+      "en": {
+        "title": "The announcements as RSS and Atom",
+        "summary": "The Association's announcements and events are available again as RSS and Atom feeds, for anyone who follows them in a news reader. The links are at the bottom of the Announcements page."
+      }
     },
     {
       "id": "2026-10-01-statistika",
       "date": "2026-10-01",
       "title": "Στατιστικά επισκεψιμότητας και μελών",
       "summary": "Μια νέα σελίδα δείχνει πόσοι επισκέπτονται τον ιστότοπο, ποιες σελίδες διαβάζουν, από ποιες χώρες, πόλεις, πανεπιστήμια και εταιρείες, καθώς και ανώνυμα στατιστικά των μελών μας: έτη εισαγωγής και αποφοίτησης, κλάδος, χώρα, πόλη και άλλα.",
-      "url": "analytics/"
+      "url": "analytics/",
+      "en": {
+        "title": "Visitor and member statistics",
+        "summary": "A new page shows how many people visit the website, which pages they read, and from which countries, cities, universities and companies, together with anonymous statistics about our members: years of entry and graduation, industry, country, city and more."
+      }
     },
     {
       "id": "2026-10-01-profil-pedia",
       "date": "2026-10-01",
       "title": "Κλάδος, χώρα και φύλο στο προφίλ",
       "summary": "Στα στοιχεία του λογαριασμού σας μπορείτε πλέον να δηλώσετε, προαιρετικά, τον κλάδο όπου εργάζεστε, τη χώρα και το φύλο σας. Μετρώνται μόνο ανώνυμα, ως σύνολα, στα στατιστικά των μελών.",
-      "url": "account/"
+      "url": "account/",
+      "en": {
+        "title": "Industry, country and gender in your profile",
+        "summary": "In your account details you can now state, if you wish, the industry you work in, your country and your gender. They are only counted anonymously, as totals, in the member statistics."
+      }
     },
     {
       "id": "2026-10-01-ti-neo",
       "date": "2026-10-01",
       "title": "Τι νέο στον ιστότοπο",
-      "summary": "Μια σελίδα με τις αλλαγές και τις νέες δυνατότητες του ιστότοπου, οι πιο πρόσφατες πρώτες. Θα τη βρίσκετε στο μενού, κάτω από το «Ο Σύλλογος», και στο κάτω μέρος κάθε σελίδας."
+      "summary": "Μια σελίδα με τις αλλαγές και τις νέες δυνατότητες του ιστότοπου, οι πιο πρόσφατες πρώτες. Θα τη βρίσκετε στο μενού, κάτω από το «Ο Σύλλογος», και στο κάτω μέρος κάθε σελίδας.",
+      "en": {
+        "title": "What's new on the website",
+        "summary": "A page listing the website's changes and new features, the most recent first. You will find it in the menu, under “The Association”, and at the bottom of every page."
+      }
     },
     {
       "id": "2026-10-01-skopoi",
       "date": "2026-10-01",
       "title": "Οι σκοποί του Συλλόγου, πιο σύντομα",
       "summary": "Στην αρχική σελίδα οι 11 σκοποί του Καταστατικού εμφανίζονται ως λίστα με σύντομους τίτλους. Πατήστε έναν τίτλο για να διαβάσετε το πλήρες κείμενο.",
-      "url": "#skopos"
+      "url": "#skopos",
+      "en": {
+        "title": "The Association's aims, more briefly",
+        "summary": "On the home page the 11 aims of the Statute appear as a list with short titles. Press a title to read the full text."
+      }
     },
     {
       "id": "2026-10-01-semfealumni-gr",
       "date": "2026-10-01",
       "title": "Ο νέος ιστότοπος στο semfealumni.gr",
-      "summary": "Ο ανανεωμένος ιστότοπος του Συλλόγου λειτουργεί πλέον στη διεύθυνση semfealumni.gr, με ασφαλή σύνδεση (https). Οι παλιοί σύνδεσμοι συνεχίζουν να οδηγούν στη σωστή σελίδα."
+      "summary": "Ο ανανεωμένος ιστότοπος του Συλλόγου λειτουργεί πλέον στη διεύθυνση semfealumni.gr, με ασφαλή σύνδεση (https). Οι παλιοί σύνδεσμοι συνεχίζουν να οδηγούν στη σωστή σελίδα.",
+      "en": {
+        "title": "The new website at semfealumni.gr",
+        "summary": "The Association's renewed website now runs at semfealumni.gr, with a secure connection (https). Old links still lead to the right page."
+      }
     },
     {
       "id": "2026-10-01-arxiki",
       "date": "2026-10-01",
       "title": "Πιο ζωντανή αρχική σελίδα",
-      "summary": "Οι αριθμοί του Συλλόγου στην κορυφή της αρχικής, ομαλή κύλιση στους συνδέσμους μέσα στη σελίδα, και ένα κουμπί που σας επιστρέφει στην αρχή."
+      "summary": "Οι αριθμοί του Συλλόγου στην κορυφή της αρχικής, ομαλή κύλιση στους συνδέσμους μέσα στη σελίδα, και ένα κουμπί που σας επιστρέφει στην αρχή.",
+      "en": {
+        "title": "A livelier home page",
+        "summary": "The Association's figures at the top of the home page, smooth scrolling for links within a page, and a button that takes you back to the top."
+      }
     },
     {
       "id": "2026-10-01-menou",
       "date": "2026-10-01",
       "title": "Απλούστερο μενού",
-      "summary": "Το επάνω μενού έχει πλέον τέσσερις επιλογές. Οι σελίδες για τον Σύλλογο και την ιστορία του βρίσκονται κάτω από το «Ο Σύλλογος»."
+      "summary": "Το επάνω μενού έχει πλέον τέσσερις επιλογές. Οι σελίδες για τον Σύλλογο και την ιστορία του βρίσκονται κάτω από το «Ο Σύλλογος».",
+      "en": {
+        "title": "A simpler menu",
+        "summary": "The top menu now has four options. The pages about the Association and its history are under “The Association”."
+      }
     },
     {
       "id": "2026-09-30-sxolia",
       "date": "2026-09-30",
       "title": "Σχόλια και προβλήματα",
       "summary": "Όσοι έχουν λογαριασμό μπορούν να μας στείλουν σχόλια, ιδέες ή ένα πρόβλημα που βρήκαν, με στιγμιότυπα οθόνης. Κάθε μήνυμα παίρνει αριθμό, και σας απαντάμε με e-mail τι κάναμε.",
-      "url": "feedback/"
+      "url": "feedback/",
+      "en": {
+        "title": "Feedback and problems",
+        "summary": "Anyone with an account can send us comments, ideas or a problem they found, with screenshots. Every message gets a number, and we reply by e-mail with what we did."
+      }
     },
     {
       "id": "2026-09-30-syndesi",
       "date": "2026-09-30",
       "title": "Λογαριασμός και αίτηση μέλους online",
       "summary": "Δημιουργήστε λογαριασμό με Google, LinkedIn ή e-mail και κάντε την αίτηση μέλους από τον ιστότοπο. Τα ενεργά μέλη βλέπουν την περιοχή μελών.",
-      "url": "account/"
+      "url": "account/",
+      "en": {
+        "title": "Account and membership application online",
+        "summary": "Create an account with Google, LinkedIn or e-mail and apply for membership on the website. Active members can see the members' area."
+      }
     }
   ]
 }

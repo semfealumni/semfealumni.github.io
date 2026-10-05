@@ -96,7 +96,9 @@ const POSTS = PAGES.filter(p => /^blog\/\d{4}\//.test(p)).sort();
 const LAYOUT_PAGES = [
   ['home', 'index.html'], ['governance', 'governance/index.html'], ['support', 'support/index.html'],
   ['fotothiki', 'fotothiki/index.html'], ['blog', 'blog/index.html'], ['post', POSTS[POSTS.length - 1]],
-  ['account', 'account/index.html']
+  ['account', 'account/index.html'],
+  // the English copy: its words are longer in places, the brand's top line too
+  ['en home', 'en/index.html'], ['en support', 'en/support/index.html'], ['en post', 'en/' + POSTS[POSTS.length - 1]]
 ];
 
 /* ---- the server ------------------------------------------------------------ */
@@ -615,10 +617,11 @@ try {
     await ctx.close();
   }
   // the narrowest phones, also without the web font (a wider fallback): menu
-  // button, logo and name, «Σύνδεση» never overlap
+  // button, logo and name, «Σύνδεση» never overlap (the English header too:
+  // "ASSOCIATION OF GRADUATES", "Sign in")
   for (const w of [320, 360, 375]) {
-    for (const noFonts of [false, true]) {
-      const { ctx, page } = await open(SUB, { width: w, height: 640, phone: true, touch: true, noFonts });
+    for (const [noFonts, home] of [[false, ''], [true, ''], [false, 'en/'], [true, 'en/']]) {
+      const { ctx, page } = await open(SUB + home, { width: w, height: 640, phone: true, touch: true, noFonts });
       await page.waitForTimeout(200);
       const r = await page.evaluate(() => {
         const box = e => e.getBoundingClientRect();
@@ -627,7 +630,7 @@ try {
           acct: box(document.querySelector('#acct-slot').firstElementChild), vw: innerWidth, over: document.documentElement.scrollWidth > innerWidth };
       });
       t(!r.over && r.tog.left >= 0 && r.tog.right <= r.brandL + 0.5 && r.brandR <= r.acct.left + 0.5 && r.acct.right <= r.vw,
-        `${w}px ${noFonts ? 'no web font' : 'web font'}: menu button, name and Σύνδεση do not overlap (${Math.round(r.acct.left - r.brandR)}px to spare)`);
+        `${w}px ${home ? 'English ' : ''}${noFonts ? 'no web font' : 'web font'}: menu button, name and ${home ? 'Sign in' : 'Σύνδεση'} do not overlap (${Math.round(r.acct.left - r.brandR)}px to spare)`);
       await ctx.close();
     }
   }
@@ -944,7 +947,7 @@ try {
     const follow = await page.$$eval('.follow a', as => as.map(a => a.getAttribute('href')));
     t(follow.length === 3 && /account\/#alerts$/.test(follow[0]) && /rss\.xml$/.test(follow[1]) && /feed\.xml$/.test(follow[2]),
       'under the announcements: e-mail alerts, RSS and Atom' + list(follow));
-    const alt = await page.$$eval('link[rel=alternate]', ls => ls.map(l => l.type + ' ' + l.href));
+    const alt = await page.$$eval('link[rel=alternate][type]', ls => ls.map(l => l.type + ' ' + l.href));   // (the others are the page in the other language, hreflang)
     t(alt.length === 2 && alt.some(a => /^application\/atom\+xml .*feed\.xml$/.test(a)) && alt.some(a => /^application\/rss\+xml .*rss\.xml$/.test(a)),
       'the page names both feeds in its <head>, so a feed reader finds them from the address alone');
     const get = async f => { const r = await page.request.get(ORIGIN + SUB + f); return { ok: r.ok(), body: await r.text() }; };
@@ -1253,6 +1256,70 @@ try {
     const c = await st();
     t(mid > 0 && mid < b.y && c.y === 0 && !c.shown && c.focus === 'brand', `${w}px: it glides back to the top (${Math.round(b.y)} → ${Math.round(mid)} → ${c.y}), hides, and the keyboard is at the top`);
     t(log.errors.length === 0, `${w}px: no script errors` + list(log.errors));
+    await ctx.close();
+  }
+
+  /* ======================= 10. the two flags (Greek / English) ======================= */
+  section('10. the flags: the same page in the other language, and the choice is kept');
+  for (const [w, h] of [[1280, 800], [390, 844], [320, 568]]) {
+    const phone = isPhone(w, h);
+    const { ctx, page, log } = await open(SUB + 'governance/', { width: w, height: h, phone, touch: phone });
+    const bar = () => page.evaluate(() => {
+      const nav = document.querySelector('.lang-switch'), hd = document.querySelector('.site-header').getBoundingClientRect();
+      const flags = [...nav.querySelectorAll('a[data-lang]')].map(a => { const b = a.getBoundingClientRect(); return { lang: a.dataset.lang, cur: a.getAttribute('aria-current') === 'true',
+        href: a.pathname, h: b.height, right: b.right, top: b.top, name: (a.innerText || '').trim(), label: a.textContent.trim() }; });
+      return { flags, above: flags.every(f => f.top < hd.top + 1), htmlLang: document.documentElement.lang, vw: innerWidth, over: document.documentElement.scrollWidth > innerWidth };
+    });
+    const a = await bar();
+    const el = a.flags.find(f => f.lang === 'el'), en = a.flags.find(f => f.lang === 'en');
+    t(a.flags.length === 2 && el && en && el.cur && !en.cur && a.above && !a.over && a.flags.every(f => f.h >= 40 && f.right <= a.vw),
+      `${w}px: two flags above the header, 40px+ targets on screen, the Greek one marked current` + list(a.flags.map(f => `${f.lang} ${Math.round(f.h)}px`)));
+    t(en.href === SUB + 'en/governance/' && el.href === SUB + 'governance/', `${w}px: the English flag links this page in English (${en.href})`);
+    t(w > 560 ? en.name === 'English' && el.name === 'Ελληνικά' : en.label === 'English' && en.name === '', `${w}px: ${w > 560 ? 'each flag shows its name' : 'flags only, the names stay their accessible names'}`);
+    if (w === 1280) {
+      await Promise.all([page.waitForURL('**/en/governance/'), page.click('.lang-flag[data-lang="en"]')]);
+      const b = await bar();
+      t(b.htmlLang === 'en' && b.flags.find(f => f.lang === 'en').cur && await page.evaluate(() => localStorage.getItem('semfe:lang')) === 'en',
+        'a click on the English flag opens the English page, marks it, and remembers the choice');
+      t(/Governance/.test(await page.title()) && await page.locator('#main h1').innerText() === 'Governance', '… the page reads in English');
+      // a Greek address (an e-mail link, a bookmark) now opens in English, keeping its #fragment
+      await page.goto(ORIGIN + SUB + 'support/#eggrafi');
+      await page.waitForURL('**/en/support/#eggrafi');
+      t(new URL(page.url()).pathname === SUB + 'en/support/' && new URL(page.url()).hash === '#eggrafi', 'with English chosen, a Greek page forwards to its English copy (#eggrafi kept)');
+      await Promise.all([page.waitForURL(u => new URL(u).pathname === SUB + 'support/'), page.click('.lang-flag[data-lang="el"]')]);
+      await page.waitForTimeout(300);
+      t(new URL(page.url()).pathname === SUB + 'support/' && await page.evaluate(() => document.documentElement.lang) === 'el' && await page.evaluate(() => localStorage.getItem('semfe:lang')) === 'el',
+        'the Greek flag goes back to Greek, and stays there (the choice is now Greek)');
+      await page.goto(ORIGIN + SUB + 'en/blog/');
+      t(new URL(page.url()).pathname === SUB + 'en/blog/', 'an English address opened directly is shown, whatever was chosen');
+      await page.goto(ORIGIN + SUB + 'governance/');
+      t(new URL(page.url()).pathname === SUB + 'governance/', '… and opening it did not change the choice: Greek pages stay Greek');
+    }
+    t(log.errors.length === 0, `${w}px: no script errors` + list(log.errors));
+    await ctx.close();
+  }
+  {
+    // an English page: its links stay in English, the announcements stay as written (Greek, marked lang="el")
+    const { ctx, page, log } = await open(SUB + 'en/blog/', { width: 1280, height: 800 });
+    const r = await page.evaluate(() => ({
+      cards: [...document.querySelectorAll('.post-card')].map(a => ({ href: a.pathname, titleLang: a.querySelector('h3').getAttribute('lang'), tag: a.querySelector('.tag').textContent })),
+      greek: [...document.querySelectorAll('#main a[href]')].filter(a => !a.closest('[data-lang]') && a.origin === location.origin && !/\/en\//.test(a.pathname) && !/\.(xml|json|pdf)$/.test(a.pathname)).map(a => a.pathname)
+    }));
+    t(r.cards.length > 0 && r.cards.every(c => c.href.indexOf('/en/blog/') !== -1 && c.titleLang === 'el' && /^(Announcements|Events)$/.test(c.tag)),
+      `en/blog/: ${r.cards.length} cards link the English announcement pages, titles marked Greek, categories in English`);
+    t(r.greek.length === 0, 'en/blog/: no link back to a Greek page' + list(r.greek));
+    await page.click('.post-card');
+    await page.waitForLoadState('load');
+    const p = await page.evaluate(() => ({ lang: document.documentElement.lang, art: document.querySelector('article.prose').getAttribute('lang'), crumb: document.querySelector('.crumbs').textContent }));
+    t(p.lang === 'en' && p.art === 'el' && /Home/.test(p.crumb) && /Announcements/.test(p.crumb), 'an announcement in English: the site around it in English, its text as written (lang="el")');
+    t(log.errors.length === 0, 'no script errors' + list(log.errors));
+    await ctx.close();
+  }
+  {
+    // the 404 page says it in both languages
+    const { ctx, page } = await open(SUB + 'en/no-such-page/', { width: 390, height: 844, phone: true, allow404: true });
+    t(await page.locator('.notfound-en h2').innerText() === 'Page not found' && await page.locator('.notfound-en a[href$="/en/"]').count() === 1,
+      'a missing English address: the 404 page says it in English too, with the English pages');
     await ctx.close();
   }
 

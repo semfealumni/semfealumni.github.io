@@ -6,10 +6,14 @@
   <title>Σχόλια και προβλήματα · Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ</title>
   <meta name="description" content="Στείλτε στον Σύλλογο Διπλωματούχων ΣΕΜΦΕ ΕΜΠ σχόλια, ιδέες ή ένα πρόβλημα που βρήκατε στον ιστότοπο, με στιγμιότυπα οθόνης. Κάθε μήνυμα παίρνει αριθμό και σας απαντάμε με e-mail.">
   <link rel="canonical" href="https://semfealumni.gr/feedback/">
+  <link rel="alternate" hreflang="el" href="https://semfealumni.gr/feedback/">
+  <link rel="alternate" hreflang="en" href="https://semfealumni.gr/en/feedback/">
+  <link rel="alternate" hreflang="x-default" href="https://semfealumni.gr/feedback/">
   <meta name="robots" content="noindex">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="SEMFE Alumni">
   <meta property="og:locale" content="el_GR">
+  <meta property="og:locale:alternate" content="en_GB">
   <meta property="og:title" content="Σχόλια και προβλήματα">
   <meta property="og:description" content="Στείλτε στον Σύλλογο Διπλωματούχων ΣΕΜΦΕ ΕΜΠ σχόλια, ιδέες ή ένα πρόβλημα που βρήκατε στον ιστότοπο, με στιγμιότυπα οθόνης. Κάθε μήνυμα παίρνει αριθμό και σας απαντάμε με e-mail.">
   <meta property="og:url" content="https://semfealumni.gr/feedback/">
@@ -30,12 +34,13 @@
   <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png">
   <link rel="apple-touch-icon" href="../apple-touch-icon.png">
   <meta name="theme-color" content="#0a2240">
-  <script>document.documentElement.className += ' js';</script>
+  <script>document.documentElement.className += ' js';(function(){var K='semfe:lang';try{document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('[data-lang]');if(a)localStorage.setItem(K,a.getAttribute('data-lang'));},true);if(localStorage.getItem(K)==='en')location.replace('../en/feedback/'+location.search+location.hash);}catch(e){}})();</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../assets/css/site.css">
   <script src="../assets/js/config.js"></script>
+  <script src="../assets/js/i18n.js" defer></script>
   <script src="../assets/js/site.js" defer></script>
   <script src="../assets/js/auth.js" defer></script>
   <script src="../assets/js/visit.js" defer></script>
@@ -43,6 +48,11 @@
 </head>
 <body data-firestore="1">
 <a class="skip" href="#main">Μετάβαση στο περιεχόμενο</a>
+<div class="lang-bar">
+  <div class="wrap">
+    <nav class="lang-switch" aria-label="Γλώσσα"><a class="lang-flag" href="../feedback/" hreflang="el" lang="el" data-lang="el" aria-current="true" title="Ελληνικά"><svg viewBox="0 0 27 18" width="24" height="16" aria-hidden="true"><rect width="27" height="18" fill="#0d5eaf"/><path d="M0 3h27M0 7h27M0 11h27M0 15h27" stroke="#fff" stroke-width="2"/><rect width="10" height="10" fill="#0d5eaf"/><path d="M5 0v10M0 5h10" stroke="#fff" stroke-width="2"/></svg><span class="lang-name">Ελληνικά</span></a><a class="lang-flag" href="../en/feedback/" hreflang="en" lang="en" data-lang="en" title="English"><svg viewBox="0 0 60 30" width="32" height="16" aria-hidden="true"><rect width="60" height="30" fill="#012169"/><path d="M0 0L60 30M60 0L0 30" stroke="#fff" stroke-width="6"/><path d="M0 0L60 30M60 0L0 30" stroke="#c8102e" stroke-width="2"/><path d="M30 0v30M0 15h60" stroke="#fff" stroke-width="10"/><path d="M30 0v30M0 15h60" stroke="#c8102e" stroke-width="6"/></svg><span class="lang-name">English</span></a></nav>
+  </div>
+</div>
 <header class="site-header">
   <div class="wrap">
     <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav" aria-label="Άνοιγμα μενού">

@@ -11,6 +11,12 @@
  *
  * _src/pages/*.md   one file per page: YAML front matter, then the page body
  * _src/posts/*.md   one file per announcement, same shape
+ * _src/en/*.md      the English copy of a page: same file name and front matter
+ *                   keys as its Greek twin, the text in English. Built under
+ *                   en/ (en/governance/), with the header, menu and footer in
+ *                   English. Every announcement also gets an English page
+ *                   (en/blog/…) whose TEXT stays as its author wrote it, Greek.
+ *                   The flags at the top of every page link the two copies.
  *
  * The front matter is YAML between two "---" lines at the very top:
  *   ---
@@ -67,19 +73,17 @@ const FB_CONFIGURED = !!(FB.apiKey && FB.projectId && !String(FB.apiKey + FB.pro
 const LI = C.LINKEDIN || {};
 const LI_READY = LI.mode === 'oidc' || !!(LI.clientId && LI.functionUrl && !String(LI.clientId + LI.functionUrl).includes('PASTE_'));
 const OFFERED = (C.AUTH_PROVIDERS || []).filter(k => PROVIDER_NAMES[k] && (k !== 'linkedin' || LI_READY || !FB_CONFIGURED));
-const orList = names => names.length < 2 ? (names[0] || '') : `${names.slice(0, -1).join(', ')} ή ${names[names.length - 1]}`;
-const SIGNIN_SOCIAL = orList(OFFERED.map(k => PROVIDER_NAMES[k]));
-const SIGNIN_ALL = orList(OFFERED.map(k => PROVIDER_NAMES[k]).concat('e-mail'));
-function signinText(s, file) {
+const orList = (names, lang) => names.length < 2 ? (names[0] || '') : `${names.slice(0, -1).join(', ')} ${lang === 'en' ? 'or' : 'ή'} ${names[names.length - 1]}`;
+function signinText(s, file, lang) {
   return applyConditions(s, file, k => {
     if (k !== 'social' && !PROVIDER_NAMES[k]) throw new Error(`${file}: unknown condition <!--if:${k}-->`);
     return k === 'social' ? OFFERED.length > 0 : OFFERED.includes(k);
   })
-    .replace(/\{\{signin\}\}/g, SIGNIN_ALL)
-    .replace(/\{\{signin-social\}\}/g, SIGNIN_SOCIAL);
+    .replace(/\{\{signin\}\}/g, orList(OFFERED.map(k => PROVIDER_NAMES[k]).concat('e-mail'), lang))
+    .replace(/\{\{signin-social\}\}/g, orList(OFFERED.map(k => PROVIDER_NAMES[k]), lang));
 }
 /* the same for every text in the front matter (a description may say {{signin}}) */
-const signinDeep = (v, file) => typeof v === 'string' ? signinText(v, file) : Array.isArray(v) ? v.map(x => signinDeep(x, file)) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, signinDeep(x, file)])) : v;
+const signinDeep = (v, file, lang) => typeof v === 'string' ? signinText(v, file, lang) : Array.isArray(v) ? v.map(x => signinDeep(x, file, lang)) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, signinDeep(x, file, lang)])) : v;
 
 /* ---- icons (stroke icons drawn on a 24px grid; brand marks filled) --------- */
 const ICONS = {
@@ -118,33 +122,35 @@ const ICONS = {
 /* Kept short, like operationsacademia.org: the logo is the way home, the pages
    ABOUT the association sit in one «Ο Σύλλογος» drop-down (two groups), and
    only the three pages people come for stay in the row. On a phone the menu
-   button shows the same entries, the groups under their headings. */
+   button shows the same entries, the groups under their headings.
+   Every label is [Greek, English]: tr() picks the page's language. */
+const tr = (x, lang) => Array.isArray(x) ? x[lang === 'en' ? 1 : 0] : x;
 const NAV_GROUPS = {
-  key: 'club', label: 'Ο Σύλλογος',
+  key: 'club', label: ['Ο Σύλλογος', 'The Association'],
   groups: [
-    { id: 'nav-g-club', label: 'Ο Σύλλογος', items: [
-      { key: 'home-orama', label: 'Όραμα & Σκοπός', href: '#orama' },
-      { key: 'organa', label: 'Όργανα', href: 'organa/' },
-      { key: 'governance', label: 'Διοίκηση', href: 'governance/' }] },
-    { id: 'nav-g-history', label: 'Η ιστορία μας', items: [
-      { key: 'how_we_started', label: 'Πώς ξεκινήσαμε', href: 'how_we_started/' },
-      { key: 'fotothiki', label: 'Φωτοθήκη', href: 'fotothiki/' },
-      { key: 'archive', label: 'Αρχείο', href: 'archive/' }] },
-    { id: 'nav-g-site', label: 'Ο ιστότοπος', items: [
-      { key: 'whats_new', label: 'Τι νέο', href: 'whats-new/' },
-      { key: 'analytics', label: 'Στατιστικά', href: 'analytics/' }] }
+    { id: 'nav-g-club', label: ['Ο Σύλλογος', 'The Association'], items: [
+      { key: 'home-orama', label: ['Όραμα & Σκοπός', 'Vision & Purpose'], href: '#orama' },
+      { key: 'organa', label: ['Όργανα', 'Bodies'], href: 'organa/' },
+      { key: 'governance', label: ['Διοίκηση', 'Governance'], href: 'governance/' }] },
+    { id: 'nav-g-history', label: ['Η ιστορία μας', 'Our history'], items: [
+      { key: 'how_we_started', label: ['Πώς ξεκινήσαμε', 'How we started'], href: 'how_we_started/' },
+      { key: 'fotothiki', label: ['Φωτοθήκη', 'Photo gallery'], href: 'fotothiki/' },
+      { key: 'archive', label: ['Αρχείο', 'Archive'], href: 'archive/' }] },
+    { id: 'nav-g-site', label: ['Ο ιστότοπος', 'The website'], items: [
+      { key: 'whats_new', label: ['Τι νέο', 'What\'s new'], href: 'whats-new/' },
+      { key: 'analytics', label: ['Στατιστικά', 'Statistics'], href: 'analytics/' }] }
   ]
 };
 const NAV = [
-  { key: 'blog', label: 'Ανακοινώσεις', href: 'blog/' },
-  { key: 'support', label: 'Εγγραφές & Δωρεές', href: 'support/' },
-  { key: 'contact', label: 'Επικοινωνία', href: 'contact/' }
+  { key: 'blog', label: ['Ανακοινώσεις', 'Announcements'], href: 'blog/' },
+  { key: 'support', label: ['Εγγραφές & Δωρεές', 'Membership & Donations'], href: 'support/' },
+  { key: 'contact', label: ['Επικοινωνία', 'Contact'], href: 'contact/' }
 ];
 /* The pill row under an inner page's title, linking the pages of one section. */
 const SUBNAV = {
-  club: [['Όραμα & Σκοπός', '#orama', ''], ['Όργανα', '', 'organa/'], ['Διοίκηση', '', 'governance/']],
-  history: [['Πώς ξεκινήσαμε', '', 'how_we_started/'], ['Φωτοθήκη', '', 'fotothiki/'], ['Αρχείο', '', 'archive/']],
-  members: [['Ο λογαριασμός μου', '', 'account/'], ['Περιοχή μελών', '', 'members/'], ['Σχόλια', '', 'feedback/']]
+  club: [[['Όραμα & Σκοπός', 'Vision & Purpose'], '#orama', ''], [['Όργανα', 'Bodies'], '', 'organa/'], [['Διοίκηση', 'Governance'], '', 'governance/']],
+  history: [[['Πώς ξεκινήσαμε', 'How we started'], '', 'how_we_started/'], [['Φωτοθήκη', 'Photo gallery'], '', 'fotothiki/'], [['Αρχείο', 'Archive'], '', 'archive/']],
+  members: [[['Ο λογαριασμός μου', 'My account'], '', 'account/'], [['Περιοχή μελών', 'Members\' area'], '', 'members/'], [['Σχόλια', 'Feedback'], '', 'feedback/']]
 };
 const SOCIAL = [
   ['linkedin', 'LinkedIn', 'https://www.linkedin.com/company/semfealumni'],
@@ -153,23 +159,69 @@ const SOCIAL = [
   ['instagram', 'Instagram', 'https://www.instagram.com/semfe_alumni_ntua']
 ];
 
+/* ---- the site's own words, in both languages --------------------------------
+   Everything the layout writes around a page's text. The English site name is
+   also in assets/js/i18n.js (siteName), for the scripts. */
+const SITE_NAME = { el: C.siteName, en: 'Association of SEMFE NTUA Graduates' };
+const STR = {
+  el: {
+    skip: 'Μετάβαση στο περιεχόμενο', menuOpen: 'Άνοιγμα μενού', brandAria: 'Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ, αρχική σελίδα',
+    brandTop: 'ΣΥΛΛΟΓΟΣ ΔΙΠΛΩΜΑΤΟΥΧΩΝ', brandBottom: 'ΣΕΜΦΕ ΕΜΠ', mainNav: 'Κύριο μενού', signin: 'Σύνδεση',
+    crumbs: 'Διαδρομή', home: 'Αρχική', section: 'Ενότητα', readMore: 'Διαβάστε περισσότερα →',
+    otherPosts: 'Άλλες ανακοινώσεις', prev: '← Προηγούμενη', next: 'Επόμενη →', edit: 'Επεξεργασία',
+    announcements: 'Ανακοινώσεις', ogAlt: 'Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ',
+    footerName: 'Σύλλογος Διπλωματούχων<br>ΣΕΜΦΕ&nbsp;ΕΜΠ',
+    footerAbout: 'Ο επίσημος φορέας των αποφοίτων της Σχολής Εφαρμοσμένων Μαθηματικών και Φυσικών Επιστημών του ΕΜΠ, από το 2013.',
+    fClub: 'Ο Σύλλογος', fHistory: 'Ιστορία', fMembers: 'Μέλη', statute: 'Καταστατικό (PDF)',
+    myAccount: 'Ο λογαριασμός μου', membersArea: 'Περιοχή μελών', feedback: 'Σχόλια και προβλήματα', whatsNew: 'Τι νέο στον ιστότοπο',
+    copyright: 'Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ', privacy: 'Πολιτική απορρήτου', terms: 'Όροι χρήσης', dataDeletion: 'Διαγραφή δεδομένων',
+    langs: 'Γλώσσα', postLang: ''
+  },
+  en: {
+    skip: 'Skip to content', menuOpen: 'Open menu', brandAria: 'Association of SEMFE NTUA Graduates, home page',
+    brandTop: 'ASSOCIATION OF GRADUATES', brandBottom: 'SEMFE NTUA', mainNav: 'Main menu', signin: 'Sign in',
+    crumbs: 'Breadcrumb', home: 'Home', section: 'Section', readMore: 'Read more →',
+    otherPosts: 'Other announcements', prev: '← Previous', next: 'Next →', edit: 'Edit',
+    announcements: 'Announcements', ogAlt: 'Association of SEMFE NTUA Graduates',
+    footerName: 'Association of<br>SEMFE&nbsp;NTUA Graduates',
+    footerAbout: 'The official body of the graduates of the School of Applied Mathematical and Physical Sciences of NTUA, since 2013.',
+    fClub: 'The Association', fHistory: 'History', fMembers: 'Members', statute: 'Statute (PDF, in Greek)',
+    myAccount: 'My account', membersArea: 'Members\' area', feedback: 'Feedback and problems', whatsNew: 'What\'s new on the website',
+    copyright: 'Association of SEMFE NTUA Graduates', privacy: 'Privacy policy', terms: 'Terms of use', dataDeletion: 'Data deletion',
+    langs: 'Language', postLang: 'Announcements are shown as the Association published them, in Greek.'
+  }
+};
+/* an announcement's category is stored in Greek (it also decides which e-mail
+   alerts go out); an English page shows its English name */
+const CATEGORY_EN = { 'Ανακοινώσεις': 'Announcements', 'Εκδηλώσεις': 'Events' };
+const catLabel = (c, lang) => lang === 'en' ? (CATEGORY_EN[c] || c) : c;
+
+/* The two flags at the top of every page: a small SVG of each, drawn here so
+   no picture file is needed and they look the same on every system (a flag
+   emoji shows as two letters on Windows). */
+const FLAGS = {
+  el: '<svg viewBox="0 0 27 18" width="24" height="16" aria-hidden="true"><rect width="27" height="18" fill="#0d5eaf"/><path d="M0 3h27M0 7h27M0 11h27M0 15h27" stroke="#fff" stroke-width="2"/><rect width="10" height="10" fill="#0d5eaf"/><path d="M5 0v10M0 5h10" stroke="#fff" stroke-width="2"/></svg>',
+  en: '<svg viewBox="0 0 60 30" width="32" height="16" aria-hidden="true"><rect width="60" height="30" fill="#012169"/><path d="M0 0L60 30M60 0L0 30" stroke="#fff" stroke-width="6"/><path d="M0 0L60 30M60 0L0 30" stroke="#c8102e" stroke-width="2"/><path d="M30 0v30M0 15h60" stroke="#fff" stroke-width="10"/><path d="M30 0v30M0 15h60" stroke="#c8102e" stroke-width="6"/></svg>'
+};
+
 /* ---- helpers --------------------------------------------------------------- */
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-/* a date stays on one line: "27 Φεβρουαρίου" never breaks between day and month */
-const keepDate = s => s.replace(new RegExp('(\\d{1,2}) (' + MONTHS.join('|') + ')', 'g'), '$1&nbsp;$2');   // MONTHS is below
+/* a date stays on one line: "27 Φεβρουαρίου" / "27 February" never breaks between day and month */
+const keepDate = s => s.replace(new RegExp('(\\d{1,2}) (' + MONTHS.concat(MONTHS_EN).join('|') + ')', 'g'), '$1&nbsp;$2');   // MONTHS is below
 const depthOf = p => (p.replace(/index\.html$/, '').match(/\//g) || []).length;
 const rootFor = p => '../'.repeat(depthOf(p)) || './';
 const MONTHS = ['Ιανουαρίου', 'Φεβρουαρίου', 'Μαρτίου', 'Απριλίου', 'Μαΐου', 'Ιουνίου', 'Ιουλίου', 'Αυγούστου', 'Σεπτεμβρίου', 'Οκτωβρίου', 'Νοεμβρίου', 'Δεκεμβρίου'];
-const greekDate = iso => { const [y, m, d] = iso.split('-').map(Number); return `${d} ${MONTHS[m - 1]} ${y}`; };
+const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const dateText = (iso, lang) => { const [y, m, d] = iso.split('-').map(Number); return `${d} ${(lang === 'en' ? MONTHS_EN : MONTHS)[m - 1]} ${y}`; };
 
 function readSrc(dir) {
-  const full = path.join(ROOT, '_src', dir);
+  const full = path.join(ROOT, '_src', dir), lang = dir === 'en' ? 'en' : 'el';
   return readdirSync(full).filter(f => f.endsWith('.md')).sort().map(f => {
     const file = `${dir}/${f}`;
     const { data, body } = splitFrontMatter(readFileSync(path.join(full, f), 'utf8'), file);
-    const meta = signinDeep(validateFrontMatter(data, dir === 'posts' ? 'post' : 'page', file), file);
-    const html = wrapLayout(renderMarkdown(signinText(body, file), file), meta.layout, file);
-    return { file, meta, body: html.trim() };
+    const meta = signinDeep(validateFrontMatter(data, dir === 'posts' ? 'post' : 'page', file), file, lang);
+    const html = wrapLayout(renderMarkdown(signinText(body, file, lang), file, lang), meta.layout, file);
+    return { file, name: f, lang, meta, body: html.trim() };
   });
 }
 
@@ -183,94 +235,145 @@ const posts = readSrc('posts').map(p => {
 }).sort((a, b) => b.meta.date.localeCompare(a.meta.date) || a.meta.slug.localeCompare(b.meta.slug));
 const postBySlug = Object.fromEntries(posts.map(p => [p.meta.slug, p]));
 
-function postCard(p, root, i) {
+function postCard(p, root, i, lang) {
   const load = i < 3 ? 'eager' : 'lazy';          // the first row is on screen at once
   const img = p.meta.image
     ? `<div class="thumb"><img src="${root}assets/img/posts/${esc(p.meta.image)}" alt="" loading="${load}" decoding="async"></div>`
     : `<div class="thumb logo"><img src="${root}assets/img/logos/logo.png" alt="" loading="${load}" decoding="async"></div>`;
   // an excerpt that only repeats the title says nothing: leave it out
   const same = a => String(a || '').replace(/[.\s]+$/, '').trim().toLowerCase();
-  const excerpt = same(p.meta.description) === same(p.meta.title) ? '' : `<p>${esc(p.meta.description)}</p>`;
+  // on an English page the title and the excerpt are the announcement's own words: Greek, and marked so
+  const el = lang === 'en' ? ' lang="el"' : '';
+  const excerpt = same(p.meta.description) === same(p.meta.title) ? '' : `<p${el}>${esc(p.meta.description)}</p>`;
   const cat = p.meta.category || 'Ανακοινώσεις';
   return `<a class="post-card" href="${root}${p.path}" data-cat="${esc(cat)}">${img}<div class="body">` +
-    `<div class="meta"><span class="tag${cat === 'Εκδηλώσεις' ? ' events' : ''}">${esc(cat)}</span><time datetime="${p.meta.date}">${greekDate(p.meta.date)}</time></div>` +
-    `<h3>${keepDate(esc(p.meta.title))}</h3>${excerpt}<span class="more">Διαβάστε περισσότερα →</span></div></a>`;
+    `<div class="meta"><span class="tag${cat === 'Εκδηλώσεις' ? ' events' : ''}">${esc(catLabel(cat, lang))}</span><time datetime="${p.meta.date}">${dateText(p.meta.date, lang)}</time></div>` +
+    `<h3${el}>${keepDate(esc(p.meta.title))}</h3>${excerpt}<span class="more">${STR[lang || 'el'].readMore}</span></div></a>`;
 }
 
 /* ---- the layout ------------------------------------------------------------ */
+/* the address of a page in each language (null: it has no copy in that language) */
+const pathIn = (page, lang) => page.lang === lang ? page.path : page.twin ? page.twin.path : null;
+
+/* The inline script at the top of every page. The "js" class first, then the
+   flags: the language a visitor PICKS (a click on a flag, remembered in
+   localStorage as semfe:lang) is kept: a Greek page that has an English copy
+   forwards a visitor who chose English to it, before anything is drawn, so a
+   link from an e-mail or a search result opens in their language. Only a
+   click chooses; opening an English address does not. A Greek page without an
+   English copy (the LinkedIn return page) never forwards. */
+function headScript(page, root) {
+  const en = page.lang !== 'en' && pathIn(page, 'en') != null && !page.meta.file ? root + pathIn(page, 'en') : '';
+  return '<script>document.documentElement.className += \' js\';' +
+    '(function(){var K=\'semfe:lang\';try{document.addEventListener(\'click\',function(e){var a=e.target&&e.target.closest&&e.target.closest(\'[data-lang]\');if(a)localStorage.setItem(K,a.getAttribute(\'data-lang\'));},true);' +
+    (en ? 'if(localStorage.getItem(K)===\'en\')location.replace(\'' + en + '\'+location.search+location.hash);' : '') +
+    '}catch(e){}})();</script>';
+}
+
 function head(page, root) {
+  const lang = page.lang || 'el';
   // 404.html gets its own address: two pages sharing one og:url share one link preview
   const url = SITE_URL + (page.meta.file || page.path);
-  const title = page.meta.path === '' && !page.meta.file ? C.siteName + ' · SEMFE Alumni' : `${page.meta.title} · ${C.siteName}`;
+  const title = page.meta.path === '' && !page.meta.file ? SITE_NAME[lang] + ' · SEMFE Alumni' : `${page.meta.title} · ${SITE_NAME[lang]}`;
   const desc = page.meta.description;
   const noindex = !INDEXABLE || page.meta.noindex;
+  // the same page in the other language (hreflang): search engines show each reader their own
+  const elPath = pathIn(page, 'el'), enPath = pathIn(page, 'en');
+  const alt = !page.meta.file && elPath != null && enPath != null
+    ? `  <link rel="alternate" hreflang="el" href="${SITE_URL}${elPath}">\n  <link rel="alternate" hreflang="en" href="${SITE_URL}${enPath}">\n  <link rel="alternate" hreflang="x-default" href="${SITE_URL}${elPath}">\n`
+    : '';
+  const ann = esc(STR[lang].announcements + ' · ' + SITE_NAME[lang]);
   return `<!DOCTYPE html>
-<html lang="el">
+<html lang="${lang}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${esc(title)}</title>
   <meta name="description" content="${esc(desc)}">
   <link rel="canonical" href="${url}">
-${noindex ? '  <meta name="robots" content="noindex">\n' : ''}  <meta property="og:type" content="${page.isPost ? 'article' : 'website'}">
+${alt}${noindex ? '  <meta name="robots" content="noindex">\n' : ''}  <meta property="og:type" content="${page.isPost ? 'article' : 'website'}">
   <meta property="og:site_name" content="SEMFE Alumni">
-  <meta property="og:locale" content="el_GR">
-  <meta property="og:title" content="${esc(page.meta.title)}">
+  <meta property="og:locale" content="${lang === 'en' ? 'en_GB' : 'el_GR'}">
+${alt ? `  <meta property="og:locale:alternate" content="${lang === 'en' ? 'el_GR' : 'en_GB'}">\n` : ''}  <meta property="og:title" content="${esc(page.meta.title)}">
   <meta property="og:description" content="${esc(desc)}">
   <meta property="og:url" content="${url}">
   <meta property="og:image" content="${SITE_URL}og-image.jpg">
   <meta property="og:image:type" content="image/jpeg">
   <meta property="og:image:width" content="${OG_W}">
   <meta property="og:image:height" content="${OG_H}">
-  <meta property="og:image:alt" content="Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ">
+  <meta property="og:image:alt" content="${esc(STR[lang].ogAlt)}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${esc(page.meta.title)}">
   <meta name="twitter:description" content="${esc(desc)}">
   <meta name="twitter:image" content="${SITE_URL}og-image.jpg">
   <link rel="image_src" href="${SITE_URL}share-square.jpg">
   <meta itemprop="image" content="${SITE_URL}share-square.jpg">
-  <link rel="alternate" type="application/atom+xml" title="Ανακοινώσεις · ${esc(C.siteName)} (Atom)" href="${SITE_URL}feed.xml">
-  <link rel="alternate" type="application/rss+xml" title="Ανακοινώσεις · ${esc(C.siteName)} (RSS)" href="${SITE_URL}rss.xml">
+  <link rel="alternate" type="application/atom+xml" title="${ann} (Atom)" href="${SITE_URL}feed.xml">
+  <link rel="alternate" type="application/rss+xml" title="${ann} (RSS)" href="${SITE_URL}rss.xml">
   <link rel="icon" type="image/svg+xml" href="${root}favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="${root}favicon-32.png">
   <link rel="apple-touch-icon" href="${root}apple-touch-icon.png">
   <meta name="theme-color" content="#0a2240">
-  <script>document.documentElement.className += ' js';</script>
+  ${headScript(page, root)}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
   <link rel="stylesheet" href="${root}assets/css/site.css">
   <script src="${root}assets/js/config.js"></script>
+  <script src="${root}assets/js/i18n.js" defer></script>
   <script src="${root}assets/js/site.js" defer></script>
   <script src="${root}assets/js/auth.js" defer></script>
 ${page.meta.noTrack ? '' : `  <script src="${root}assets/js/visit.js" defer></script>\n`}${(page.meta.scripts || []).map(s => `  <script src="${root}assets/js/${s}" defer></script>\n`).join('')}</head>`;
 }
 
+/* The flags, in a slim bar above the header (the header row has no room for
+   them on a phone: the logo's name is never cut short). Each flag links the
+   same page in that language; where the page has no copy in it, that
+   language's home page. data-lang is what the head script remembers. The
+   current language is marked aria-current. Written after the English page's
+   links are moved to en/ (localize), so these two are never rewritten. */
+function langBar(page, root) {
+  const lang = page.lang || 'el';
+  const link = (l, name) => {
+    const p = pathIn(page, l);
+    const href = root + (p != null && !page.meta.file ? p : l === 'en' ? 'en/' : '');
+    // the name is shown beside the flag where there is room, and is always the link's accessible name
+    return `<a class="lang-flag" href="${href}" hreflang="${l}" lang="${l}" data-lang="${l}"${l === lang ? ' aria-current="true"' : ''} title="${name}">${FLAGS[l]}<span class="lang-name">${name}</span></a>`;
+  };
+  return `<div class="lang-bar">
+  <div class="wrap">
+    <nav class="lang-switch" aria-label="${STR[lang].langs}">${link('el', 'Ελληνικά')}${link('en', 'English')}</nav>
+  </div>
+</div>`;
+}
+
 function header(page, root) {
+  const lang = page.lang || 'el', S = STR[lang];
   const cur = page.meta.nav;
   // the page itself is marked inside the drop-down (by its address, so the
   // three «history» pages are told apart), the drop-down's button as "here"
   const here = href => href && href === page.meta.path;
   const inClub = NAV_GROUPS.groups.some(g => g.items.some(i => here(i.href)));
   const groups = NAV_GROUPS.groups.map(g => `<div class="nav-group" role="group" aria-labelledby="${g.id}">
-            <span class="nav-group-h" id="${g.id}">${esc(g.label)}</span>
-            ${g.items.map(i => `<a href="${root}${i.href}"${here(i.href) ? ' aria-current="page"' : ''}>${esc(i.label)}</a>`).join('\n            ')}
+            <span class="nav-group-h" id="${g.id}">${esc(tr(g.label, lang))}</span>
+            ${g.items.map(i => `<a href="${root}${i.href}"${here(i.href) ? ' aria-current="page"' : ''}>${esc(tr(i.label, lang))}</a>`).join('\n            ')}
           </div>`).join('\n          ');
-  const links = NAV.map(n => `<a href="${root}${n.href}"${n.key === cur ? ' aria-current="page"' : ''}>${esc(n.label)}</a>`).join('\n      ');
-  return `<a class="skip" href="#main">Μετάβαση στο περιεχόμενο</a>
+  const links = NAV.map(n => `<a href="${root}${n.href}"${n.key === cur ? ' aria-current="page"' : ''}>${esc(tr(n.label, lang))}</a>`).join('\n      ');
+  return `<a class="skip" href="#main">${S.skip}</a>
+<!--LANG-BAR-->
 <header class="site-header">
   <div class="wrap">
-    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav" aria-label="Άνοιγμα μενού">
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav" aria-label="${S.menuOpen}">
       <svg class="i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><svg class="i-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
-    <a class="brand" href="${root}" aria-label="Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ, αρχική σελίδα">
+    <a class="brand" href="${root}" aria-label="${S.brandAria}">
       <img class="brand-mark" src="${root}assets/img/logos/semfe_alumni_logo.jpg" alt="" width="42" height="42">
-      <span class="brand-text"><span class="top">ΣΥΛΛΟΓΟΣ ΔΙΠΛΩΜΑΤΟΥΧΩΝ</span><span class="bottom">ΣΕΜΦΕ ΕΜΠ</span></span>
+      <span class="brand-text"><span class="top">${S.brandTop}</span><span class="bottom">${S.brandBottom}</span></span>
     </a>
     <div class="header-right">
-      <nav class="nav" id="nav" aria-label="Κύριο μενού">
+      <nav class="nav" id="nav" aria-label="${S.mainNav}">
       <div class="nav-more">
-        <button class="nav-more-btn${inClub ? ' is-here' : ''}" type="button" aria-expanded="false" aria-controls="nav-more">${esc(NAV_GROUPS.label)}<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="nav-more-btn${inClub ? ' is-here' : ''}" type="button" aria-expanded="false" aria-controls="nav-more">${esc(tr(NAV_GROUPS.label, lang))}<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="nav-more-panel" id="nav-more">
           ${groups}
         </div>
@@ -278,7 +381,7 @@ function header(page, root) {
       ${links}
       </nav>
       <div class="acct-slot" id="acct-slot">
-        <a class="btn btn-primary btn-sm acct-signin" href="${root}account/" data-signin>Σύνδεση</a>
+        <a class="btn btn-primary btn-sm acct-signin" href="${root}account/" data-signin>${S.signin}</a>
       </div>
     </div>
   </div>
@@ -288,25 +391,29 @@ function header(page, root) {
 function pageHero(page, root) {
   const h = page.meta.hero;
   if (!h) return '';
+  const lang = page.lang || 'el', S = STR[lang];
   const crumbs = (page.meta.crumbs || []).map(([label, href]) =>
     href == null ? `<span>${esc(label)}</span>` : `<a href="${root}${href}">${esc(label)}</a>`);
   const crumbHtml = crumbs.length
-    ? `<nav class="crumbs" aria-label="Διαδρομή"><a href="${root}">Αρχική</a>${crumbs.map(c => '<span aria-hidden="true">›</span>' + c).join('')}</nav>`
+    ? `<nav class="crumbs" aria-label="${S.crumbs}"><a href="${root}">${S.home}</a>${crumbs.map(c => '<span aria-hidden="true">›</span>' + c).join('')}</nav>`
     : '';
   const sub = page.meta.subnav && SUBNAV[page.meta.subnav];
-  const subHtml = sub ? `<nav class="filters subnav" aria-label="Ενότητα" style="margin:22px 0 0">${sub.map(([label, hash, href]) => {
+  const subHtml = sub ? `<nav class="filters subnav" aria-label="${S.section}" style="margin:22px 0 0">${sub.map(([label, hash, href]) => {
     const target = hash ? `${root}${hash}` : `${root}${href}`;
     const on = href && href === page.meta.path;
-    return `<a class="btn btn-sm ${on ? 'btn-primary' : 'btn-ghost'}" href="${target}"${on ? ' aria-current="page"' : ''}>${esc(label)}</a>`;
+    return `<a class="btn btn-sm ${on ? 'btn-primary' : 'btn-ghost'}" href="${target}"${on ? ' aria-current="page"' : ''}>${esc(tr(label, lang))}</a>`;
   }).join('')}</nav>` : '';
+  // an announcement's title is its author's words: Greek on the English page too, and marked so
+  const el = page.isPost && lang === 'en' ? ' lang="el"' : '';
   const meta = page.isPost
-    ? `<div class="meta"><span class="tag">${esc(page.meta.category || 'Ανακοινώσεις')}</span><time datetime="${page.meta.date}">${greekDate(page.meta.date)}</time><span class="byline">${esc(page.meta.author || C.siteName)}</span></div>`
+    ? `<div class="meta"><span class="tag">${esc(catLabel(page.meta.category || 'Ανακοινώσεις', lang))}</span><time datetime="${page.meta.date}">${dateText(page.meta.date, lang)}</time><span class="byline">${esc(page.meta.author || SITE_NAME[lang])}</span></div>` +
+      (S.postLang ? `<p class="post-lang">${S.postLang}</p>` : '')
     : '';
   return `<section class="page-hero${page.isPost ? ' post-head' : ''}">
   <div class="wrap">
     ${crumbHtml}
     ${h.eyebrow ? `<span class="eyebrow">${esc(h.eyebrow)}</span>` : ''}
-    <h1>${h.titleHtml || keepDate(esc(h.title || page.meta.title))}</h1>
+    <h1${el}>${h.titleHtml || keepDate(esc(h.title || page.meta.title))}</h1>
     ${h.lede ? `<p class="lede">${esc(h.lede)}</p>` : ''}
     ${meta}
     ${subHtml}
@@ -314,7 +421,8 @@ function pageHero(page, root) {
 </section>`;
 }
 
-function footer(root) {
+function footer(root, lang) {
+  const S = STR[lang || 'el'];
   const social = SOCIAL.map(([k, label, href]) => `<a href="${href}" target="_blank" rel="noopener" aria-label="${label}">${ICONS[k]}</a>`).join('');
   return `<footer class="site-footer">
   <div class="wrap">
@@ -322,55 +430,56 @@ function footer(root) {
       <div>
         <div class="footer-brand">
           <img src="${root}assets/img/logos/semfe_alumni_logo.jpg" alt="" width="46" height="46" loading="lazy">
-          <p><strong style="color:#fff">Σύλλογος Διπλωματούχων<br>ΣΕΜΦΕ&nbsp;ΕΜΠ</strong><br>Ο επίσημος φορέας των αποφοίτων της Σχολής Εφαρμοσμένων Μαθηματικών και Φυσικών Επιστημών του ΕΜΠ, από το 2013.</p>
+          <p><strong style="color:#fff">${S.footerName}</strong><br>${S.footerAbout}</p>
         </div>
         <div class="footer-social">${social}</div>
       </div>
       <div>
-        <h2>Ο Σύλλογος</h2>
+        <h2>${S.fClub}</h2>
         <ul>
-          <li><a href="${root}#orama">Όραμα &amp; Σκοπός</a></li>
-          <li><a href="${root}organa/">Όργανα</a></li>
-          <li><a href="${root}governance/">Διοίκηση</a></li>
-          <li><a href="${root}assets/docs/foundation/katastatiko.pdf">Καταστατικό (PDF)</a></li>
+          <li><a href="${root}#orama">${esc(tr(NAV_GROUPS.groups[0].items[0].label, lang))}</a></li>
+          <li><a href="${root}organa/">${esc(tr(NAV_GROUPS.groups[0].items[1].label, lang))}</a></li>
+          <li><a href="${root}governance/">${esc(tr(NAV_GROUPS.groups[0].items[2].label, lang))}</a></li>
+          <li><a href="${root}assets/docs/foundation/katastatiko.pdf">${S.statute}</a></li>
         </ul>
       </div>
       <div>
-        <h2>Ιστορία</h2>
+        <h2>${S.fHistory}</h2>
         <ul>
-          <li><a href="${root}how_we_started/">Πώς ξεκινήσαμε</a></li>
-          <li><a href="${root}fotothiki/">Φωτοθήκη</a></li>
-          <li><a href="${root}archive/">Αρχείο</a></li>
-          <li><a href="${root}blog/">Ανακοινώσεις</a></li>
+          <li><a href="${root}how_we_started/">${esc(tr(NAV_GROUPS.groups[1].items[0].label, lang))}</a></li>
+          <li><a href="${root}fotothiki/">${esc(tr(NAV_GROUPS.groups[1].items[1].label, lang))}</a></li>
+          <li><a href="${root}archive/">${esc(tr(NAV_GROUPS.groups[1].items[2].label, lang))}</a></li>
+          <li><a href="${root}blog/">${esc(tr(NAV[0].label, lang))}</a></li>
         </ul>
       </div>
       <div>
-        <h2>Μέλη</h2>
+        <h2>${S.fMembers}</h2>
         <ul>
-          <li><a href="${root}support/">Εγγραφές &amp; Δωρεές</a></li>
-          <li><a href="${root}account/">Ο λογαριασμός μου</a></li>
-          <li><a href="${root}members/">Περιοχή μελών</a></li>
-          <li><a href="${root}feedback/">Σχόλια και προβλήματα</a></li>
-          <li><a href="${root}whats-new/">Τι νέο στον ιστότοπο</a></li>
-          <li><a href="${root}analytics/">Στατιστικά</a></li>
-          <li><a href="${root}contact/">Επικοινωνία</a></li>
+          <li><a href="${root}support/">${esc(tr(NAV[1].label, lang))}</a></li>
+          <li><a href="${root}account/">${S.myAccount}</a></li>
+          <li><a href="${root}members/">${S.membersArea}</a></li>
+          <li><a href="${root}feedback/">${S.feedback}</a></li>
+          <li><a href="${root}whats-new/">${S.whatsNew}</a></li>
+          <li><a href="${root}analytics/">${esc(tr(NAV_GROUPS.groups[2].items[1].label, lang))}</a></li>
+          <li><a href="${root}contact/">${esc(tr(NAV[2].label, lang))}</a></li>
         </ul>
       </div>
     </div>
     <div class="footer-bottom">
-      <span>Copyright &copy; 2013–<span data-year>${YEAR_NOW}</span> Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ</span>
-      <span class="legal"><a href="${root}privacy/">Πολιτική απορρήτου</a><a href="${root}terms/">Όροι χρήσης</a><a href="${root}data-deletion/">Διαγραφή δεδομένων</a></span>
+      <span>Copyright &copy; 2013–<span data-year>${YEAR_NOW}</span> ${S.copyright}</span>
+      <span class="legal"><a href="${root}privacy/">${S.privacy}</a><a href="${root}terms/">${S.terms}</a><a href="${root}data-deletion/">${S.dataDeletion}</a></span>
     </div>
   </div>
 </footer>`;
 }
 
 function fill(body, root, page) {
+  const lang = page.lang || 'el';
   return body
     .replace(/\{\{root\}\}/g, root)
     .replace(/\{\{icon:([a-z]+)\}\}/g, (m, k) => { if (!ICONS[k]) throw new Error(`${page.file}: unknown icon "${k}"`); return ICONS[k]; })
-    .replace(/\{\{latest\}\}/g, () => `<div class="posts">${posts.slice(0, 3).map((p, i) => postCard(p, root, i)).join('\n')}</div>`)
-    .replace(/\{\{posts\}\}/g, () => `<div class="posts" id="post-list">${posts.map((p, i) => postCard(p, root, i)).join('\n')}</div>`)
+    .replace(/\{\{latest\}\}/g, () => `<div class="posts">${posts.slice(0, 3).map((p, i) => postCard(p, root, i, lang)).join('\n')}</div>`)
+    .replace(/\{\{posts\}\}/g, () => `<div class="posts" id="post-list">${posts.map((p, i) => postCard(p, root, i, lang)).join('\n')}</div>`)
     .replace(/\{\{post:([a-z0-9_-]+)\}\}/g, (m, slug) => { const p = postBySlug[slug]; if (!p) throw new Error(`${page.file}: no post with slug ${slug}`); return root + p.path; })
     .replace(/\{\{social\}\}/g, () => `<div class="social">${SOCIAL.map(([k, label, href]) => `<a class="${k}" href="${href}" target="_blank" rel="noopener">${ICONS[k]}${label}</a>`).join('')}</div>`);
 }
@@ -392,8 +501,25 @@ function typeset(html) {
   return html.slice(0, at) + parts.join('');
 }
 
+/* An English page links to the English pages: every link to a page of the
+   site that has an English copy (written in _src/en/ the same as in Greek:
+   {{root}}contact/, {{root}}#orama, a post's address) gets en/ in front. Files
+   (assets/…, the feeds) and pages without a copy keep their address. */
+let EN_HAS = new Set();               // the Greek paths that have an English copy (filled in below)
+function localize(html, root) {
+  return html.replace(/(<a\b[^>]*?\shref=")([^"]*)(")/g, (m, a, href, b) => {
+    if (!href.startsWith(root)) return m;
+    const rest = href.slice(root.length);
+    if (/^[a-z][a-z0-9+.-]*:/i.test(rest) || rest.startsWith('/') || rest.startsWith('en/')) return m;
+    return EN_HAS.has(rest.split(/[?#]/)[0]) ? a + root + 'en/' + rest + b : m;
+  });
+}
+
 function render(page) {
-  return typeset(renderRaw(page));
+  const root = page.meta.absRoot ? new URL(SITE_URL).pathname : rootFor(page.path);
+  let html = renderRaw(page);
+  if (page.lang === 'en') html = localize(html, root);
+  return typeset(html.replace('<!--LANG-BAR-->', langBar(page, root)));
 }
 function renderRaw(page) {
   /* 404.html is served for a missing address at ANY depth, so its links
@@ -401,13 +527,16 @@ function renderRaw(page) {
      "/" at the root of semfealumni.gr). */
   const root = page.meta.absRoot ? new URL(SITE_URL).pathname : rootFor(page.path);
   let main;
+  const lang = page.lang || 'el', S = STR[lang];
   if (page.isPost) {
-    const i = posts.indexOf(page);
+    // the neighbours of the Greek announcement (an English page links them through localize())
+    const i = posts.indexOf(page.lang === 'en' ? page.twin : page);
     const newer = posts[i - 1], older = posts[i + 1];
-    const nav = `<nav class="post-nav" aria-label="Άλλες ανακοινώσεις">${older ? `<a class="prev" href="${root}${older.path}"><small>← Προηγούμενη</small>${esc(older.meta.title)}</a>` : '<span></span>'}${newer ? `<a class="next" href="${root}${newer.path}"><small>Επόμενη →</small>${esc(newer.meta.title)}</a>` : ''}</nav>`;
+    const el = lang === 'en' ? ' lang="el"' : '';     // the titles are the announcements' own words
+    const nav = `<nav class="post-nav" aria-label="${S.otherPosts}">${older ? `<a class="prev" href="${root}${older.path}"><small>${S.prev}</small><span${el}>${esc(older.meta.title)}</span></a>` : '<span></span>'}${newer ? `<a class="next" href="${root}${newer.path}"><small>${S.next}</small><span${el}>${esc(newer.meta.title)}</span></a>` : ''}</nav>`;
     // «Επεξεργασία», for an admin only (auth.js shows [data-admin-only]): opens this announcement in the editor on blog/
-    const edit = `<p class="post-admin" data-admin-only hidden><a class="btn btn-outline btn-sm" href="${root}blog/?edit=${encodeURIComponent(page.file.split('/').pop())}">${ICONS.form} Επεξεργασία</a></p>`;
-    main = `<section class="tight"><div class="wrap"><article class="prose">\n${fill(page.body, root, page)}\n</article>\n${edit}\n${nav}</div></section>`;
+    const edit = `<p class="post-admin" data-admin-only hidden><a class="btn btn-outline btn-sm" href="${root}blog/?edit=${encodeURIComponent(page.file.split('/').pop())}">${ICONS.form} ${S.edit}</a></p>`;
+    main = `<section class="tight"><div class="wrap"><article class="prose"${el}>\n${fill(page.body, root, page)}\n</article>\n${edit}\n${nav}</div></section>`;
   } else {
     main = fill(page.body, root, page);
   }
@@ -421,7 +550,7 @@ ${pageHero(page, root)}
 ${main}
 </main>
 
-${footer(root)}
+${footer(root, lang)}
 </body>
 </html>
 `;
@@ -435,7 +564,36 @@ for (const p of posts) {
   p.meta.hero = { title: p.meta.title };
   p.meta.crumbs = [['Ανακοινώσεις', 'blog/']];
 }
-const all = [...pages, ...posts];
+
+/* The English copy. _src/en/X.md translates _src/pages/X.md: the same file
+   name, the same front matter keys that say how the page works (below); it
+   is built at en/<path>. The pages below have no English copy on purpose:
+   the 404 page (ONE file answers every missing address; it speaks both
+   languages itself) and the LinkedIn return page (its address is registered
+   with LinkedIn; its script speaks the language the sign-in started in).
+   Every other page needs one: tools/check.mjs fails when it is missing. */
+const GREEK_ONLY = ['404.md', 'linkedin-callback.md'];
+const SAME_KEYS = ['path', 'nav', 'subnav', 'scripts', 'firestore', 'noindex', 'noTrack', 'layout', 'bodyClass', 'file', 'absRoot'];
+const greekByName = Object.fromEntries(pages.map(p => [p.name, p]));
+const pagesEn = existsSync(path.join(ROOT, '_src/en')) ? readSrc('en').map(e => {
+  const g = greekByName[e.name];
+  if (!g) throw new Error(`${e.file}: there is no _src/pages/${e.name} for it to be the English copy of`);
+  if (GREEK_ONLY.includes(e.name)) throw new Error(`${e.file}: ${g.file} has no English copy on purpose (GREEK_ONLY in tools/build.mjs)`);
+  for (const k of SAME_KEYS) if (JSON.stringify(e.meta[k]) !== JSON.stringify(g.meta[k]))
+    throw new Error(`${e.file}: "${k}" must be the same as in ${g.file} (${JSON.stringify(g.meta[k])}): it says how the page works, not what it says`);
+  const en = { ...e, path: 'en/' + g.meta.path, twin: g };
+  g.twin = en;
+  return en;
+}) : [];
+/* every announcement also has an English page: the site around it in English,
+   its own text exactly as its author wrote it (marked lang="el") */
+const postsEn = posts.map(p => {
+  const en = { ...p, lang: 'en', path: 'en/' + p.path, twin: p, meta: { ...p.meta, crumbs: [['Announcements', 'blog/']] } };
+  p.twin = en;
+  return en;
+});
+EN_HAS = new Set([...pages, ...posts].filter(p => p.twin).map(p => p.path));
+const all = [...pages, ...pagesEn, ...posts, ...postsEn];
 const seen = new Set();
 const out = [];
 for (const page of all) {
@@ -500,12 +658,14 @@ if (ROOTED) {
 {
   const have = new Set(out.map(([f]) => f));
   const dirs = (d, re) => existsSync(d) ? readdirSync(d, { withFileTypes: true }).filter(e => e.isDirectory() && re.test(e.name)).map(e => e.name) : [];
-  const blog = path.join(ROOT, 'blog');
-  for (const y of dirs(blog, /^\d{4}$/)) for (const m of dirs(path.join(blog, y), /^\d{2}$/)) for (const d of dirs(path.join(blog, y, m), /^\d{2}$/))
-    for (const slug of dirs(path.join(blog, y, m, d), /^[a-z0-9_-]+$/)) {
-      const rel = ['blog', y, m, d, slug, 'index.html'].join('/');
-      if (existsSync(path.join(ROOT, rel)) && !have.has(rel)) DROP.push(rel);
-    }
+  for (const top of ['blog', 'en/blog']) {         // the Greek page and its English one
+    const blog = path.join(ROOT, top);
+    for (const y of dirs(blog, /^\d{4}$/)) for (const m of dirs(path.join(blog, y), /^\d{2}$/)) for (const d of dirs(path.join(blog, y, m), /^\d{2}$/))
+      for (const slug of dirs(path.join(blog, y, m, d), /^[a-z0-9_-]+$/)) {
+        const rel = [top, y, m, d, slug, 'index.html'].join('/');
+        if (existsSync(path.join(ROOT, rel)) && !have.has(rel)) DROP.push(rel);
+      }
+  }
 }
 
 /* The announcements as feeds, for feed readers (the earlier site had them):
@@ -598,10 +758,16 @@ ${all.filter(p => INDEXABLE && !p.meta.noindex && !p.meta.file).map(p => `  <url
    here, and the analytics builder names the pages from it. */
 const BASE = new URL(SITE_URL).pathname;
 const tracked = all.filter(p => !p.meta.file && !p.meta.noTrack);
+/* a page's name in each language: an English page is "Governance · English"
+   (the Greek list names it after its Greek twin, so the two read as a pair);
+   an announcement keeps its own title in both */
+const greekTitle = p => p.lang === 'en' ? greekTitle(p.twin) : p.meta.path === '' ? 'Αρχική' : p.meta.title;
+const englishTitle = p => p.isPost ? p.meta.title : p.lang !== 'en' ? (p.twin ? englishTitle(p.twin) : p.meta.title) : p.meta.path === '' ? 'Home' : p.meta.title;
 out.push(['functions/site-paths.json', JSON.stringify({
   about: 'Written by tools/build.mjs: the pages the visit counter (functions/index.js, recordVisit) knows. Do not edit.',
   paths: tracked.map(p => BASE + p.path),
-  titles: Object.fromEntries(tracked.map(p => [BASE + p.path, p.meta.path === '' ? 'Αρχική' : p.meta.title]))
+  titles: Object.fromEntries(tracked.map(p => [BASE + p.path, greekTitle(p) + (p.lang === 'en' ? ' · English' : '')])),
+  titlesEn: Object.fromEntries(tracked.map(p => [BASE + p.path, englishTitle(p) + (p.lang === 'en' ? ' · English' : '')]))
 }, null, 1) + '\n']);
 
 /* assets/js/md/: the Markdown reader of tools/ for the browser. The editor on
@@ -634,7 +800,7 @@ for (const f of DROP) {
   changed++;
   if (CHECK) { console.log(`should not exist while the site is at ${SITE_URL}: ${f}`); continue; }
   unlinkSync(path.join(ROOT, f));
-  for (let dir = path.dirname(path.join(ROOT, f)); dir.startsWith(path.join(ROOT, 'blog') + path.sep); dir = path.dirname(dir)) { try { rmdirSync(dir); } catch (e) { break; } }   // the folders it leaves empty
+  for (let dir = path.dirname(path.join(ROOT, f)); [path.join(ROOT, 'blog'), path.join(ROOT, 'en', 'blog')].some(b => dir.startsWith(b + path.sep)); dir = path.dirname(dir)) { try { rmdirSync(dir); } catch (e) { break; } }   // the folders it leaves empty
 }
 if (CHECK) {
   if (changed) { console.log(`${changed} page(s) differ from _src/. Run: node tools/build.mjs`); process.exit(1); }

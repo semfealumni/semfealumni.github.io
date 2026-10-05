@@ -7,6 +7,8 @@
 (function () {
   'use strict';
   var C = window.SEMFE || {};
+  // the page's language (assets/js/i18n.js): every message below is written in both
+  var L = window.SEMFE_I18N || { t: function (el) { return el; }, en: false }, T = L.t;
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -19,7 +21,7 @@
     var setOpen = function (open) {
       nav.classList.toggle('open', open);
       toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-      toggle.setAttribute('aria-label', open ? 'Κλείσιμο μενού' : 'Άνοιγμα μενού');
+      toggle.setAttribute('aria-label', open ? T('Κλείσιμο μενού', 'Close menu') : T('Άνοιγμα μενού', 'Open menu'));
     };
     toggle.addEventListener('click', function (e) { e.stopPropagation(); setOpen(!nav.classList.contains('open')); });
     $$('a', nav).forEach(function (a) { a.addEventListener('click', function () { setOpen(false); }); });
@@ -222,7 +224,7 @@
     var toTop = document.createElement('button'), topShown = false, topQueued = false;
     toTop.type = 'button';
     toTop.className = 'to-top';
-    toTop.setAttribute('aria-label', 'Επιστροφή στην αρχή της σελίδας');
+    toTop.setAttribute('aria-label', T('Επιστροφή στην αρχή της σελίδας', 'Back to the top of the page'));
     toTop.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
     document.body.appendChild(toTop);
     var placeTop = function () {
@@ -245,14 +247,15 @@
     });
   }
 
-  // 3. numbers: "3.000+" runs 0 → 3.000 and keeps its "+"; a year runs as a
-  // year. A screen reader is given the final figure only.
+  // 3. numbers: "3.000+" (in English "3,000+") runs 0 → 3.000 and keeps its
+  // "+" and its thousands mark; a year runs as a year. A screen reader is
+  // given the final figure only.
   $$('[data-count]').forEach(function (el) {
     var full = (el.textContent || '').replace(/\s+/g, ' ').trim();
-    var m = /^(\d{1,3}(?:\.\d{3})+|\d+)(.*)$/.exec(full);
+    var m = /^(\d{1,3}(?:([.,])\d{3})+|\d+)(.*)$/.exec(full);
     if (!m || !motionOK() || !('IntersectionObserver' in window) || !window.requestAnimationFrame) { el.classList.add('is-counting'); return; }
-    var target = parseInt(m[1].replace(/\./g, ''), 10), grouped = m[1].indexOf('.') !== -1, rest = m[2];
-    var fmt = function (v) { var s = String(v); return (grouped ? s.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : s) + rest; };
+    var mark = m[2] || '', target = parseInt(m[1].replace(/[.,]/g, ''), 10), rest = m[3];
+    var fmt = function (v) { var s = String(v); return (mark ? s.replace(/\B(?=(\d{3})+(?!\d))/g, mark) : s) + rest; };
     var sr = document.createElement('span'), shown = document.createElement('span');
     sr.className = 'sr-only';
     sr.textContent = full;
@@ -331,7 +334,7 @@
       copyText(text, function (ok) {
         if (btn._orig == null) btn._orig = btn.innerHTML;   // the label, recorded once
         clearTimeout(btn._t);                               // a second click replaces the pending reset
-        var msg = ok ? 'Αντιγράφηκε ✓' : 'Επιλέξτε και αντιγράψτε';
+        var msg = ok ? T('Αντιγράφηκε ✓', 'Copied ✓') : T('Επιλέξτε και αντιγράψτε', 'Select and copy');
         btn.textContent = msg;
         btn.classList.toggle('done', ok);
         announce(msg);
@@ -375,24 +378,27 @@
         var url = new URL(btn.getAttribute('href'), location.href).href;
         var other = kind === 'RSS' ? 'Atom' : 'RSS';
         var enc = encodeURIComponent(url);
-        feedPanel.setAttribute('aria-label', 'Η ροή ' + kind);
+        var copyLabel = T('Αντιγραφή<span class="sr-only"> της διεύθυνσης</span>', 'Copy<span class="sr-only"> the address</span>');
+        feedPanel.setAttribute('aria-label', T('Η ροή ', 'The ') + kind + T('', ' feed'));
         feedPanel.innerHTML =
-          '<h3 class="feed-help-h">Η ροή ' + kind + ' των ανακοινώσεων</h3>' +
-          '<p>Προσθέστε αυτή τη διεύθυνση στο πρόγραμμα ανάγνωσης ειδήσεων που χρησιμοποιείτε (Feedly, Inoreader, NetNewsWire, Thunderbird και άλλα). Κάθε νέα ανακοίνωση θα εμφανίζεται εκεί μόνη της. Το ' + kind + ' και το ' + other + ' έχουν τις ίδιες ανακοινώσεις· διαλέξτε όποιο δέχεται το πρόγραμμά σας.</p>' +
-          '<div class="feed-url"><code id="feed-url">' + escHtml(url) + '</code><button class="copy-btn" type="button" data-feed-copy>Αντιγραφή<span class="sr-only"> της διεύθυνσης</span></button></div>' +
+          '<h3 class="feed-help-h">' + T('Η ροή ' + kind + ' των ανακοινώσεων', 'The ' + kind + ' feed of the announcements') + '</h3>' +
+          '<p>' + T('Προσθέστε αυτή τη διεύθυνση στο πρόγραμμα ανάγνωσης ειδήσεων που χρησιμοποιείτε (Feedly, Inoreader, NetNewsWire, Thunderbird και άλλα). Κάθε νέα ανακοίνωση θα εμφανίζεται εκεί μόνη της. Το ' + kind + ' και το ' + other + ' έχουν τις ίδιες ανακοινώσεις· διαλέξτε όποιο δέχεται το πρόγραμμά σας.',
+            'Add this address to the news reader you use (Feedly, Inoreader, NetNewsWire, Thunderbird and others). Every new announcement will appear there by itself. ' + kind + ' and ' + other + ' carry the same announcements: choose whichever your reader accepts. The announcements are in Greek, as the Association publishes them.') + '</p>' +
+          '<div class="feed-url"><code id="feed-url">' + escHtml(url) + '</code><button class="copy-btn" type="button" data-feed-copy>' + copyLabel + '</button></div>' +
           '<div class="feed-acts">' +
-            '<a class="btn btn-outline btn-sm" href="https://feedly.com/i/subscription/feed%2F' + enc + '" target="_blank" rel="noopener">Προσθήκη στο Feedly</a>' +
-            '<a class="btn btn-outline btn-sm" href="https://www.inoreader.com/?add_feed=' + enc + '" target="_blank" rel="noopener">Προσθήκη στο Inoreader</a>' +
-            '<a class="btn btn-outline btn-sm" href="' + escHtml(btn.getAttribute('href')) + '" type="' + escHtml(btn.getAttribute('type') || '') + '">Το αρχείο ' + kind + '</a>' +
+            '<a class="btn btn-outline btn-sm" href="https://feedly.com/i/subscription/feed%2F' + enc + '" target="_blank" rel="noopener">' + T('Προσθήκη στο Feedly', 'Add to Feedly') + '</a>' +
+            '<a class="btn btn-outline btn-sm" href="https://www.inoreader.com/?add_feed=' + enc + '" target="_blank" rel="noopener">' + T('Προσθήκη στο Inoreader', 'Add to Inoreader') + '</a>' +
+            '<a class="btn btn-outline btn-sm" href="' + escHtml(btn.getAttribute('href')) + '" type="' + escHtml(btn.getAttribute('type') || '') + '">' + T('Το αρχείο ' + kind, 'The ' + kind + ' file') + '</a>' +
           '</div>' +
-          (mailLink ? '<p class="muted">Δεν χρησιμοποιείτε τέτοιο πρόγραμμα; Οι <a href="' + escHtml(mailLink.getAttribute('href')) + '">ειδοποιήσεις με e-mail</a> είναι πιο απλές.</p>' : '');
+          (mailLink ? '<p class="muted">' + T('Δεν χρησιμοποιείτε τέτοιο πρόγραμμα; Οι <a href="' + escHtml(mailLink.getAttribute('href')) + '">ειδοποιήσεις με e-mail</a> είναι πιο απλές.',
+            'Not using such a reader? The <a href="' + escHtml(mailLink.getAttribute('href')) + '">e-mail alerts</a> are simpler.') + '</p>' : '');
         var copy = $('[data-feed-copy]', feedPanel);
         copy.addEventListener('click', function () {
           copyText(url, function (ok) {
             clearTimeout(copy._t);
-            var msg = ok ? 'Αντιγράφηκε ✓' : 'Επιλέξτε και αντιγράψτε';
+            var msg = ok ? T('Αντιγράφηκε ✓', 'Copied ✓') : T('Επιλέξτε και αντιγράψτε', 'Select and copy');
             copy.textContent = msg; copy.classList.toggle('done', ok); announce(msg);
-            copy._t = setTimeout(function () { copy.innerHTML = 'Αντιγραφή<span class="sr-only"> της διεύθυνσης</span>'; copy.classList.remove('done'); }, 2200);
+            copy._t = setTimeout(function () { copy.innerHTML = copyLabel; copy.classList.remove('done'); }, 2200);
           });
         });
         feedBtns.forEach(function (b) { b.setAttribute('aria-expanded', b === btn ? 'true' : 'false'); });
@@ -421,7 +427,7 @@
           card.hidden = !!cat && card.getAttribute('data-cat') !== cat;
           if (!card.hidden) shown++;
         });
-        if (count) count.textContent = shown + (shown === 1 ? ' ανακοίνωση' : ' ανακοινώσεις');
+        if (count) count.textContent = shown + (shown === 1 ? T(' ανακοίνωση', ' announcement') : T(' ανακοινώσεις', ' announcements'));
       });
     });
     // blog/?cat=Εκδηλώσεις opens on that category (the old site's category
@@ -441,8 +447,8 @@
     items.forEach(function (a, i) {
       // a distinct accessible name for each photo link
       var im = a.querySelector('img');
-      var base = (im && im.alt) || a.getAttribute('data-caption') || 'Φωτογραφία';
-      a.setAttribute('aria-label', base + ' (φωτογραφία ' + (i + 1) + ' από ' + items.length + ')');
+      var base = (im && im.alt) || a.getAttribute('data-caption') || T('Φωτογραφία', 'Photo');
+      a.setAttribute('aria-label', base + T(' (φωτογραφία ', ' (photo ') + (i + 1) + T(' από ', ' of ') + items.length + ')');
       a.addEventListener('click', function (e) {
         if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return; // let "open in new tab" work
         e.preventDefault();
@@ -457,12 +463,12 @@
     box.className = 'lightbox';
     box.setAttribute('role', 'dialog');
     box.setAttribute('aria-modal', 'true');
-    box.setAttribute('aria-label', 'Φωτογραφία');
+    box.setAttribute('aria-label', T('Φωτογραφία', 'Photo'));
     box.innerHTML = '<div class="lb-stage"><img alt=""></div><div class="lb-cap" aria-live="polite"></div>' +
       '<span class="lb-count" aria-live="polite"></span>' +
-      '<button type="button" class="lb-prev" aria-label="Προηγούμενη φωτογραφία">' + ICON_L + '</button>' +
-      '<button type="button" class="lb-next" aria-label="Επόμενη φωτογραφία">' + ICON_R + '</button>' +
-      '<button type="button" class="lb-close" aria-label="Κλείσιμο">' + ICON_X + '</button>';
+      '<button type="button" class="lb-prev" aria-label="' + T('Προηγούμενη φωτογραφία', 'Previous photo') + '">' + ICON_L + '</button>' +
+      '<button type="button" class="lb-next" aria-label="' + T('Επόμενη φωτογραφία', 'Next photo') + '">' + ICON_R + '</button>' +
+      '<button type="button" class="lb-close" aria-label="' + T('Κλείσιμο', 'Close') + '">' + ICON_X + '</button>';
     document.body.appendChild(box);
     lockScroll();
     var img = $('img', box), cap = $('.lb-cap', box), count = $('.lb-count', box);

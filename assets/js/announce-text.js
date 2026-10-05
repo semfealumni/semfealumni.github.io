@@ -48,9 +48,9 @@
   var CATEGORIES = ['Ανακοινώσεις', 'Εκδηλώσεις'];
   // how wide a picture is shown in the text; "full" is the width of the text column
   var SIZES = {
-    full: { label: 'Πλήρες πλάτος', attr: '' },
-    medium: { label: 'Μεσαίο', attr: ' style="max-width:600px;width:100%"' },
-    small: { label: 'Μικρό', attr: ' style="max-width:360px;width:100%"' }
+    full: { label: 'Πλήρες πλάτος', labelEn: 'Full width', attr: '' },
+    medium: { label: 'Μεσαίο', labelEn: 'Medium', attr: ' style="max-width:600px;width:100%"' },
+    small: { label: 'Μικρό', labelEn: 'Small', attr: ' style="max-width:360px;width:100%"' }
   };
 
   function AnnounceError(code, detail) {

@@ -235,8 +235,10 @@ for (const dir of ['pages', 'posts']) {
     catch (e) { t('tools/build.mjs builds the site with them', false, '  ' + String(e.stderr || e.message).split('\n').slice(0, 4).join('\n  ')); }
     const generated = [];
     (function walk(d) { for (const f of readdirSync(d, { withFileTypes: true })) { const full = path.join(d, f.name); if (f.isDirectory()) { if (!['tools', '_src', 'assets'].includes(f.name)) walk(full); } else if (/\.(html|xml|json)$/.test(f.name)) generated.push(full); } })(dir);
-    const posts = generated.filter(f => /blog[\\/]2026[\\/]11[\\/]/.test(f));
-    t(`${posts.length} announcement pages were written`, posts.length === wrote);
+    // each announcement has its page and its English page (en/blog/…, the site in English around the same text)
+    const posts = generated.filter(f => /blog[\\/]2026[\\/]11[\\/]/.test(f) && !/[\\/]en[\\/]blog[\\/]/.test(f));
+    const postsEn = generated.filter(f => /[\\/]en[\\/]blog[\\/]2026[\\/]11[\\/]/.test(f));
+    t(`${posts.length} announcement pages were written, and ${postsEn.length} English ones`, posts.length === wrote && postsEn.length === wrote);
     let leaks = '';
     for (const f of generated) {
       const text = readFileSync(f, 'utf8').replace(/<script[\s\S]*?<\/script>/gi, '');
@@ -244,7 +246,7 @@ for (const dir of ['pages', 'posts']) {
       if (/<!--\s*\/?if:/i.test(text)) leaks += `\n  ${path.relative(dir, f)}: a condition was left`;
       if (/[￾￿]/.test(text)) leaks += `\n  ${path.relative(dir, f)}: U+FFFE or U+FFFF`;
     }
-    for (const f of posts) if (/<script\b[^>]*>alert|onerror=|javascript:/i.test(readFileSync(f, 'utf8'))) leaks += `\n  ${path.relative(dir, f)}: script, handler or javascript: link`;
+    for (const f of posts.concat(postsEn)) if (/<script\b[^>]*>alert|onerror=|javascript:/i.test(readFileSync(f, 'utf8'))) leaks += `\n  ${path.relative(dir, f)}: script, handler or javascript: link`;
     t('no {{placeholder}}, condition, script or invalid character in any page or feed' , leaks === '', leaks);
     t('the bomb ![{*{posts}*}…] did not grow the pages (every post page stays small)', posts.every(f => readFileSync(f).length < 60000), posts.map(f => readFileSync(f).length).join(' '));
     for (const f of ['feed.xml', 'rss.xml']) {
@@ -256,7 +258,7 @@ for (const dir of ['pages', 'posts']) {
     const gone = path.join(dir, short.path);
     rmSync(gone);
     execFileSync(process.execPath, ['tools/build.mjs'], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
-    t('deleting an announcement\'s source file removes its page too', !existsSync(path.join(dir, 'blog/2026/11/30')), posts.filter(f => /11[\\/]30/.test(f)).join());
+    t('deleting an announcement\'s source file removes its page too, and its English page', !existsSync(path.join(dir, 'blog/2026/11/30')) && !existsSync(path.join(dir, 'en/blog/2026/11/30')), posts.filter(f => /11[\\/]30/.test(f)).join());
     const chk = execFileSync(process.execPath, ['tools/build.mjs', '--check'], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
     t('and the build is up to date afterwards (--check)', /match _src/.test(chk), chk);
   } finally { rmSync(dir, { recursive: true, force: true }); }

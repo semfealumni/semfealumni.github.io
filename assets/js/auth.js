@@ -32,11 +32,24 @@
  *   link(key)             Promise: link another provider to this account
  *   reauth(user)          Promise: re-prove identity (before deleting)
  *   callFunction(name, body)  Promise<json>: one of the site's Cloud Functions, as the signed-in person
- *   friendly(err)         Greek message for a Firebase error
- *   root                  relative path back to the site root
+ *   friendly(err, lang?)  message for a Firebase error, in the page's language, or in
+ *                         lang ('el' | 'en'): the Greek-only LinkedIn return page
+ *                         answers in the language the sign-in began in (so do
+ *                         mergeSummary(report, lang?), methodsText(extra, except, lang?)
+ *                         and safeReturn(url, lang?))
+ *   root                  relative path back to the site root: for FILES, and for a
+ *                         page with no English copy (auth/linkedin/)
+ *   home                  the root for PAGES: root on a Greek page, root + 'en/' on an
+ *                         English one (SEMFE_I18N.home); every link to a page uses it
+ *
+ * Every message is written in both languages side by side, T(greek, english)
+ * (assets/js/i18n.js, which loads before this file). linkedinStart() saves the
+ * page's language with its state (sessionStorage 'semfe:li', key lang), so
+ * auth/linkedin/ can answer in it and send the member back to pages in it.
  */
 (function () {
   'use strict';
+  var L = window.SEMFE_I18N, T = L.t;
   var C = window.SEMFE || {};
   var U = window.SEMFE_UTIL || {};
   var FB = C.FIREBASE || {};
@@ -51,6 +64,20 @@
     var l = $('link[href$="assets/css/site.css"]');
     return l ? l.getAttribute('href').replace(/assets\/css\/site\.css$/, '') : './';
   })();
+  /* the page's language (SEMFE_I18N), or the other one when a caller names it:
+     auth/linkedin/ exists only in Greek and speaks the language the sign-in
+     began in. The same t(), orList() and home as SEMFE_I18N. */
+  function speak(lang) {
+    if ((lang !== 'el' && lang !== 'en') || lang === L.lang) return L;
+    var en = lang === 'en';
+    return { lang: lang, en: en, home: root + (en ? 'en/' : ''),
+      t: function (el, eng) { return en ? eng : el; },
+      orList: function (names) {
+        return names.length < 2 ? (names[0] || '') : names.slice(0, -1).join(', ') + (en ? ' or ' : ' ή ') + names[names.length - 1];
+      } };
+  }
+  /* an English sentence starts with a capital ("This sign-in method was…") */
+  function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
 
   /* ---- provider buttons -------------------------------------------------- */
   var ICONS = {
@@ -77,12 +104,13 @@
   var enabled = (C.AUTH_PROVIDERS || []).filter(function (k) { return PROVIDERS[k] && (k !== 'linkedin' || liReady || !configured); });
   /* "Google ή LinkedIn" (with extra: "Google, LinkedIn ή e-mail"; except
      leaves one button out): the buttons above, for every sentence that names
-     them. Never type the list by hand (tools/check.mjs fails on one);
-     tools/build.mjs writes the same list into the static pages. */
-  function methodsText(extra, except) {
+     them, in the page's language ("Google, LinkedIn or e-mail" on an English
+     page) or in lang. Never type the list by hand (tools/check.mjs fails on
+     one); tools/build.mjs writes the same list into the static pages. */
+  function methodsText(extra, except, lang) {
     var n = enabled.filter(function (k) { return k !== except; }).map(function (k) { return PROVIDERS[k].name; });
     if (extra) n.push(extra);
-    return n.length < 2 ? (n[0] || '') : n.slice(0, -1).join(', ') + ' ή ' + n[n.length - 1];
+    return speak(lang).orList(n);
   }
   function keyForProviderId(id) {
     if (id === 'password') return 'password';
@@ -95,7 +123,8 @@
   var listeners = [], pendingLink = null, dialog = null, lastFocus = null, lastFocusSel = '', mode = 'signin';
   var signingOut = false, sdkFailed = false;
   var SIGNOUT_KEY = 'semfe:signout';          // "Αποσύνδεση" pressed; auth.signOut() not confirmed yet
-  var FAIL_MSG = 'Δεν ήταν δυνατή η φόρτωση της υπηρεσίας σύνδεσης. Ελέγξτε τη σύνδεσή σας στο διαδίκτυο και ανανεώστε τη σελίδα.';
+  var FAIL_MSG = T('Δεν ήταν δυνατή η φόρτωση της υπηρεσίας σύνδεσης. Ελέγξτε τη σύνδεσή σας στο διαδίκτυο και ανανεώστε τη σελίδα.',
+    'The sign-in service could not be loaded. Check your internet connection and reload the page.');
 
   /* ---- loading the SDK --------------------------------------------------- */
   function loadScript(src) {
@@ -116,7 +145,7 @@
       .then(function () {
         if (!firebase.apps.length) firebase.initializeApp(FB);
         auth = firebase.auth();
-        auth.languageCode = 'el';          // Greek e-mails and Google consent screen
+        auth.languageCode = L.lang;        // Firebase's e-mails and Google's consent screen in the page's language
         sdkReady = true;
         setBusy(false);
         auth.onAuthStateChanged(function (u) {
@@ -203,7 +232,7 @@
     return loadSdk().then(function () {
       if (!otherApp) otherApp = firebase.initializeApp(FB, 'semfe-merge');
       var a = otherApp.auth();
-      a.languageCode = 'el';
+      a.languageCode = L.lang;
       return a.setPersistence(firebase.auth.Auth.Persistence.NONE).then(function () { return a; });
     });
   }
@@ -222,8 +251,9 @@
       if (current && other.uid === current.uid) throw { code: 'semfe/same-account' };
       // the chooser may have signed in to an account the person did not mean:
       // say which one will be merged away, and let them stop
-      var who = other.email || other.displayName || 'τον άλλο λογαριασμό';
-      if (!window.confirm('Ο λογαριασμός ' + who + ' θα ενωθεί σε αυτόν και μετά θα διαγραφεί: η αίτηση μέλους και οι τρόποι σύνδεσής του έρχονται εδώ.\n\nΣυνέχεια;')) throw { code: 'semfe/merge-cancelled' };
+      var name = other.email || other.displayName || '';
+      if (!window.confirm(T('Ο λογαριασμός ' + (name || 'τον άλλο λογαριασμό') + ' θα ενωθεί σε αυτόν και μετά θα διαγραφεί: η αίτηση μέλους και οι τρόποι σύνδεσής του έρχονται εδώ.\n\nΣυνέχεια;',
+        (name ? 'The account ' + name : 'The other account') + ' will be merged into this one and then deleted: its membership application and its sign-in methods move here.\n\nContinue?'))) throw { code: 'semfe/merge-cancelled' };
       return other.getIdToken(true).then(function (tok) { return callAccounts({ action: 'mergeSelf', otherIdToken: tok }); });
     }).then(function (j) {
       return (a ? a.signOut() : Promise.resolve()).catch(function () {}).then(function () {
@@ -236,21 +266,25 @@
     });
   }
   /* one sentence on what a merge did (the server's report) */
-  function mergeSummary(r) {
+  function mergeSummary(r, lang) {
+    var T = speak(lang).t;
     r = r || {};
     if (r.partial) {
       var back = (r.notMoved || []).filter(function (x) { return /^link-failed/.test(x.why); })
         .map(function (x) { return PROVIDERS[x.method] ? PROVIDERS[x.method].name : x.method; });
-      return 'Η ένωση έγινε μόνο εν μέρει: ' + (back.join(' και ') || 'ένας τρόπος σύνδεσης') +
-        ' δεν μπόρεσε να μεταφερθεί, οπότε ο άλλος λογαριασμός κρατήθηκε για να μη χαθεί. Δοκιμάστε ξανά σε λίγο ή γράψτε μας.';
+      return T('Η ένωση έγινε μόνο εν μέρει: ' + (back.join(' και ') || 'ένας τρόπος σύνδεσης') +
+        ' δεν μπόρεσε να μεταφερθεί, οπότε ο άλλος λογαριασμός κρατήθηκε για να μη χαθεί. Δοκιμάστε ξανά σε λίγο ή γράψτε μας.',
+        'The merge was only partly done: ' + (back.join(' and ') || 'one sign-in method') +
+        ' could not be moved, so the other account was kept and nothing is lost. Please try again shortly or write to us.');
     }
-    var s = 'Οι δύο λογαριασμοί ενώθηκαν σε αυτόν.';
-    if (r.application === 'moved') s += ' Η αίτηση μέλους του άλλου λογαριασμού μεταφέρθηκε εδώ.';
-    else if (r.application === 'merged') s += ' Οι δύο αιτήσεις μέλους έγιναν μία.';
+    var s = T('Οι δύο λογαριασμοί ενώθηκαν σε αυτόν.', 'The two accounts have been merged into this one.');
+    if (r.application === 'moved') s += T(' Η αίτηση μέλους του άλλου λογαριασμού μεταφέρθηκε εδώ.', ' The other account\'s membership application has been moved here.');
+    else if (r.application === 'merged') s += T(' Οι δύο αιτήσεις μέλους έγιναν μία.', ' The two membership applications have become one.');
     var moved = (r.moved || []).map(function (k) { return PROVIDERS[k] ? PROVIDERS[k].name : k; });
-    if (moved.length) s += ' Μπαίνετε πλέον εδώ και με ' + moved.join(' και ') + '.';
+    if (moved.length) s += T(' Μπαίνετε πλέον εδώ και με ' + moved.join(' και ') + '.', ' You can now also sign in here with ' + moved.join(' and ') + '.');
     if ((r.notMoved || []).some(function (x) { return x.method === 'password'; }))
-      s += ' Ο κωδικός του άλλου λογαριασμού δεν μεταφέρεται· αν θέλετε, ορίστε κωδικό εδώ, στους «Τρόπους σύνδεσης».';
+      s += T(' Ο κωδικός του άλλου λογαριασμού δεν μεταφέρεται· αν θέλετε, ορίστε κωδικό εδώ, στους «Τρόπους σύνδεσης».',
+        ' The other account\'s password does not move over; if you wish, set a password here, under Sign-in methods.');
     return s;
   }
 
@@ -277,7 +311,7 @@
   function clearHint() { try { localStorage.removeItem(HINT_KEY); } catch (e) {} }
   function displayName(u) {
     if (!u) return '';
-    return u.displayName || (u.email ? u.email.split('@')[0] : 'Λογαριασμός');
+    return u.displayName || (u.email ? u.email.split('@')[0] : T('Λογαριασμός', 'Account'));
   }
   function initials(name) {
     var parts = String(name || '?').trim().split(/\s+/);
@@ -300,31 +334,32 @@
   function paintSlot(slot) {
     var u = current, h = !authKnown && configured ? hint() : null;
     if (!u && !h) {
-      slot.innerHTML = '<a class="btn btn-primary btn-sm acct-signin" href="' + root + 'account/" data-signin>Σύνδεση</a>';
+      slot.innerHTML = '<a class="btn btn-primary btn-sm acct-signin" href="' + L.home + 'account/" data-signin>' + T('Σύνδεση', 'Sign in') + '</a>';
       $('[data-signin]', slot).addEventListener('click', function (e) { e.preventDefault(); open('signin', e.currentTarget); });
       return;
     }
     var name = u ? displayName(u) : h.n, photo = u ? (u.photoURL || '') : h.p, email = u ? (u.email || '') : h.e;
     var admin = u && isAdmin(u), info = u ? menuInfo(u.uid) : {};
     var count = function (n, cls) { return n ? '<span class="count' + (cls ? ' ' + cls : '') + '">' + esc(n) + '</span>' : ''; };
-    var APP = { pending: ['Σε αναμονή', 'warn'], active: ['Ενεργή', 'ok'], rejected: ['Δεν εγκρίθηκε', 'err'] }, app = APP[info.app];
+    var APP = { pending: [T('Σε αναμονή', 'Pending'), 'warn'], active: [T('Ενεργή', 'Active'), 'ok'], rejected: [T('Δεν εγκρίθηκε', 'Not approved'), 'err'] }, app = APP[info.app];
+    var home = L.home;
     slot.innerHTML = '<div class="acct-menu-wrap">' +
       '<button type="button" class="acct-chip" aria-expanded="false" aria-controls="acct-menu">' +
       avatarHtml(name, photo) + '<span class="nm">' + esc(name) + '</span>' +
       '<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>' +
       '<div class="acct-menu" id="acct-menu" hidden>' +
-      '<div class="who"><small>Συνδεδεμένος/η ως</small><strong>' + esc(name) + '</strong>' + (email ? '<span>' + esc(email) + '</span>' : '') + '</div>' +
-      (admin ? '<a href="' + root + 'admin/">' + svg('shield') + '<span>Διαχείριση</span>' + count(info.pending, 'warn') + '</a>' : '') +
-      '<a href="' + root + 'account/" class="strong">' + svg('user') + '<span>Ο λογαριασμός μου</span></a>' +
-      '<a href="' + root + 'account/#apply">' + svg('doc') + '<span>Η αίτηση μέλους μου</span>' + (app ? count(app[0], app[1]) : '') + '</a>' +
-      '<a href="' + root + 'account/#alerts">' + svg('mail') + '<span>Ειδοποιήσεις με e-mail</span></a>' +
-      '<a href="' + root + 'members/">' + svg('users') + '<span>Περιοχή μελών</span></a>' +
-      '<a href="' + root + 'account/#methods">' + svg('key') + '<span>Τρόποι σύνδεσης</span>' + (info.methods === 1 ? count('Προσθήκη', 'warn') : '') + '</a>' +
-      '<a href="' + root + 'feedback/">' + svg('chat') + '<span>Σχόλια και προβλήματα</span></a>' +
-      (admin ? '<a href="' + root + 'admin/#feedback">' + svg('chat') + '<span>Σχόλια μελών</span>' + count(info.fbOpen, 'warn') + '</a>' : '') +
-      (admin ? '<a href="' + root + 'whats-new/">' + svg('news') + '<span>Τι νέο: έγκριση</span>' + count(info.newsPending, 'warn') + '</a>' : '') +
+      '<div class="who"><small>' + T('Συνδεδεμένος/η ως', 'Signed in as') + '</small><strong>' + esc(name) + '</strong>' + (email ? '<span>' + esc(email) + '</span>' : '') + '</div>' +
+      (admin ? '<a href="' + home + 'admin/">' + svg('shield') + '<span>' + T('Διαχείριση', 'Administration') + '</span>' + count(info.pending, 'warn') + '</a>' : '') +
+      '<a href="' + home + 'account/" class="strong">' + svg('user') + '<span>' + T('Ο λογαριασμός μου', 'My account') + '</span></a>' +
+      '<a href="' + home + 'account/#apply">' + svg('doc') + '<span>' + T('Η αίτηση μέλους μου', 'My membership application') + '</span>' + (app ? count(app[0], app[1]) : '') + '</a>' +
+      '<a href="' + home + 'account/#alerts">' + svg('mail') + '<span>' + T('Ειδοποιήσεις με e-mail', 'E-mail alerts') + '</span></a>' +
+      '<a href="' + home + 'members/">' + svg('users') + '<span>' + T('Περιοχή μελών', "Members' area") + '</span></a>' +
+      '<a href="' + home + 'account/#methods">' + svg('key') + '<span>' + T('Τρόποι σύνδεσης', 'Sign-in methods') + '</span>' + (info.methods === 1 ? count(T('Προσθήκη', 'Add'), 'warn') : '') + '</a>' +
+      '<a href="' + home + 'feedback/">' + svg('chat') + '<span>' + T('Σχόλια και προβλήματα', 'Feedback and problems') + '</span></a>' +
+      (admin ? '<a href="' + home + 'admin/#feedback">' + svg('chat') + '<span>' + T('Σχόλια μελών', "Members' feedback") + '</span>' + count(info.fbOpen, 'warn') + '</a>' : '') +
+      (admin ? '<a href="' + home + 'whats-new/">' + svg('news') + '<span>' + T('Τι νέο: έγκριση', "What's new: approval") + '</span>' + count(info.newsPending, 'warn') + '</a>' : '') +
       '<hr>' +
-      '<button type="button" data-signout class="out">' + svg('out') + '<span>Αποσύνδεση</span></button>' +
+      '<button type="button" data-signout class="out">' + svg('out') + '<span>' + T('Αποσύνδεση', 'Sign out') + '</span></button>' +
       '</div></div>';
     var chip = $('.acct-chip', slot);
     chip.addEventListener('click', function (e) { e.stopPropagation(); setMenu($('#acct-menu').hidden); });
@@ -372,34 +407,42 @@
     var wrap = document.createElement('div');
     wrap.className = 'modal-backdrop';
     wrap.hidden = true;
+    var formA = '<a href="' + esc(C.legacyApplyFormUrl || '#') + '" target="_blank" rel="noopener">';
+    var privacyA = '<a href="' + L.home + 'privacy/">';
     wrap.innerHTML =
       '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">' +
-      '<button type="button" class="modal-x" data-close aria-label="Κλείσιμο"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
-      '<div class="modal-head"><h2 id="auth-title">Σύνδεση</h2><p id="auth-sub">Για τα μέλη και τους φίλους του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ.</p></div>' +
+      '<button type="button" class="modal-x" data-close aria-label="' + T('Κλείσιμο', 'Close') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
+      '<div class="modal-head"><h2 id="auth-title">' + T('Σύνδεση', 'Sign in') + '</h2><p id="auth-sub">' + T('Για τα μέλη και τους φίλους του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ.', 'For the members and friends of the Association of SEMFE NTUA Graduates.') + '</p></div>' +
       '<div class="modal-body">' +
-      '<div class="tabs2" role="group" aria-label="Σύνδεση ή εγγραφή">' +
-      '<button type="button" id="tab-signin" aria-pressed="true" data-mode="signin">Σύνδεση</button>' +
-      '<button type="button" id="tab-register" aria-pressed="false" data-mode="register">Εγγραφή</button></div>' +
-      (configured ? '' : '<div class="notice warn" data-offline><strong>Η σύνδεση μελών ανοίγει σύντομα</strong><p>Μέχρι τότε, μπορείτε να κάνετε αίτηση μέλους μέσω της <a href="' + esc(C.legacyApplyFormUrl || '#') + '" target="_blank" rel="noopener">ηλεκτρονικής φόρμας</a>.</p></div>') +
-      (INAPP ? '<div class="notice warn" data-inapp><strong>Ανοίξτε τη σελίδα στον browser σας</strong><p>Φαίνεται ότι η σελίδα άνοιξε μέσα σε εφαρμογή (π.χ. Facebook, Instagram ή LinkedIn), όπου η σύνδεση με Google δεν επιτρέπεται. Από το μενού της εφαρμογής (⋯) επιλέξτε «Άνοιγμα σε browser» (Safari ή Chrome).</p><p><button type="button" class="copy-btn" data-copy-url>Αντιγραφή συνδέσμου</button></p></div>' : '') +
+      '<div class="tabs2" role="group" aria-label="' + T('Σύνδεση ή εγγραφή', 'Sign in or register') + '">' +
+      '<button type="button" id="tab-signin" aria-pressed="true" data-mode="signin">' + T('Σύνδεση', 'Sign in') + '</button>' +
+      '<button type="button" id="tab-register" aria-pressed="false" data-mode="register">' + T('Εγγραφή', 'Register') + '</button></div>' +
+      (configured ? '' : '<div class="notice warn" data-offline>' +
+        T('<strong>Η σύνδεση μελών ανοίγει σύντομα</strong><p>Μέχρι τότε, μπορείτε να κάνετε αίτηση μέλους μέσω της ' + formA + 'ηλεκτρονικής φόρμας</a>.</p>',
+          '<strong>Member sign-in opens soon</strong><p>Until then, you can apply for membership through the ' + formA + 'online form</a>.</p>') + '</div>') +
+      (INAPP ? '<div class="notice warn" data-inapp>' +
+        T('<strong>Ανοίξτε τη σελίδα στον browser σας</strong><p>Φαίνεται ότι η σελίδα άνοιξε μέσα σε εφαρμογή (π.χ. Facebook, Instagram ή LinkedIn), όπου η σύνδεση με Google δεν επιτρέπεται. Από το μενού της εφαρμογής (⋯) επιλέξτε «Άνοιγμα σε browser» (Safari ή Chrome).</p>',
+          '<strong>Open the page in your browser</strong><p>It looks like the page opened inside an app (e.g. Facebook, Instagram or LinkedIn), where signing in with Google is not allowed. From the app\'s menu (⋯) choose “Open in browser” (Safari or Chrome).</p>') +
+        '<p><button type="button" class="copy-btn" data-copy-url>' + T('Αντιγραφή συνδέσμου', 'Copy link') + '</button></p></div>' : '') +
       '<div class="notice" data-link-notice hidden></div>' +
       '<div class="providers">' + enabled.map(function (k) {
         var p = PROVIDERS[k];
-        return '<button type="button" class="prov ' + p.cls + '" data-provider="' + k + '"' + (configured ? '' : ' disabled') + '>' + ICONS[k] + '<span>Συνέχεια με ' + p.name + '</span></button>';
+        return '<button type="button" class="prov ' + p.cls + '" data-provider="' + k + '"' + (configured ? '' : ' disabled') + '>' + ICONS[k] + '<span>' + T('Συνέχεια με ' + p.name, 'Continue with ' + p.name) + '</span></button>';
       }).join('') + '</div>' +
-      (enabled.length ? '<div class="or">ή με e-mail</div>' : '') +
+      (enabled.length ? '<div class="or">' + T('ή με e-mail', 'or with e-mail') + '</div>' : '') +
       '<form class="form" novalidate data-email-form>' +
       '<div class="row" data-reg-only hidden>' +
-      '<div class="field"><label for="auth-first">Όνομα</label><input id="auth-first" name="first" autocomplete="given-name" maxlength="80"></div>' +
-      '<div class="field"><label for="auth-last">Επώνυμο</label><input id="auth-last" name="last" autocomplete="family-name" maxlength="80"></div></div>' +
+      '<div class="field"><label for="auth-first">' + T('Όνομα', 'First name') + '</label><input id="auth-first" name="first" autocomplete="given-name" maxlength="80"></div>' +
+      '<div class="field"><label for="auth-last">' + T('Επώνυμο', 'Last name') + '</label><input id="auth-last" name="last" autocomplete="family-name" maxlength="80"></div></div>' +
       '<div class="field"><label for="auth-email">E-mail</label><input id="auth-email" name="email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="200"></div>' +
-      '<div class="field"><label for="auth-pass">Κωδικός</label><div class="pw-wrap"><input id="auth-pass" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128"><button type="button" class="pw-toggle" data-pw aria-pressed="false">Εμφάνιση</button></div>' +
-      '<span class="hint" id="auth-pass-hint" data-reg-only hidden>Τουλάχιστον 8 χαρακτήρες.</span></div>' +
+      '<div class="field"><label for="auth-pass">' + T('Κωδικός', 'Password') + '</label><div class="pw-wrap"><input id="auth-pass" name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128"><button type="button" class="pw-toggle" data-pw aria-pressed="false">' + T('Εμφάνιση', 'Show') + '</button></div>' +
+      '<span class="hint" id="auth-pass-hint" data-reg-only hidden>' + T('Τουλάχιστον 8 χαρακτήρες.', 'At least 8 characters.') + '</span></div>' +
       '<div class="form-error" role="alert" id="auth-status" data-status></div>' +
-      '<button type="submit" class="btn btn-dark btn-block" data-submit' + (configured ? '' : ' disabled') + '>Σύνδεση</button>' +
-      '<div style="text-align:center" data-signin-only><button type="button" class="link-btn" data-forgot>Ξεχάσατε τον κωδικό;</button></div>' +
+      '<button type="submit" class="btn btn-dark btn-block" data-submit' + (configured ? '' : ' disabled') + '>' + T('Σύνδεση', 'Sign in') + '</button>' +
+      '<div style="text-align:center" data-signin-only><button type="button" class="link-btn" data-forgot>' + T('Ξεχάσατε τον κωδικό;', 'Forgot your password?') + '</button></div>' +
       '</form>' +
-      '<p class="small" style="margin:0">Συνεχίζοντας, αποδέχεστε την <a href="' + root + 'privacy/">Πολιτική απορρήτου</a> του Συλλόγου. Από τον πάροχο που επιλέγετε λαμβάνουμε μόνο το όνομα, το e-mail και τη φωτογραφία σας.</p>' +
+      '<p class="small" style="margin:0">' + T('Συνεχίζοντας, αποδέχεστε την ' + privacyA + 'Πολιτική απορρήτου</a> του Συλλόγου. Από τον πάροχο που επιλέγετε λαμβάνουμε μόνο το όνομα, το e-mail και τη φωτογραφία σας.',
+        'By continuing, you accept the Association\'s ' + privacyA + 'Privacy policy</a>. From the provider you choose we receive only your name, e-mail address and photo.') + '</p>' +
       '</div></div>';
     document.body.appendChild(wrap);
 
@@ -421,34 +464,34 @@
     $('[data-pw]', wrap).addEventListener('click', function () {
       var inp = $('#auth-pass'), show = inp.type === 'password';
       inp.type = show ? 'text' : 'password';
-      this.textContent = show ? 'Απόκρυψη' : 'Εμφάνιση';
+      this.textContent = show ? T('Απόκρυψη', 'Hide') : T('Εμφάνιση', 'Show');
       this.setAttribute('aria-pressed', show ? 'true' : 'false');
     });
     var cu = $('[data-copy-url]', wrap);
     if (cu) cu.addEventListener('click', function () {
-      U.copyText(location.href, function (ok) { cu.textContent = ok ? 'Αντιγράφηκε ✓' : location.href; });
+      U.copyText(location.href, function (ok) { cu.textContent = ok ? T('Αντιγράφηκε ✓', 'Copied ✓') : location.href; });
     });
     return wrap;
   }
   function setMode(m) {
     mode = m === 'register' ? 'register' : 'signin';
     var reg = mode === 'register';
-    $('#auth-title').textContent = reg ? 'Νέος λογαριασμός' : 'Σύνδεση';
+    $('#auth-title').textContent = reg ? T('Νέος λογαριασμός', 'New account') : T('Σύνδεση', 'Sign in');
     $('#auth-sub').textContent = reg
-      ? 'Δημιουργήστε λογαριασμό για να κάνετε αίτηση μέλους και να μπείτε στην περιοχή μελών.'
-      : 'Για τα μέλη και τους φίλους του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ.';
+      ? T('Δημιουργήστε λογαριασμό για να κάνετε αίτηση μέλους και να μπείτε στην περιοχή μελών.', "Create an account to apply for membership and to enter the members' area.")
+      : T('Για τα μέλη και τους φίλους του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ.', 'For the members and friends of the Association of SEMFE NTUA Graduates.');
     $('#tab-signin').setAttribute('aria-pressed', reg ? 'false' : 'true');
     $('#tab-register').setAttribute('aria-pressed', reg ? 'true' : 'false');
     describe($('#auth-pass'), reg ? 'auth-pass-hint' : '');
     $$('[data-reg-only]', dialog).forEach(function (el) { el.hidden = !reg; });
     $$('[data-signin-only]', dialog).forEach(function (el) { el.hidden = reg; });
     $('#auth-pass').setAttribute('autocomplete', reg ? 'new-password' : 'current-password');
-    $('[data-submit]', dialog).textContent = reg ? 'Δημιουργία λογαριασμού' : 'Σύνδεση';
-    $$('[data-provider] span', dialog).forEach(function (s, i) { s.textContent = 'Συνέχεια με ' + PROVIDERS[enabled[i]].name; });
+    $('[data-submit]', dialog).textContent = reg ? T('Δημιουργία λογαριασμού', 'Create account') : T('Σύνδεση', 'Sign in');
+    $$('[data-provider] span', dialog).forEach(function (s, i) { var nm = PROVIDERS[enabled[i]].name; s.textContent = T('Συνέχεια με ' + nm, 'Continue with ' + nm); });
     if (sdkFailed) showStatus(FAIL_MSG, 'err'); else showStatus('');
   }
   function open(m, trigger) {
-    if (current) { location.href = root + 'account/'; return; }
+    if (current) { location.href = L.home + 'account/'; return; }
     if (configured) loadSdk();
     if (!dialog) dialog = buildDialog();
     var ae = document.activeElement;             // Safari does not focus a clicked button: prefer the trigger
@@ -489,10 +532,10 @@
     var p = PROVIDERS[key];
     if (!p || !configured) return;
     if (key === 'linkedin' && LI_FUNCTION) { linkedinStart('signin', pendingLink ? pendingLink.name : ''); return; }
-    if (!sdkReady) { showStatus(sdkFailed ? FAIL_MSG : 'Μια στιγμή, φορτώνει η υπηρεσία σύνδεσης…'); loadSdk(); return; }
+    if (!sdkReady) { showStatus(sdkFailed ? FAIL_MSG : T('Μια στιγμή, φορτώνει η υπηρεσία σύνδεσης…', 'One moment, the sign-in service is loading…')); loadSdk(); return; }
     showStatus('');
     var label = btn && $('span', btn), old = label ? label.textContent : '';
-    if (btn) { btn.disabled = true; if (label) label.textContent = 'Άνοιγμα ' + p.name + '…'; }
+    if (btn) { btn.disabled = true; if (label) label.textContent = T('Άνοιγμα ' + p.name + '…', 'Opening ' + p.name + '…'); }
     var restore = function () { if (btn) { btn.disabled = false; if (label) label.textContent = old; } };
     // called synchronously from the click, so the browser lets the popup open
     auth.signInWithPopup(p.make()).then(function (res) { restore(); return afterSignIn(res); })
@@ -500,7 +543,7 @@
   }
   function emailSubmit() {
     if (!configured) return;
-    if (!sdkReady) { showStatus(sdkFailed ? FAIL_MSG : 'Μια στιγμή, φορτώνει η υπηρεσία σύνδεσης…'); loadSdk(); return; }
+    if (!sdkReady) { showStatus(sdkFailed ? FAIL_MSG : T('Μια στιγμή, φορτώνει η υπηρεσία σύνδεσης…', 'One moment, the sign-in service is loading…')); loadSdk(); return; }
     var email = $('#auth-email').value.trim(), pass = $('#auth-pass').value;
     var reg = mode === 'register';
     var first = reg ? $('#auth-first').value.trim() : '', last = reg ? $('#auth-last').value.trim() : '';
@@ -510,11 +553,11 @@
       describe(el, (el.id === 'auth-pass' && mode === 'register' ? 'auth-pass-hint ' : '') + 'auth-status');
       el.focus(); showStatus(msg);
     };
-    if (reg && !first) return bad('#auth-first', 'Γράψτε το όνομά σας.');
-    if (reg && !last) return bad('#auth-last', 'Γράψτε το επώνυμό σας.');
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bad('#auth-email', 'Γράψτε μια έγκυρη διεύθυνση e-mail.');
-    if (!pass) return bad('#auth-pass', 'Γράψτε τον κωδικό σας.');
-    if (reg && pass.length < 8) return bad('#auth-pass', 'Ο κωδικός χρειάζεται τουλάχιστον 8 χαρακτήρες.');
+    if (reg && !first) return bad('#auth-first', T('Γράψτε το όνομά σας.', 'Please enter your first name.'));
+    if (reg && !last) return bad('#auth-last', T('Γράψτε το επώνυμό σας.', 'Please enter your last name.'));
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return bad('#auth-email', T('Γράψτε μια έγκυρη διεύθυνση e-mail.', 'Please enter a valid e-mail address.'));
+    if (!pass) return bad('#auth-pass', T('Γράψτε τον κωδικό σας.', 'Please enter your password.'));
+    if (reg && pass.length < 8) return bad('#auth-pass', T('Ο κωδικός χρειάζεται τουλάχιστον 8 χαρακτήρες.', 'The password needs at least 8 characters.'));
     var submit = $('[data-submit]', dialog);
     submit.disabled = true;
     if (reg) registering = true;
@@ -522,9 +565,10 @@
       ? auth.createUserWithEmailAndPassword(email, pass).then(function (res) {
           return res.user.updateProfile({ displayName: (first + ' ' + last).trim() })
             .catch(function (e) {                // the account exists: say so, and go on without the name
-              flash('Ο λογαριασμός δημιουργήθηκε, αλλά το όνομα δεν αποθηκεύτηκε (' + friendly(e) + '). Συμπληρώστε το στην αίτηση μέλους.');
+              flash(T('Ο λογαριασμός δημιουργήθηκε, αλλά το όνομα δεν αποθηκεύτηκε (' + friendly(e) + '). Συμπληρώστε το στην αίτηση μέλους.',
+                'Your account was created, but the name was not saved (' + friendly(e) + '). Please fill it in on the membership application.'));
             })
-            .then(function () { return res.user.sendEmailVerification({ url: absolute(root + 'account/') }).catch(function () {}); })
+            .then(function () { return res.user.sendEmailVerification({ url: absolute(L.home + 'account/') }).catch(function () {}); })
             .then(function () { registering = false; settle(auth.currentUser || res.user); return res; });
         }, function (e) { registering = false; throw e; })
       : auth.signInWithEmailAndPassword(email, pass);
@@ -537,11 +581,12 @@
     var email = $('#auth-email').value.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       $('#auth-email').setAttribute('aria-invalid', 'true'); $('#auth-email').focus();
-      showStatus('Γράψτε πρώτα το e-mail σας παραπάνω και πατήστε ξανά «Ξεχάσατε τον κωδικό;».');
+      showStatus(T('Γράψτε πρώτα το e-mail σας παραπάνω και πατήστε ξανά «Ξεχάσατε τον κωδικό;».', 'First enter your e-mail address above, then press “Forgot your password?” again.'));
       return;
     }
-    auth.sendPasswordResetEmail(email, { url: absolute(root + 'account/') }).then(function () {
-      showStatus('Αν υπάρχει λογαριασμός με αυτό το e-mail, σας στείλαμε σύνδεσμο για νέο κωδικό. Ελέγξτε και τα ανεπιθύμητα (spam).', 'ok');
+    auth.sendPasswordResetEmail(email, { url: absolute(L.home + 'account/') }).then(function () {
+      showStatus(T('Αν υπάρχει λογαριασμός με αυτό το e-mail, σας στείλαμε σύνδεσμο για νέο κωδικό. Ελέγξτε και τα ανεπιθύμητα (spam).',
+        'If there is an account with this e-mail address, we have sent you a link to set a new password. Please check your spam folder too.'), 'ok');
     }).catch(function (e) { showStatus(friendly(e)); });
   }
   function afterSignIn(res, registered) {
@@ -552,30 +597,34 @@
       var pl = pendingLink;
       pendingLink = null;
       chain = u.linkWithCredential(pl.credential).then(function () {
-        flash('Το ' + pl.name + ' συνδέθηκε με τον λογαριασμό σας. Από εδώ και πέρα μπαίνετε με όποιον από τους δύο τρόπους θέλετε.');
+        flash(T('Το ' + pl.name + ' συνδέθηκε με τον λογαριασμό σας. Από εδώ και πέρα μπαίνετε με όποιον από τους δύο τρόπους θέλετε.',
+          cap(pl.name) + ' is now connected to your account. From now on you can sign in either way.'));
       }).catch(function (e) {
         if (window.console) console.warn('link failed', e);
-        flash('Συνδεθήκατε. Το ' + pl.name + ' δεν συνδέθηκε με τον λογαριασμό σας (' + friendly(e) + ').');
+        flash(T('Συνδεθήκατε. Το ' + pl.name + ' δεν συνδέθηκε με τον λογαριασμό σας (' + friendly(e) + ').',
+          'You are signed in. ' + cap(pl.name) + ' was not connected to your account (' + friendly(e) + ').'));
       });
     }
     return chain.then(function () {
       close();
       resetDialog();
       var onAccount = /\/account\/?$/.test(location.pathname);
-      if (isNew && !onAccount) location.href = root + 'account/#apply';
+      if (isNew && !onAccount) location.href = L.home + 'account/#apply';
     });
   }
   function handleError(e, key) {
     var code = (e && e.code) || '';
     if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request' || code === 'auth/user-cancelled') return;
     if (code === 'auth/account-exists-with-different-credential' && e.credential) {
-      var who = key && PROVIDERS[key] ? PROVIDERS[key].name : 'αυτός ο τρόπος σύνδεσης';
+      var who = key && PROVIDERS[key] ? PROVIDERS[key].name : T('αυτός ο τρόπος σύνδεσης', 'this sign-in method');
       var email = e.email || (e.customData && e.customData.email) || '';
       pendingLink = { credential: e.credential, name: who, email: email };
       var box = $('[data-link-notice]', dialog);
       box.className = 'notice warn';
-      box.innerHTML = '<strong>Έχετε ήδη λογαριασμό' + (email ? ' με το ' + esc(email) : '') + '</strong>' +
-        '<p>Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά (' + esc(methodsText('e-mail και κωδικό', key)) + '). Αμέσως μετά θα συνδέσουμε και το ' + esc(who) + ' στον ίδιο λογαριασμό.</p>';
+      box.innerHTML = T('<strong>Έχετε ήδη λογαριασμό' + (email ? ' με το ' + esc(email) : '') + '</strong>' +
+        '<p>Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά (' + esc(methodsText('e-mail και κωδικό', key)) + '). Αμέσως μετά θα συνδέσουμε και το ' + esc(who) + ' στον ίδιο λογαριασμό.</p>',
+        '<strong>You already have an account' + (email ? ' with ' + esc(email) : '') + '</strong>' +
+        '<p>Sign in the way you did the first time (' + esc(methodsText('e-mail and password', key)) + '). Right after that, we will connect ' + esc(who) + ' to the same account too.</p>');
       box.hidden = false;
       if (email) $('#auth-email').value = email;
       setMode('signin');
@@ -591,7 +640,7 @@
     var f = $('[data-email-form]', dialog); if (f && f.reset) f.reset();
     var pw = $('#auth-pass', dialog), t = $('[data-pw]', dialog);
     if (pw) pw.type = 'password';
-    if (t) { t.textContent = 'Εμφάνιση'; t.setAttribute('aria-pressed', 'false'); }
+    if (t) { t.textContent = T('Εμφάνιση', 'Show'); t.setAttribute('aria-pressed', 'false'); }
     $$('[aria-invalid]', dialog).forEach(function (el) { el.removeAttribute('aria-invalid'); });
     pendingLink = null;
     var ln = $('[data-link-notice]', dialog); if (ln) ln.hidden = true;
@@ -651,12 +700,14 @@
   // Leave the page for LinkedIn. A full-page visit (not a popup) avoids popup
   // blockers and the opener being cut off by LinkedIn's security headers; the
   // member comes back to auth/linkedin/, which calls linkedinComplete().
-  function linkedinStart(mode, waiting) {
+  // The state carries the page's language (or lang: auth/linkedin/ starting a
+  // merge keeps the language the sign-in began in), so that page answers in it.
+  function linkedinStart(mode, waiting, lang) {
     if (!liReady) return false;
     var state = randomState();
     try {
       sessionStorage.setItem(LI_STATE, JSON.stringify({ state: state, mode: mode === 'link' || mode === 'merge' ? mode : 'signin', returnTo: returnAddress(),
-        waiting: String(waiting || '').slice(0, 40), t: Date.now() }));
+        waiting: String(waiting || '').slice(0, 40), lang: speak(lang).lang, t: Date.now() }));
     } catch (e) { showStatus(friendly({ code: 'semfe/storage-blocked' })); return false; }
     location.assign('https://www.linkedin.com/oauth/v2/authorization?response_type=code' +
       '&client_id=' + encodeURIComponent(LI.clientId) +
@@ -719,11 +770,12 @@
     (window.crypto || window.msCrypto).getRandomValues(a);
     return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
   }
-  /* only ever send the member back to a page of this site */
-  function safeReturn(url) {
-    var home = absolute(root);
-    try { var u = new URL(url, location.href); if (u.origin === location.origin && u.href.indexOf(home) === 0 && !/\/auth\/linkedin\//.test(u.pathname)) return u.href; } catch (e) {}
-    return home;
+  /* only ever send the member back to a page of this site (else to its home
+     page, in the page's language or in lang) */
+  function safeReturn(url, lang) {
+    var site = absolute(root);
+    try { var u = new URL(url, location.href); if (u.origin === location.origin && u.href.indexOf(site) === 0 && !/\/auth\/linkedin\//.test(u.pathname)) return u.href; } catch (e) {}
+    return absolute(speak(lang).home);
   }
   function reauthPassword(pass) {
     var cred = firebase.auth.EmailAuthProvider.credential(current.email, pass);
@@ -736,66 +788,121 @@
   }
 
   /* ---- messages ---------------------------------------------------------- */
-  function friendly(e) {
+  function friendly(e, lang) {
+    var T = speak(lang).t;
     var c = (e && e.code) || '';
-    var social = methodsText();
+    var social = methodsText('', '', lang);
     var M = {
-      'auth/invalid-email': 'Η διεύθυνση e-mail δεν φαίνεται σωστή.',
-      'auth/missing-password': 'Γράψτε τον κωδικό σας.',
-      'auth/weak-password': 'Ο κωδικός είναι πολύ αδύναμος. Χρησιμοποιήστε τουλάχιστον 8 χαρακτήρες.',
-      'auth/password-does-not-meet-requirements': 'Ο κωδικός δεν πληροί τις απαιτήσεις ασφαλείας. Δοκιμάστε μακρύτερο κωδικό με γράμματα και αριθμούς.',
-      'auth/email-already-in-use': 'Υπάρχει ήδη λογαριασμός με αυτό το e-mail. Πατήστε «Σύνδεση»' + (social ? ' (ίσως τον δημιουργήσατε με ' + social + ')' : '') + ' ή ζητήστε νέο κωδικό.',
-      'auth/invalid-credential': 'Λάθος e-mail ή κωδικός.' + (social ? ' Αν δημιουργήσατε τον λογαριασμό σας με ' + social + ', συνδεθείτε με το αντίστοιχο κουμπί.' : ''),
-      'auth/wrong-password': 'Λάθος e-mail ή κωδικός.',
-      'auth/user-not-found': 'Λάθος e-mail ή κωδικός.',
-      'auth/invalid-login-credentials': 'Λάθος e-mail ή κωδικός.',
-      'auth/user-disabled': 'Ο λογαριασμός αυτός έχει απενεργοποιηθεί. Επικοινωνήστε μαζί μας.',
-      'auth/too-many-requests': 'Πολλές προσπάθειες σε λίγο χρόνο. Δοκιμάστε ξανά σε λίγα λεπτά.',
-      'auth/network-request-failed': 'Πρόβλημα σύνδεσης στο διαδίκτυο. Δοκιμάστε ξανά.',
-      'auth/popup-blocked': 'Ο browser μπλόκαρε το παράθυρο σύνδεσης. Επιτρέψτε τα αναδυόμενα παράθυρα για αυτή τη σελίδα και πατήστε ξανά το κουμπί.',
-      'auth/operation-not-allowed': 'Αυτός ο τρόπος σύνδεσης δεν έχει ενεργοποιηθεί ακόμα. Δοκιμάστε άλλον.',
-      'auth/unauthorized-domain': 'Η σύνδεση δεν έχει εγκριθεί ακόμα για αυτή τη διεύθυνση του ιστότοπου.',
-      'auth/operation-not-supported-in-this-environment': 'Ο browser σας δεν υποστηρίζει αυτό τον τρόπο σύνδεσης. Ανοίξτε τη σελίδα σε Safari, Chrome, Firefox ή Edge.',
-      'auth/web-storage-unsupported': 'Ο browser σας έχει απενεργοποιημένη την αποθήκευση δεδομένων (cookies). Ενεργοποιήστε την ή δοκιμάστε άλλον browser.',
-      'auth/internal-error': 'Κάτι πήγε στραβά στην υπηρεσία σύνδεσης. Δοκιμάστε ξανά ή επιλέξτε άλλον τρόπο σύνδεσης.',
-      'auth/requires-recent-login': 'Για λόγους ασφαλείας, χρειάζεται να συνδεθείτε ξανά πριν από αυτή την ενέργεια.',
-      'auth/credential-already-in-use': 'Αυτός ο λογαριασμός χρησιμοποιείται ήδη από άλλον λογαριασμό του ιστότοπου.',
-      'auth/provider-already-linked': 'Αυτός ο τρόπος σύνδεσης είναι ήδη συνδεδεμένος.',
-      'auth/account-exists-with-different-credential': 'Υπάρχει ήδη λογαριασμός με αυτό το e-mail. Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά.',
-      'auth/expired-action-code': 'Ο σύνδεσμος έληξε. Ζητήστε νέο.',
-      'auth/invalid-action-code': 'Ο σύνδεσμος δεν ισχύει πια. Ζητήστε νέο.',
-      'semfe/relogin': 'Για λόγους ασφαλείας, αποσυνδεθείτε, συνδεθείτε ξανά και επαναλάβετε μέσα σε λίγα λεπτά.',
-      'semfe/needs-password': 'Γράψτε τον κωδικό σας για επιβεβαίωση.',
-      'semfe/account-exists-unverified': 'Υπάρχει ήδη λογαριασμός με το e-mail του LinkedIn σας, που όμως δεν έχει επιβεβαιωθεί. Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά (' + methodsText('e-mail και κωδικό', 'linkedin') + '), επιβεβαιώστε το e-mail σας από τη σελίδα «Ο λογαριασμός μου» και μετά συνδέστε από εκεί το LinkedIn.',
-      'semfe/link-needs-verified-email': 'Για να συνδέσετε το LinkedIn, χρειάζεται πρώτα να επιβεβαιώσετε το e-mail του λογαριασμού σας (δείτε «Τρόποι σύνδεσης» στη σελίδα «Ο λογαριασμός μου»).',
-      'semfe/credential-already-in-use': 'Αυτός ο λογαριασμός LinkedIn είναι ήδη συνδεδεμένος με άλλον λογαριασμό του ιστότοπου.',
-      'semfe/linkedin-code-rejected': 'Το LinkedIn δεν δέχτηκε τη σύνδεση (ίσως έληξε). Δοκιμάστε ξανά.',
-      'semfe/linkedin-profile-unavailable': 'Το LinkedIn δεν έδωσε τα στοιχεία του προφίλ σας. Δοκιμάστε ξανά σε λίγο.',
-      'semfe/redirect-not-allowed': 'Η σύνδεση με LinkedIn δεν έχει ρυθμιστεί σωστά (διεύθυνση επιστροφής).',
-      'semfe/origin-not-allowed': 'Η σύνδεση με LinkedIn δεν έχει εγκριθεί για αυτή τη διεύθυνση του ιστότοπου.',
-      'semfe/not-configured': 'Η σύνδεση με LinkedIn δεν έχει ολοκληρωθεί από τους διαχειριστές.',
-      'semfe/bad-id-token': 'Η σύνδεσή σας έληξε. Συνδεθείτε ξανά και επαναλάβετε.',
-      'semfe/internal': 'Κάτι πήγε στραβά στην υπηρεσία σύνδεσης. Δοκιμάστε ξανά αργότερα.',
-      'semfe/linkedin-failed': 'Η σύνδεση με LinkedIn δεν ολοκληρώθηκε. Δοκιμάστε ξανά.',
-      'semfe/accounts-unreachable': 'Η υπηρεσία λογαριασμών δεν είναι διαθέσιμη αυτή τη στιγμή. Δοκιμάστε ξανά αργότερα ή γράψτε μας.',
-      'semfe/same-account': 'Συνδεθήκατε στον ίδιο λογαριασμό. Για ένωση, συνδεθείτε στον ΑΛΛΟ λογαριασμό σας.',
-      'semfe/other-sign-in-too-old': 'Η σύνδεση στον άλλο λογαριασμό έληξε. Δοκιμάστε ξανά.',
-      'semfe/bad-other-token': 'Η σύνδεση στον άλλο λογαριασμό δεν επιβεβαιώθηκε. Δοκιμάστε ξανά.',
-      'semfe/not-signed-in': 'Η σύνδεσή σας έληξε. Συνδεθείτε ξανά και επαναλάβετε.',
-      'semfe/not-admin': 'Η ενέργεια αυτή είναι μόνο για τους διαχειριστές.',
-      'semfe/cannot-remove-yourself': 'Δεν μπορείτε να διαγράψετε ή να ενώσετε τον λογαριασμό με τον οποίο είστε συνδεδεμένος/η.',
-      'semfe/no-such-account': 'Ο λογαριασμός δεν υπάρχει πια (ίσως διαγράφηκε ή ενώθηκε ήδη).',
-      'semfe/bad-request': 'Κάτι πήγε στραβά με το αίτημα. Ανανεώστε τη σελίδα και δοκιμάστε ξανά.',
-      'semfe/email-not-verified': 'Επιβεβαιώστε πρώτα το e-mail αυτού του λογαριασμού (με τον σύνδεσμο που σας στείλαμε) και δοκιμάστε ξανά.',
-      'semfe/cannot-remove-admin': 'Ο λογαριασμός ενός διαχειριστή δεν διαγράφεται ούτε ενώνεται σε άλλον. Κρατήστε αυτόν και ενώστε τον άλλο σε αυτόν.',
-      'semfe/merge-busy': 'Γίνεται ήδη μια ένωση με αυτούς τους λογαριασμούς. Περιμένετε λίγο και δοκιμάστε ξανά.',
-      'semfe/storage-blocked': 'Ο browser σας δεν επιτρέπει την αποθήκευση δεδομένων (cookies), που χρειάζεται η σύνδεση με LinkedIn. Επιτρέψτε τα για αυτόν τον ιστότοπο και δοκιμάστε ξανά.',
-      'auth/user-mismatch': 'Συνδεθήκατε με άλλον λογαριασμό από αυτόν που έχετε ανοιχτό εδώ. Διαλέξτε τον ίδιο λογαριασμό και δοκιμάστε ξανά.',
-      'auth/provider-already-linked': 'Αυτός ο τρόπος σύνδεσης είναι ήδη συνδεδεμένος με τον λογαριασμό σας.',
-      'permission-denied': 'Δεν έχετε δικαίωμα για αυτή την ενέργεια (ή οι κανόνες ασφαλείας της βάσης δεν έχουν δημοσιευτεί ακόμα).',
-      'unavailable': 'Η βάση δεδομένων δεν είναι διαθέσιμη αυτή τη στιγμή. Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά.'
+      'auth/invalid-email': T('Η διεύθυνση e-mail δεν φαίνεται σωστή.',
+        'The e-mail address does not look right.'),
+      'auth/missing-password': T('Γράψτε τον κωδικό σας.',
+        'Please enter your password.'),
+      'auth/weak-password': T('Ο κωδικός είναι πολύ αδύναμος. Χρησιμοποιήστε τουλάχιστον 8 χαρακτήρες.',
+        'The password is too weak. Use at least 8 characters.'),
+      'auth/password-does-not-meet-requirements': T('Ο κωδικός δεν πληροί τις απαιτήσεις ασφαλείας. Δοκιμάστε μακρύτερο κωδικό με γράμματα και αριθμούς.',
+        'The password does not meet the security requirements. Try a longer password with letters and numbers.'),
+      'auth/email-already-in-use': T('Υπάρχει ήδη λογαριασμός με αυτό το e-mail. Πατήστε «Σύνδεση»' + (social ? ' (ίσως τον δημιουργήσατε με ' + social + ')' : '') + ' ή ζητήστε νέο κωδικό.',
+        'There is already an account with this e-mail. Press “Sign in”' + (social ? ' (you may have created it with ' + social + ')' : '') + ' or ask for a new password.'),
+      'auth/invalid-credential': T('Λάθος e-mail ή κωδικός.' + (social ? ' Αν δημιουργήσατε τον λογαριασμό σας με ' + social + ', συνδεθείτε με το αντίστοιχο κουμπί.' : ''),
+        'Wrong e-mail or password.' + (social ? ' If you created your account with ' + social + ', sign in with the matching button.' : '')),
+      'auth/wrong-password': T('Λάθος e-mail ή κωδικός.',
+        'Wrong e-mail or password.'),
+      'auth/user-not-found': T('Λάθος e-mail ή κωδικός.',
+        'Wrong e-mail or password.'),
+      'auth/invalid-login-credentials': T('Λάθος e-mail ή κωδικός.',
+        'Wrong e-mail or password.'),
+      'auth/user-disabled': T('Ο λογαριασμός αυτός έχει απενεργοποιηθεί. Επικοινωνήστε μαζί μας.',
+        'This account has been disabled. Please contact us.'),
+      'auth/too-many-requests': T('Πολλές προσπάθειες σε λίγο χρόνο. Δοκιμάστε ξανά σε λίγα λεπτά.',
+        'Too many attempts in a short time. Please try again in a few minutes.'),
+      'auth/network-request-failed': T('Πρόβλημα σύνδεσης στο διαδίκτυο. Δοκιμάστε ξανά.',
+        'There is a problem with your internet connection. Please try again.'),
+      'auth/popup-blocked': T('Ο browser μπλόκαρε το παράθυρο σύνδεσης. Επιτρέψτε τα αναδυόμενα παράθυρα για αυτή τη σελίδα και πατήστε ξανά το κουμπί.',
+        'Your browser blocked the sign-in window. Allow pop-up windows for this page and press the button again.'),
+      'auth/operation-not-allowed': T('Αυτός ο τρόπος σύνδεσης δεν έχει ενεργοποιηθεί ακόμα. Δοκιμάστε άλλον.',
+        'This sign-in method has not been switched on yet. Please try another.'),
+      'auth/unauthorized-domain': T('Η σύνδεση δεν έχει εγκριθεί ακόμα για αυτή τη διεύθυνση του ιστότοπου.',
+        'Sign-in has not been approved yet for this website address.'),
+      'auth/operation-not-supported-in-this-environment': T('Ο browser σας δεν υποστηρίζει αυτό τον τρόπο σύνδεσης. Ανοίξτε τη σελίδα σε Safari, Chrome, Firefox ή Edge.',
+        'Your browser does not support this sign-in method. Open the page in Safari, Chrome, Firefox or Edge.'),
+      'auth/web-storage-unsupported': T('Ο browser σας έχει απενεργοποιημένη την αποθήκευση δεδομένων (cookies). Ενεργοποιήστε την ή δοκιμάστε άλλον browser.',
+        'Your browser has data storage (cookies) switched off. Switch it on or try another browser.'),
+      'auth/internal-error': T('Κάτι πήγε στραβά στην υπηρεσία σύνδεσης. Δοκιμάστε ξανά ή επιλέξτε άλλον τρόπο σύνδεσης.',
+        'Something went wrong with the sign-in service. Please try again or choose another sign-in method.'),
+      'auth/requires-recent-login': T('Για λόγους ασφαλείας, χρειάζεται να συνδεθείτε ξανά πριν από αυτή την ενέργεια.',
+        'For security reasons, you need to sign in again before doing this.'),
+      'auth/credential-already-in-use': T('Αυτός ο λογαριασμός χρησιμοποιείται ήδη από άλλον λογαριασμό του ιστότοπου.',
+        'This account is already in use by another account on this website.'),
+      'auth/provider-already-linked': T('Αυτός ο τρόπος σύνδεσης είναι ήδη συνδεδεμένος.',
+        'This sign-in method is already connected.'),
+      'auth/account-exists-with-different-credential': T('Υπάρχει ήδη λογαριασμός με αυτό το e-mail. Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά.',
+        'There is already an account with this e-mail. Sign in the way you did the first time.'),
+      'auth/expired-action-code': T('Ο σύνδεσμος έληξε. Ζητήστε νέο.',
+        'The link has expired. Please ask for a new one.'),
+      'auth/invalid-action-code': T('Ο σύνδεσμος δεν ισχύει πια. Ζητήστε νέο.',
+        'The link is no longer valid. Please ask for a new one.'),
+      'semfe/relogin': T('Για λόγους ασφαλείας, αποσυνδεθείτε, συνδεθείτε ξανά και επαναλάβετε μέσα σε λίγα λεπτά.',
+        'For security reasons, sign out, sign in again and repeat this within a few minutes.'),
+      'semfe/needs-password': T('Γράψτε τον κωδικό σας για επιβεβαίωση.',
+        'Enter your password to confirm.'),
+      'semfe/account-exists-unverified': T('Υπάρχει ήδη λογαριασμός με το e-mail του LinkedIn σας, που όμως δεν έχει επιβεβαιωθεί. Συνδεθείτε με τον τρόπο που χρησιμοποιήσατε την πρώτη φορά (' + methodsText('e-mail και κωδικό', 'linkedin', lang) + '), επιβεβαιώστε το e-mail σας από τη σελίδα «Ο λογαριασμός μου» και μετά συνδέστε από εκεί το LinkedIn.',
+        'There is already an account with the e-mail address of your LinkedIn account, but it has not been confirmed. Sign in the way you did the first time (' + methodsText('e-mail and password', 'linkedin', lang) + '), confirm your e-mail address on the My account page, and then connect LinkedIn from there.'),
+      'semfe/link-needs-verified-email': T('Για να συνδέσετε το LinkedIn, χρειάζεται πρώτα να επιβεβαιώσετε το e-mail του λογαριασμού σας (δείτε «Τρόποι σύνδεσης» στη σελίδα «Ο λογαριασμός μου»).',
+        'To connect LinkedIn, you first need to confirm the e-mail address of your account (see Sign-in methods on the My account page).'),
+      'semfe/credential-already-in-use': T('Αυτός ο λογαριασμός LinkedIn είναι ήδη συνδεδεμένος με άλλον λογαριασμό του ιστότοπου.',
+        'This LinkedIn account is already connected to another account on this website.'),
+      'semfe/linkedin-code-rejected': T('Το LinkedIn δεν δέχτηκε τη σύνδεση (ίσως έληξε). Δοκιμάστε ξανά.',
+        'LinkedIn did not accept the sign-in (it may have expired). Please try again.'),
+      'semfe/linkedin-profile-unavailable': T('Το LinkedIn δεν έδωσε τα στοιχεία του προφίλ σας. Δοκιμάστε ξανά σε λίγο.',
+        'LinkedIn did not provide your profile details. Please try again shortly.'),
+      'semfe/redirect-not-allowed': T('Η σύνδεση με LinkedIn δεν έχει ρυθμιστεί σωστά (διεύθυνση επιστροφής).',
+        'Sign-in with LinkedIn has not been set up correctly (return address).'),
+      'semfe/origin-not-allowed': T('Η σύνδεση με LinkedIn δεν έχει εγκριθεί για αυτή τη διεύθυνση του ιστότοπου.',
+        'Sign-in with LinkedIn has not been approved for this website address.'),
+      'semfe/not-configured': T('Η σύνδεση με LinkedIn δεν έχει ολοκληρωθεί από τους διαχειριστές.',
+        'The administrators have not finished setting up sign-in with LinkedIn.'),
+      'semfe/bad-id-token': T('Η σύνδεσή σας έληξε. Συνδεθείτε ξανά και επαναλάβετε.',
+        'Your session has expired. Please sign in again and repeat.'),
+      'semfe/internal': T('Κάτι πήγε στραβά στην υπηρεσία σύνδεσης. Δοκιμάστε ξανά αργότερα.',
+        'Something went wrong with the sign-in service. Please try again later.'),
+      'semfe/linkedin-failed': T('Η σύνδεση με LinkedIn δεν ολοκληρώθηκε. Δοκιμάστε ξανά.',
+        'Sign-in with LinkedIn was not completed. Please try again.'),
+      'semfe/accounts-unreachable': T('Η υπηρεσία λογαριασμών δεν είναι διαθέσιμη αυτή τη στιγμή. Δοκιμάστε ξανά αργότερα ή γράψτε μας.',
+        'The accounts service is not available right now. Please try again later or write to us.'),
+      'semfe/same-account': T('Συνδεθήκατε στον ίδιο λογαριασμό. Για ένωση, συνδεθείτε στον ΑΛΛΟ λογαριασμό σας.',
+        'You signed in to the same account. To merge, sign in to your OTHER account.'),
+      'semfe/other-sign-in-too-old': T('Η σύνδεση στον άλλο λογαριασμό έληξε. Δοκιμάστε ξανά.',
+        'The sign-in to the other account has expired. Please try again.'),
+      'semfe/bad-other-token': T('Η σύνδεση στον άλλο λογαριασμό δεν επιβεβαιώθηκε. Δοκιμάστε ξανά.',
+        'The sign-in to the other account could not be confirmed. Please try again.'),
+      'semfe/not-signed-in': T('Η σύνδεσή σας έληξε. Συνδεθείτε ξανά και επαναλάβετε.',
+        'Your session has expired. Please sign in again and repeat.'),
+      'semfe/not-admin': T('Η ενέργεια αυτή είναι μόνο για τους διαχειριστές.',
+        'Only the administrators can do this.'),
+      'semfe/cannot-remove-yourself': T('Δεν μπορείτε να διαγράψετε ή να ενώσετε τον λογαριασμό με τον οποίο είστε συνδεδεμένος/η.',
+        'You cannot delete or merge the account you are signed in with.'),
+      'semfe/no-such-account': T('Ο λογαριασμός δεν υπάρχει πια (ίσως διαγράφηκε ή ενώθηκε ήδη).',
+        'The account no longer exists (it may have been deleted or merged already).'),
+      'semfe/bad-request': T('Κάτι πήγε στραβά με το αίτημα. Ανανεώστε τη σελίδα και δοκιμάστε ξανά.',
+        'Something went wrong with the request. Please reload the page and try again.'),
+      'semfe/email-not-verified': T('Επιβεβαιώστε πρώτα το e-mail αυτού του λογαριασμού (με τον σύνδεσμο που σας στείλαμε) και δοκιμάστε ξανά.',
+        'First confirm the e-mail address of this account (with the link we sent you) and try again.'),
+      'semfe/cannot-remove-admin': T('Ο λογαριασμός ενός διαχειριστή δεν διαγράφεται ούτε ενώνεται σε άλλον. Κρατήστε αυτόν και ενώστε τον άλλο σε αυτόν.',
+        'An administrator\'s account cannot be deleted or merged into another. Keep this one and merge the other into it.'),
+      'semfe/merge-busy': T('Γίνεται ήδη μια ένωση με αυτούς τους λογαριασμούς. Περιμένετε λίγο και δοκιμάστε ξανά.',
+        'A merge of these accounts is already in progress. Please wait a little and try again.'),
+      'semfe/storage-blocked': T('Ο browser σας δεν επιτρέπει την αποθήκευση δεδομένων (cookies), που χρειάζεται η σύνδεση με LinkedIn. Επιτρέψτε τα για αυτόν τον ιστότοπο και δοκιμάστε ξανά.',
+        'Your browser does not allow data storage (cookies), which sign-in with LinkedIn needs. Allow it for this website and try again.'),
+      'auth/user-mismatch': T('Συνδεθήκατε με άλλον λογαριασμό από αυτόν που έχετε ανοιχτό εδώ. Διαλέξτε τον ίδιο λογαριασμό και δοκιμάστε ξανά.',
+        'You signed in with a different account from the one open here. Choose the same account and try again.'),
+      'auth/provider-already-linked': T('Αυτός ο τρόπος σύνδεσης είναι ήδη συνδεδεμένος με τον λογαριασμό σας.',
+        'This sign-in method is already connected to your account.'),
+      'permission-denied': T('Δεν έχετε δικαίωμα για αυτή την ενέργεια (ή οι κανόνες ασφαλείας της βάσης δεν έχουν δημοσιευτεί ακόμα).',
+        'You do not have permission for this action (or the database\'s security rules have not been published yet).'),
+      'unavailable': T('Η βάση δεδομένων δεν είναι διαθέσιμη αυτή τη στιγμή. Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά.',
+        'The database is not available right now. Check your connection and try again.')
     };
-    return M[c] || 'Κάτι πήγε στραβά. Δοκιμάστε ξανά.' + (c ? ' (' + c + ')' : '');
+    return M[c] || T('Κάτι πήγε στραβά. Δοκιμάστε ξανά.', 'Something went wrong. Please try again.') + (c ? ' (' + c + ')' : '');
   }
   function flash(msg) {
     var el = document.createElement('div');
@@ -825,7 +932,7 @@
     else if (!configured) { try { fn(null); } catch (e) {} }
   }
   window.SemfeAuth = {
-    configured: configured, root: root, onChange: onChange, open: open, close: close, signOut: signOut,
+    configured: configured, root: root, home: L.home, onChange: onChange, open: open, close: close, signOut: signOut,
     db: db, isAdmin: isAdmin, providers: providers, providersAsync: providersAsync, link: link, reauth: reauth, reauthPassword: reauthPassword,
     linkedinTakeState: linkedinTakeState, linkedinComplete: linkedinComplete, safeReturn: safeReturn,
     linkedinViaFunction: function () { return LI_FUNCTION; },

@@ -92,6 +92,8 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   "ΣΕΜΦΕ ΕΜΠ" is part of the logo: when the header slims on scroll
   (`html.hdr-small`) it may only get smaller, never hidden, at any screen
   width (owner, 2026-10-01; smoke.mjs checks it at 1440, 1101, 390 and 320px).
+  The English pages say "ASSOCIATION OF GRADUATES" above "SEMFE NTUA", the
+  same rule.
 * **The top menu is kept short on purpose** (owner, like operationsacademia.org):
   the logo is the way home (no «Αρχική» link), the pages ABOUT the association
   and the site sit in one «Ο Σύλλογος ▾» drop-down (`NAV_GROUPS`, three
@@ -145,6 +147,54 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
 * Do **not** add a `.nojekyll` file: Jekyll keeps `_src/` off the web and
   `_config.yml` excludes the maintenance files.
 
+## The English copy (en/): two flags, everything but the announcements
+
+Owner, 2026-10-05: "Add two flags on top: Greek and English flag and if the
+English one is pressed, the entire website is shown translated in English
+(apart from the announcements which shall appear as they were typed by the
+admins)."
+
+* **Every page has an English twin**, `_src/en/<same name>.md`, built at
+  `en/<path>` with the header, menu, footer, crumbs and dates in English
+  (`NAV`, `STR` in `tools/build.mjs`, every label `[Greek, English]`). The twin
+  keeps the Greek one's working keys (`path` without `en/`, `nav`, `scripts`,
+  `firestore`…; the build refuses a difference) and its addresses as written:
+  `localize()` points every link of an English page at the English copy.
+  **A new page needs its English twin in the same change**: check.mjs fails
+  without one (except `GREEK_ONLY` in build.mjs: the 404 page, which says it in
+  both languages, and the LinkedIn return page `auth/linkedin/`, whose address
+  is registered with LinkedIn and whose script follows the language the
+  sign-in started in). `_src/README.md` has the how-to.
+* **Announcements are never translated.** Every post also gets `en/blog/…`:
+  the English site around the author's own text, marked `lang="el"` (also the
+  post cards' titles and excerpts on English pages). The editor and the
+  publish workflow need nothing: the build writes both pages.
+* **The flags** are a slim bar ABOVE the header (`langBar()`, `.lang-bar`):
+  the header row has no room on a phone without cutting the logo's name.
+  Each flag links the same page in its language. A click on one is
+  remembered (`localStorage` `semfe:lang`, set by the inline head script);
+  a Greek page with an English twin then forwards a visitor who chose English
+  before it is drawn (links from e-mails and search results). Only a click
+  chooses; opening an /en/ address does not.
+* **Scripts** write each message twice: `var L = window.SEMFE_I18N, T = L.t;
+  T('Ελληνικά', 'English')` (`assets/js/i18n.js`, loaded on every page before
+  site.js). Links to PAGES use `L.home` / `SemfeAuth.home` (`en/` on an English
+  page); files use `root`. Dates and sorting follow `L.locale` / `L.lang`.
+  The shared lists carry their English labels: profile-options.js (third /
+  fourth column, `choices(kind, lang)`), alert-topics.js (`en: {label, hint}`),
+  announce-text.js (`labelEn`), changelog.json (`en: {title, summary}`, read
+  by `SEMFE_NEWS.reads(e, doc, lang)`; an admin's own wording is shown as
+  written). **Add the English with every new message or entry.** What is
+  STORED stays Greek (category values, the directory's place line).
+* **The guard**: `node tools/check.mjs` fails on any Greek letter in an
+  English page's text or spoken attributes outside `lang="el"`, on an English
+  page linking to the Greek copy of a page, and on a page without the flags.
+  The English legal pages say the Greek text applies.
+* The visit counter knows the English pages (`functions/site-paths.json`,
+  `titles` and `titlesEn`) once the functions are deployed again; until then
+  their views count as "other". `data/analytics.json` page rows carry
+  `titleEn` for the English statistics page.
+
 ## Sign-in and data
 
 * Sign-in is OFF while `assets/js/config.js` holds `PASTE_` placeholders; the
@@ -187,7 +237,8 @@ Like operationsacademia.org, the site keeps a dated list of what changed, and
 **nothing on it is public until an admin approves it**:
 
 * `changelog.json` (repository root, served) says WHAT changed, newest first:
-  `{ id, date, title, summary, url? }`. **Whenever you ship a change people
+  `{ id, date, title, summary, url?, en? }` (`en: { title, summary }` is the
+  entry for the English page; write it too). **Whenever you ship a change people
   would notice, add an entry at the top in the same change**: Greek, short,
   plain words, `id` = `YYYY-MM-DD-<a-few-latin-words>` (never reuse one),
   `url` optional (a page of the site such as `support/` or `#skopos`, or

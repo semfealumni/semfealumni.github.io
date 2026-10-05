@@ -20,21 +20,80 @@
   var app = document.getElementById('analytics-app');
   if (!app) return;
   var A = window.SemfeAuth, C = window.SEMFE || {}, PO = window.SEMFE_PROFILE;
+  var L = window.SEMFE_I18N, T = L.t;
   var root = (A && A.root) || '../';
-  var NF = new Intl.NumberFormat('el-GR');
-  var PF = new Intl.NumberFormat('el-GR', { style: 'percent', maximumFractionDigits: 0 });
-  var MONTHS = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαΐ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'];
-  var MONTHS_LONG = ['Ιανουαρίου', 'Φεβρουαρίου', 'Μαρτίου', 'Απριλίου', 'Μαΐου', 'Ιουνίου', 'Ιουλίου', 'Αυγούστου', 'Σεπτεμβρίου', 'Οκτωβρίου', 'Νοεμβρίου', 'Δεκεμβρίου'];
-  var MONTH_NAMES = ['Ιανουάριος', 'Φεβρουάριος', 'Μάρτιος', 'Απρίλιος', 'Μάιος', 'Ιούνιος', 'Ιούλιος', 'Αύγουστος', 'Σεπτέμβριος', 'Οκτώβριος', 'Νοέμβριος', 'Δεκέμβριος'];
-  var WEEKDAYS = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο', 'Κυριακή'];
-  var WD_SHORT = ['Δευ', 'Τρί', 'Τετ', 'Πέμ', 'Παρ', 'Σάβ', 'Κυρ'];
-  var RANGES = [['30', '30 ημέρες'], ['90', '90 ημέρες'], ['365', '12 μήνες'], ['all', 'Από την αρχή']];
-  var CHANNELS = { direct: 'Απευθείας', search: 'Μηχανές αναζήτησης', social: 'Κοινωνικά δίκτυα', email: 'E-mail', other: 'Άλλοι ιστότοποι' };
-  var DEVICES = { desktop: 'Υπολογιστής', mobile: 'Κινητό', tablet: 'Tablet' };
-  var STAGES = { graduate: 'Απόφοιτοι', 'final-year': 'Τελειόφοιτοι', faculty: 'Μέλη ΔΕΠ' };
-  var GENDERS = { female: 'Γυναίκες', male: 'Άνδρες', other: 'Άλλο' };
-  var OTHER = 'Λοιπά (ομάδες κάτω από 3 ατόμων)';
-  var SRC = { site: 'ο μετρητής του ιστότοπου', ga4: 'Google Analytics' };
+  var NF = new Intl.NumberFormat(L.locale);
+  var PF = new Intl.NumberFormat(L.locale, { style: 'percent', maximumFractionDigits: 0 });
+  var MONTHS = L.en
+    ? ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    : ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαΐ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ'];
+  var MONTHS_LONG = L.en
+    ? ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    : ['Ιανουαρίου', 'Φεβρουαρίου', 'Μαρτίου', 'Απριλίου', 'Μαΐου', 'Ιουνίου', 'Ιουλίου', 'Αυγούστου', 'Σεπτεμβρίου', 'Οκτωβρίου', 'Νοεμβρίου', 'Δεκεμβρίου'];
+  var MONTH_NAMES = L.en
+    ? ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    : ['Ιανουάριος', 'Φεβρουάριος', 'Μάρτιος', 'Απρίλιος', 'Μάιος', 'Ιούνιος', 'Ιούλιος', 'Αύγουστος', 'Σεπτέμβριος', 'Οκτώβριος', 'Νοέμβριος', 'Δεκέμβριος'];
+  var WEEKDAYS = L.en
+    ? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+    : ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο', 'Κυριακή'];
+  var WD_SHORT = L.en
+    ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    : ['Δευ', 'Τρί', 'Τετ', 'Πέμ', 'Παρ', 'Σάβ', 'Κυρ'];
+  var RANGES = [['30', T('30 ημέρες', '30 days')], ['90', T('90 ημέρες', '90 days')], ['365', T('12 μήνες', '12 months')], ['all', T('Από την αρχή', 'Since the start')]];
+  var CHANNELS = { direct: T('Απευθείας', 'Direct'), search: T('Μηχανές αναζήτησης', 'Search engines'), social: T('Κοινωνικά δίκτυα', 'Social networks'), email: 'E-mail', other: T('Άλλοι ιστότοποι', 'Other websites') };
+  var DEVICES = { desktop: T('Υπολογιστής', 'Computer'), mobile: T('Κινητό', 'Mobile phone'), tablet: 'Tablet' };
+  var STAGES = { graduate: T('Απόφοιτοι', 'Graduates'), 'final-year': T('Τελειόφοιτοι', 'Final-year students'), faculty: T('Μέλη ΔΕΠ', 'Faculty members') };
+  var GENDERS = { female: T('Γυναίκες', 'Women'), male: T('Άνδρες', 'Men'), other: T('Άλλο', 'Other') };
+  var OTHER = T('Λοιπά (ομάδες κάτω από 3 ατόμων)', 'Other (groups of fewer than 3 people)');
+  var SRC = { site: T('ο μετρητής του ιστότοπου', 'the website\'s own visit counter'), ga4: 'Google Analytics' };
+  /* the stored field of study (account.js offers these three) as an English page names it */
+  var DIRECTION_EN = { 'Εφαρμοσμένα Μαθηματικά': 'Applied Mathematics', 'Εφαρμοσμένη Φυσική': 'Applied Physics', 'Άλλη / δεν ισχύει': 'Other / not applicable' };
+  var GREEK = /[\u0370-\u03ff\u1f00-\u1fff]/;
+  /* the Greek institutions functions/netorg.js names in Greek (the counters keep
+     the name as written), by their official English names for the English page;
+     any other name (foreign universities, companies) is shown as it is */
+  var UNI_EN = {
+    'Εθνικό Μετσόβιο Πολυτεχνείο': 'National Technical University of Athens',
+    'Εθνικό και Καποδιστριακό Πανεπιστήμιο Αθηνών': 'National and Kapodistrian University of Athens',
+    'Αριστοτέλειο Πανεπιστήμιο Θεσσαλονίκης': 'Aristotle University of Thessaloniki',
+    'Πανεπιστήμιο Πατρών': 'University of Patras',
+    'Πανεπιστήμιο Κρήτης': 'University of Crete',
+    'Πολυτεχνείο Κρήτης': 'Technical University of Crete',
+    'Πανεπιστήμιο Ιωαννίνων': 'University of Ioannina',
+    'Δημοκρίτειο Πανεπιστήμιο Θράκης': 'Democritus University of Thrace',
+    'Πανεπιστήμιο Θεσσαλίας': 'University of Thessaly',
+    'Οικονομικό Πανεπιστήμιο Αθηνών': 'Athens University of Economics and Business',
+    'Πανεπιστήμιο Πειραιώς': 'University of Piraeus',
+    'Πανεπιστήμιο Μακεδονίας': 'University of Macedonia',
+    'Πανεπιστήμιο Αιγαίου': 'University of the Aegean',
+    'Ιόνιο Πανεπιστήμιο': 'Ionian University',
+    'Χαροκόπειο Πανεπιστήμιο': 'Harokopio University',
+    'Πάντειο Πανεπιστήμιο': 'Panteion University',
+    'Ελληνικό Ανοικτό Πανεπιστήμιο': 'Hellenic Open University',
+    'Διεθνές Πανεπιστήμιο της Ελλάδος': 'International Hellenic University',
+    'Πανεπιστήμιο Δυτικής Αττικής': 'University of West Attica',
+    'Πανεπιστήμιο Πελοποννήσου': 'University of the Peloponnese',
+    'Πανεπιστήμιο Δυτικής Μακεδονίας': 'University of Western Macedonia',
+    'Ελληνικό Μεσογειακό Πανεπιστήμιο': 'Hellenic Mediterranean University',
+    'Γεωπονικό Πανεπιστήμιο Αθηνών': 'Agricultural University of Athens',
+    'Ανωτάτη Σχολή Καλών Τεχνών': 'Athens School of Fine Arts',
+    'Σχολή Ναυτικών Δοκίμων': 'Hellenic Naval Academy',
+    'Στρατιωτική Σχολή Ευελπίδων': 'Hellenic Army Academy',
+    'Σχολή Ικάρων': 'Hellenic Air Force Academy',
+    'ΕΚΕΦΕ «Δημόκριτος»': 'National Centre for Scientific Research “Demokritos”',
+    'Ίδρυμα Τεχνολογίας και Έρευνας (ΙΤΕ)': 'Foundation for Research and Technology Hellas (FORTH)',
+    'Εθνικό Κέντρο Έρευνας και Τεχνολογικής Ανάπτυξης (ΕΚΕΤΑ)': 'Centre for Research and Technology Hellas (CERTH)',
+    'Ερευνητικό Κέντρο «Αθηνά»': 'Athena Research Center',
+    'Εθνικό Ίδρυμα Ερευνών': 'National Hellenic Research Foundation',
+    'Εθνικό Αστεροσκοπείο Αθηνών': 'National Observatory of Athens',
+    'Ακαδημία Αθηνών': 'Academy of Athens',
+    'Ίδρυμα Ιατροβιολογικών Ερευνών Ακαδημίας Αθηνών': 'Biomedical Research Foundation of the Academy of Athens',
+    'Ερευνητικό Κέντρο «Αλέξανδρος Φλέμινγκ»': 'Biomedical Sciences Research Center “Alexander Fleming”',
+    'Ελληνικό Κέντρο Θαλάσσιων Ερευνών': 'Hellenic Centre for Marine Research',
+    'Πανεπιστήμιο Κύπρου': 'University of Cyprus',
+    'Τεχνολογικό Πανεπιστήμιο Κύπρου': 'Cyprus University of Technology'
+  };
+  function uniName(name) { return L.en && Object.prototype.hasOwnProperty.call(UNI_EN, name) ? UNI_EN[name] : name; }
 
   var data = null, members = null, membersState = 'loading', range = '30', drawn = [];
   try { var saved = sessionStorage.getItem('semfeAnRange'); if (saved && /^(30|90|365|all)$/.test(saved)) range = saved; } catch (e) { /* fine */ }
@@ -48,7 +107,7 @@
   function dayLong(d) { var p = String(d).split('-'); return (+p[2]) + ' ' + MONTHS_LONG[+p[1] - 1] + ' ' + p[0]; }
   function dayShort(d) { var p = String(d).split('-'); return (+p[2]) + ' ' + MONTHS[+p[1] - 1]; }
   function monthName(m) { var p = String(m).split('-'); return MONTH_NAMES[+p[1] - 1] + ' ' + p[0]; }
-  function dec(x) { return (x || 0).toLocaleString('el-GR', { maximumFractionDigits: 1 }); }
+  function dec(x) { return (x || 0).toLocaleString(L.locale, { maximumFractionDigits: 1 }); }
   /** "3–9 Μαρτίου 2025", "29 Σεπτεμβρίου – 5 Οκτωβρίου 2025", or across a year end in full. */
   function spanLabel(a, b) {
     if (a === b) return dayLong(a);
@@ -83,18 +142,23 @@
       var full = g.d.slice(8) === '01' && addDay(g.last, 1).slice(8) === '01';
       return monthName(g.d.slice(0, 7)) + (full ? '' : ' (' + spanLabel(g.d, g.last) + ')');
     }
-    return g.by === 'week' ? 'Εβδομάδα ' + spanLabel(g.d, g.last) : dayLong(g.d);
+    return g.by === 'week' ? T('Εβδομάδα ', 'Week ') + spanLabel(g.d, g.last) : dayLong(g.d);
   }
   var regionNames = null;
-  try { regionNames = new Intl.DisplayNames(['el'], { type: 'region' }); } catch (e) { regionNames = null; }
+  try { regionNames = new Intl.DisplayNames([L.lang], { type: 'region' }); } catch (e) { regionNames = null; }
   function countryLabel(code) {
-    if (!code || code === '??' || code === '(not set)') return 'Άγνωστη χώρα';
-    if (code === 'XX') return 'Άλλη χώρα';
-    var p = PO && PO.countryName(code);
-    if (p) return p;
+    if (!code || code === '??' || code === '(not set)') return T('Άγνωστη χώρα', 'Unknown country');
+    if (code === 'XX') return T('Άλλη χώρα', 'Another country');
+    var p = PO && PO.countryName(code, L.lang);
+    // (an English page never shows a Greek country name: the browser's own English name instead)
+    if (p && !(L.en && GREEK.test(p))) return p;
     try { return (regionNames && regionNames.of(code)) || code; } catch (e) { return code; }
   }
-  function cityLabel(name) { return PO ? PO.cityName(name) || name : name; }
+  function cityLabel(name) {
+    var c = PO ? PO.cityName(name, L.lang) || name : name;
+    // (an English page never turns a city written in Latin letters into its Greek name)
+    return L.en && GREEK.test(c) && !GREEK.test(name) ? name : c;
+  }
   function card(title, sub, body, cls) {
     return '<article class="an-card' + (cls ? ' ' + cls : '') + '"><h3>' + esc(title) + '</h3>' + (sub ? '<p class="an-sub">' + sub + '</p>' : '') + body + '</article>';
   }
@@ -103,14 +167,15 @@
       number, share. Rows: [{ label, n, other }] (already sorted). */
   function bars(rows, opts) {
     opts = opts || {};
-    if (!rows || !rows.length) return '<p class="an-empty">' + esc(opts.empty || 'Δεν υπάρχουν ακόμα στοιχεία για αυτή την περίοδο.') + '</p>';
+    if (!rows || !rows.length) return '<p class="an-empty">' + esc(opts.empty || T('Δεν υπάρχουν ακόμα στοιχεία για αυτή την περίοδο.', 'There are no figures for this period yet.')) + '</p>';
     var max = 0, total = opts.total || 0;
     rows.forEach(function (r) { if (r.n > max) max = r.n; if (!opts.total) total += r.n; });
     return '<div class="an-scroll"><table class="an-bars"><caption class="sr-only">' + esc(opts.caption || '') + '</caption>' +
-      '<thead class="sr-only"><tr><th scope="col">' + esc(opts.what || 'Κατηγορία') + '</th><th scope="col">' + esc(opts.unit || 'Αριθμός') + '</th></tr></thead><tbody>' +
+      '<thead class="sr-only"><tr><th scope="col">' + esc(opts.what || T('Κατηγορία', 'Category')) + '</th><th scope="col">' + esc(opts.unit || T('Αριθμός', 'Number')) + '</th></tr></thead><tbody>' +
       rows.map(function (r) {
         var w = max ? Math.max(1.5, Math.round(r.n / max * 1000) / 10) : 0;
-        return '<tr' + (r.other ? ' class="an-other"' : '') + '><th scope="row">' + esc(r.label) + '</th>' +
+        // a name from the data is shown as it is: on the English page, a Greek one is marked as Greek
+        return '<tr' + (r.other ? ' class="an-other"' : '') + '><th scope="row"' + (L.en && GREEK.test(r.label) ? ' lang="el"' : '') + '>' + esc(r.label) + '</th>' +
           '<td><span class="an-barwrap"><span class="an-bar" style="width:' + (w * 0.62) + '%" aria-hidden="true"></span>' +
           '<span class="an-n">' + n(r.n) + '</span>' + (opts.noPct ? '' : '<span class="an-pct">' + pct(r.n, total) + '</span>') + '</span></td></tr>';
       }).join('') + '</tbody></table></div>';
@@ -278,13 +343,14 @@
       var b = svg.getBoundingClientRect();
       var lines;
       if (r.v == null) {
-        lines = ['Χωρίς μετρήσεις', r.by && r.by !== 'day' ? groupLabel(r) : dayLong(r.d)];
+        lines = [T('Χωρίς μετρήσεις', 'Not measured'), r.by && r.by !== 'day' ? groupLabel(r) : dayLong(r.d)];
       } else if (r.by && r.by !== 'day') {
-        lines = [dec(r.v) + ' επισκέψεις την ημέρα (μέσος όρος)', groupLabel(r),
-          n(r.tv) + (r.tv === 1 ? ' επίσκεψη' : ' επισκέψεις') + ' και ' + n(r.tpv) + ' προβολές σελίδων συνολικά'];
+        lines = [dec(r.v) + T(' επισκέψεις την ημέρα (μέσος όρος)', r.v === 1 ? ' visit a day (average)' : ' visits a day (average)'), groupLabel(r),
+          T(n(r.tv) + (r.tv === 1 ? ' επίσκεψη' : ' επισκέψεις') + ' και ' + n(r.tpv) + ' προβολές σελίδων συνολικά',
+            n(r.tv) + (r.tv === 1 ? ' visit' : ' visits') + ' and ' + n(r.tpv) + (r.tpv === 1 ? ' page view' : ' page views') + ' in total')];
       } else {
-        lines = [n(r.v) + (r.v === 1 ? ' επίσκεψη' : ' επισκέψεις'), dayLong(r.d)];
-        if (r.pv) lines.push(n(r.pv) + ' προβολές σελίδων');
+        lines = [n(r.v) + (r.v === 1 ? T(' επίσκεψη', ' visit') : T(' επισκέψεις', ' visits')), dayLong(r.d)];
+        if (r.pv) lines.push(n(r.pv) + T(' προβολές σελίδων', r.pv === 1 ? ' page view' : ' page views'));
       }
       showTip(lines, cx != null ? cx : b.left + X(i) * (b.width / W), cy != null ? cy : b.top + Y(r.v || 0) * (b.height / H));
     }
@@ -335,69 +401,72 @@
     return out;
   }
   function srcNote(src, extra) {
-    return 'Πηγή: ' + esc(SRC[src] || src) + (extra ? ' · ' + extra : '');
+    return T('Πηγή: ', 'Source: ') + esc(SRC[src] || src) + (extra ? ' · ' + extra : '');
   }
 
   function trafficHTML() {
-    var h = '<section class="an-part" aria-labelledby="an-visits-h"><h2 id="an-visits-h">Επισκεψιμότητα</h2>';
+    var h = '<section class="an-part" aria-labelledby="an-visits-h"><h2 id="an-visits-h">' + T('Επισκεψιμότητα', 'Visits') + '</h2>';
     var w = data && data.windows && data.windows[range];
     var any = data && data.windows && Object.keys(data.windows).length;
     if (!any) {
-      return h + '<div class="notice"><strong>Οι μετρήσεις μόλις ξεκίνησαν</strong><p>Τα στοιχεία επισκεψιμότητας ενημερώνονται μία φορά την ημέρα. Θα εμφανιστούν εδώ μετά την πρώτη ενημέρωση.</p></div></section>';
+      return h + '<div class="notice"><strong>' + T('Οι μετρήσεις μόλις ξεκίνησαν', 'Measuring has just started') + '</strong><p>' +
+        T('Τα στοιχεία επισκεψιμότητας ενημερώνονται μία φορά την ημέρα. Θα εμφανιστούν εδώ μετά την πρώτη ενημέρωση.', 'The visit figures are updated once a day. They will appear here after the first update.') + '</p></div></section>';
     }
-    h += '<div class="an-range" role="group" aria-label="Περίοδος">' + RANGES.map(function (r) {
+    h += '<div class="an-range" role="group" aria-label="' + T('Περίοδος', 'Period') + '">' + RANGES.map(function (r) {
       return '<button type="button" class="btn btn-sm ' + (r[0] === range ? 'btn-dark' : 'btn-outline') + '" data-range="' + r[0] + '" aria-pressed="' + (r[0] === range) + '">' + esc(r[1]) + '</button>';
     }).join('') + '</div>';
     if (!w) {
-      var other = RANGES.filter(function (r) { return data.windows[r[0]]; }).map(function (r) { return '«' + esc(r[1]) + '»'; });
-      return h + '<p class="an-empty">Δεν υπάρχουν μετρήσεις για αυτή την περίοδο' + (other.length ? '. Δείτε ' + other.join(', ') + '.' : '.') + '</p></section>';
+      var other = RANGES.filter(function (r) { return data.windows[r[0]]; }).map(function (r) { return T('«', '“') + esc(r[1]) + T('»', '”'); });
+      return h + '<p class="an-empty">' + T('Δεν υπάρχουν μετρήσεις για αυτή την περίοδο' + (other.length ? '. Δείτε ' + other.join(', ') + '.' : '.'),
+        'There are no figures for this period' + (other.length ? '. See ' + L.orList(other) + '.' : '.')) + '</p></section>';
     }
-    h += '<p class="an-period">' + esc(dayLong(w.from)) + ' – ' + esc(dayLong(w.to)) + (data.generated ? ' · ενημερώθηκε ' + esc(dayLong(String(data.generated).slice(0, 10))) : '') + '</p>';
+    h += '<p class="an-period">' + esc(dayLong(w.from)) + ' – ' + esc(dayLong(w.to)) + (data.generated ? T(' · ενημερώθηκε ', ' · updated ') + esc(dayLong(String(data.generated).slice(0, 10))) : '') + '</p>';
 
     var visits = w.visits || 0, views = w.pageviews || 0;
     h += '<div class="an-kpis">' +
-      kpi(n(visits), 'Επισκέψεις') + kpi(n(views), 'Προβολές σελίδων') +
-      kpi(visits ? (views / visits).toLocaleString('el-GR', { maximumFractionDigits: 1 }) : '–', 'Σελίδες ανά επίσκεψη') +
-      kpi(w.unis ? n(w.unis.items.length) : '–', 'Πανεπιστήμια και ερευνητικά κέντρα') + '</div>';
+      kpi(n(visits), T('Επισκέψεις', 'Visits')) + kpi(n(views), T('Προβολές σελίδων', 'Page views')) +
+      kpi(visits ? (views / visits).toLocaleString(L.locale, { maximumFractionDigits: 1 }) : '–', T('Σελίδες ανά επίσκεψη', 'Pages per visit')) +
+      kpi(w.unis ? n(w.unis.items.length) : '–', T('Πανεπιστήμια και ερευνητικά κέντρα', 'Universities and research centres')) + '</div>';
 
     h += '<div class="an-grid">';
     var rows = daysIn(w);
     if (rows.length > 1) {
       var grouped = groupDays(rows), by = grouped[0].by;
-      var each = by === 'month' ? 'κάθε μήνα' : by === 'week' ? 'κάθε εβδομάδας' : '';
-      h += card('Επισκέψεις ανά ημέρα', (each ? 'Ο μέσος όρος ' + each + '. ' : '') +
-        'Κάθε επίσκεψη μετράει μία φορά, όσες σελίδες κι αν διαβάσει ο επισκέπτης.' + lineSource(w) + gapNote(w),
-        chartSlot('line', grouped, each ? 'Επισκέψεις ανά ημέρα, μέσος όρος ' + each : 'Επισκέψεις ανά ημέρα') + daysTable(grouped), 'an-wide');
+      var each = by === 'month' ? T('κάθε μήνα', 'each month') : by === 'week' ? T('κάθε εβδομάδας', 'each week') : '';
+      h += card(T('Επισκέψεις ανά ημέρα', 'Visits per day'), (each ? T('Ο μέσος όρος ' + each + '. ', 'The average for ' + each + '. ') : '') +
+        T('Κάθε επίσκεψη μετράει μία φορά, όσες σελίδες κι αν διαβάσει ο επισκέπτης.', 'Each visit counts once, however many pages the visitor reads.') + lineSource(w) + gapNote(w),
+        chartSlot('line', grouped, each ? T('Επισκέψεις ανά ημέρα, μέσος όρος ' + each, 'Visits per day, average for ' + each) : T('Επισκέψεις ανά ημέρα', 'Visits per day')) + daysTable(grouped), 'an-wide');
     }
-    if (w.pages) h += card('Οι πιο δημοφιλείς σελίδες', srcNote(w.pages.src, 'προβολές σελίδων'),
-      bars(w.pages.items.map(function (p) { return { label: p.title || p.path, n: p.n }; }), { caption: 'Οι πιο δημοφιλείς σελίδες', what: 'Σελίδα', unit: 'Προβολές', total: views }));
+    if (w.pages) h += card(T('Οι πιο δημοφιλείς σελίδες', 'The most popular pages'), srcNote(w.pages.src, T('προβολές σελίδων', 'page views')),
+      bars(w.pages.items.map(function (p) { return { label: (L.en && p.titleEn ? p.titleEn : p.title) || p.path, n: p.n }; }), { caption: T('Οι πιο δημοφιλείς σελίδες', 'The most popular pages'), what: T('Σελίδα', 'Page'), unit: T('Προβολές', 'Views'), total: views }));
     if (w.hours) {
       var hours = w.hours.items;
-      h += card('Ώρα της ημέρας', srcNote(w.hours.src, 'ώρα Ελλάδας, πότε ξεκινά κάθε επίσκεψη'), chartSlot('columns', hours.map(function (v, i) {
+      h += card(T('Ώρα της ημέρας', 'Time of day'), srcNote(w.hours.src, T('ώρα Ελλάδας, πότε ξεκινά κάθε επίσκεψη', 'Greek time, when each visit starts')), chartSlot('columns', hours.map(function (v, i) {
         var hh = (i < 10 ? '0' : '') + i;
-        return { n: v, short: i % 3 === 0 ? hh : '', tip: [n(v) + (v === 1 ? ' επίσκεψη' : ' επισκέψεις'), hh + ':00–' + hh + ':59'] };
-      }), 'Επισκέψεις ανά ώρα της ημέρας') + table(hours.map(function (v, i) { return [(i < 10 ? '0' : '') + i + ':00', v]; }), 'Ώρα', 'Επισκέψεις'));
+        return { n: v, short: i % 3 === 0 ? hh : '', tip: [n(v) + (v === 1 ? T(' επίσκεψη', ' visit') : T(' επισκέψεις', ' visits')), hh + ':00–' + hh + ':59'] };
+      }), T('Επισκέψεις ανά ώρα της ημέρας', 'Visits by hour of the day')) + table(hours.map(function (v, i) { return [(i < 10 ? '0' : '') + i + ':00', v]; }), T('Ώρα', 'Hour'), T('Επισκέψεις', 'Visits')));
     }
     var wd = weekdays(rows);
     if (rows.length >= 7) {
-      h += card('Ημέρα της εβδομάδας', 'Μέσος όρος επισκέψεων ανά ημέρα της εβδομάδας', chartSlot('columns', wd.map(function (v, i) {
-        return { n: v, short: WD_SHORT[i], tip: [v.toLocaleString('el-GR', { maximumFractionDigits: 1 }) + ' επισκέψεις κατά μέσο όρο', WEEKDAYS[i]] };
-      }), 'Μέσος όρος επισκέψεων ανά ημέρα της εβδομάδας') + table(wd.map(function (v, i) { return [WEEKDAYS[i], v.toLocaleString('el-GR', { maximumFractionDigits: 1 })]; }), 'Ημέρα', 'Μέσος όρος'));
+      h += card(T('Ημέρα της εβδομάδας', 'Day of the week'), T('Μέσος όρος επισκέψεων ανά ημέρα της εβδομάδας', 'Average visits on each day of the week'), chartSlot('columns', wd.map(function (v, i) {
+        return { n: v, short: WD_SHORT[i], tip: [v.toLocaleString(L.locale, { maximumFractionDigits: 1 }) + T(' επισκέψεις κατά μέσο όρο', v === 1 ? ' visit on average' : ' visits on average'), WEEKDAYS[i]] };
+      }), T('Μέσος όρος επισκέψεων ανά ημέρα της εβδομάδας', 'Average visits on each day of the week')) + table(wd.map(function (v, i) { return [WEEKDAYS[i], v.toLocaleString(L.locale, { maximumFractionDigits: 1 })]; }), T('Ημέρα', 'Day'), T('Μέσος όρος', 'Average')));
     }
-    if (w.countries) h += card('Χώρες', srcNote(w.countries.src, 'επισκέψεις'),
-      bars(w.countries.items.map(function (c) { return { label: countryLabel(c.k), n: c.n }; }), { caption: 'Χώρες', what: 'Χώρα', unit: 'Επισκέψεις' }));
-    if (w.cities) h += card('Πόλεις', srcNote(w.cities.src, 'επισκέψεις'),
-      bars(w.cities.items.map(function (c) { return { label: cityLabel(c.name) + (c.k && c.k !== 'GR' ? ' (' + countryLabel(c.k) + ')' : ''), n: c.n }; }), { caption: 'Πόλεις', what: 'Πόλη', unit: 'Επισκέψεις' }));
-    if (w.unis) h += card('Πανεπιστήμια και ερευνητικά κέντρα', placedNote(w, 'unis'),
-      bars(w.unis.items.map(function (u) { return { label: u.name, n: u.n }; }), { caption: 'Πανεπιστήμια και ερευνητικά κέντρα', what: 'Ίδρυμα', unit: 'Επισκέψεις', noPct: true, empty: 'Καμία επίσκεψη από πανεπιστημιακό δίκτυο σε αυτή την περίοδο.' }));
-    if (w.companies) h += card('Εταιρείες και οργανισμοί', placedNote(w, 'companies'),
-      bars(w.companies.items.map(function (u) { return { label: u.name, n: u.n }; }), { caption: 'Εταιρείες και οργανισμοί', what: 'Οργανισμός', unit: 'Επισκέψεις', noPct: true, empty: 'Καμία εταιρεία με δύο ή περισσότερες επισκέψεις σε αυτή την περίοδο.' }));
-    if (w.channels) h += card('Πώς μας βρίσκουν', srcNote(w.channels.src, 'επισκέψεις'),
-      bars(w.channels.items.map(function (c) { return { label: CHANNELS[c.k] || c.k, n: c.n }; }), { caption: 'Πώς μας βρίσκουν', what: 'Τρόπος', unit: 'Επισκέψεις' }));
-    if (w.sources) h += card('Ιστότοποι που μας στέλνουν επισκέπτες', srcNote(w.sources.src, 'επισκέψεις'),
-      bars(w.sources.items.map(function (c) { return { label: c.name, n: c.n }; }), { caption: 'Ιστότοποι που μας στέλνουν επισκέπτες', what: 'Ιστότοπος', unit: 'Επισκέψεις', empty: 'Κανένας ιστότοπος σε αυτή την περίοδο.' }));
-    if (w.devices) h += card('Συσκευές', srcNote(w.devices.src, 'επισκέψεις'),
-      bars(w.devices.items.map(function (c) { return { label: DEVICES[c.k] || c.k, n: c.n }; }), { caption: 'Συσκευές', what: 'Συσκευή', unit: 'Επισκέψεις' }));
+    var VISITS = T('επισκέψεις', 'visits'), UNIT = T('Επισκέψεις', 'Visits');
+    if (w.countries) h += card(T('Χώρες', 'Countries'), srcNote(w.countries.src, VISITS),
+      bars(w.countries.items.map(function (c) { return { label: countryLabel(c.k), n: c.n }; }), { caption: T('Χώρες', 'Countries'), what: T('Χώρα', 'Country'), unit: UNIT }));
+    if (w.cities) h += card(T('Πόλεις', 'Cities'), srcNote(w.cities.src, VISITS),
+      bars(w.cities.items.map(function (c) { return { label: cityLabel(c.name) + (c.k && c.k !== 'GR' ? ' (' + countryLabel(c.k) + ')' : ''), n: c.n }; }), { caption: T('Πόλεις', 'Cities'), what: T('Πόλη', 'City'), unit: UNIT }));
+    if (w.unis) h += card(T('Πανεπιστήμια και ερευνητικά κέντρα', 'Universities and research centres'), placedNote(w, 'unis'),
+      bars(w.unis.items.map(function (u) { return { label: uniName(u.name), n: u.n }; }), { caption: T('Πανεπιστήμια και ερευνητικά κέντρα', 'Universities and research centres'), what: T('Ίδρυμα', 'Institution'), unit: UNIT, noPct: true, empty: T('Καμία επίσκεψη από πανεπιστημιακό δίκτυο σε αυτή την περίοδο.', 'No visits from a university network in this period.') }));
+    if (w.companies) h += card(T('Εταιρείες και οργανισμοί', 'Companies and organisations'), placedNote(w, 'companies'),
+      bars(w.companies.items.map(function (u) { return { label: u.name, n: u.n }; }), { caption: T('Εταιρείες και οργανισμοί', 'Companies and organisations'), what: T('Οργανισμός', 'Organisation'), unit: UNIT, noPct: true, empty: T('Καμία εταιρεία με δύο ή περισσότερες επισκέψεις σε αυτή την περίοδο.', 'No company with two or more visits in this period.') }));
+    if (w.channels) h += card(T('Πώς μας βρίσκουν', 'How people find us'), srcNote(w.channels.src, VISITS),
+      bars(w.channels.items.map(function (c) { return { label: CHANNELS[c.k] || c.k, n: c.n }; }), { caption: T('Πώς μας βρίσκουν', 'How people find us'), what: T('Τρόπος', 'Channel'), unit: UNIT }));
+    if (w.sources) h += card(T('Ιστότοποι που μας στέλνουν επισκέπτες', 'Websites that send us visitors'), srcNote(w.sources.src, VISITS),
+      bars(w.sources.items.map(function (c) { return { label: c.name, n: c.n }; }), { caption: T('Ιστότοποι που μας στέλνουν επισκέπτες', 'Websites that send us visitors'), what: T('Ιστότοπος', 'Website'), unit: UNIT, empty: T('Κανένας ιστότοπος σε αυτή την περίοδο.', 'No websites in this period.') }));
+    if (w.devices) h += card(T('Συσκευές', 'Devices'), srcNote(w.devices.src, VISITS),
+      bars(w.devices.items.map(function (c) { return { label: DEVICES[c.k] || c.k, n: c.n }; }), { caption: T('Συσκευές', 'Devices'), what: T('Συσκευή', 'Device'), unit: UNIT }));
     return h + '</div></section>';
   }
   function kpi(value, label) {
@@ -408,13 +477,16 @@
     var s = srcNote('site');
     if (!seen) return s;
     if (which === 'unis') {
-      s += '. Από ' + n(seen) + ' επισκέψεις, ' + n(p.unis || 0) + ' (' + pct(p.unis || 0, seen) + ') έγιναν από δίκτυο πανεπιστημίου ή ερευνητικού κέντρου';
-      if (p.academic) s += ' (από αυτές, ' + n(p.academic) + ' από δίκτυο που δεν κατονομάζει ίδρυμα)';
+      s += T('. Από ' + n(seen) + ' επισκέψεις, ' + n(p.unis || 0) + ' (' + pct(p.unis || 0, seen) + ') έγιναν από δίκτυο πανεπιστημίου ή ερευνητικού κέντρου',
+        '. Of ' + n(seen) + (seen === 1 ? ' visit, ' : ' visits, ') + n(p.unis || 0) + ' (' + pct(p.unis || 0, seen) + ') came from a university or research centre network');
+      if (p.academic) s += T(' (από αυτές, ' + n(p.academic) + ' από δίκτυο που δεν κατονομάζει ίδρυμα)', ' (of these, ' + n(p.academic) + ' from a network that does not name an institution)');
       return s + '.';
     }
-    s += '. Από ' + n(seen) + ' επισκέψεις, ' + n(p.companies || 0) + ' (' + pct(p.companies || 0, seen) + ') έγιναν από δίκτυο εταιρείας ή οργανισμού. Εμφανίζονται όσοι έχουν τουλάχιστον δύο επισκέψεις';
-    if (w.companies && w.companies.hidden) s += '· άλλοι ' + n(w.companies.hidden) + ' με μία επίσκεψη δεν κατονομάζονται';
-    return s + '. Οι επισκέψεις από οικιακές και κινητές συνδέσεις δεν αντιστοιχίζονται σε κανέναν.';
+    s += T('. Από ' + n(seen) + ' επισκέψεις, ' + n(p.companies || 0) + ' (' + pct(p.companies || 0, seen) + ') έγιναν από δίκτυο εταιρείας ή οργανισμού. Εμφανίζονται όσοι έχουν τουλάχιστον δύο επισκέψεις',
+      '. Of ' + n(seen) + (seen === 1 ? ' visit, ' : ' visits, ') + n(p.companies || 0) + ' (' + pct(p.companies || 0, seen) + ') came from a company or organisation network. Those with at least two visits are shown');
+    if (w.companies && w.companies.hidden) s += T('· άλλοι ' + n(w.companies.hidden) + ' με μία επίσκεψη δεν κατονομάζονται',
+      w.companies.hidden === 1 ? '; one more, with a single visit, is not named' : '; another ' + n(w.companies.hidden) + ' with a single visit each are not named');
+    return s + T('. Οι επισκέψεις από οικιακές και κινητές συνδέσεις δεν αντιστοιχίζονται σε κανέναν.', '. Visits from home and mobile connections are not matched to anyone.');
   }
   function weekdays(rows) {
     var sum = [0, 0, 0, 0, 0, 0, 0], cnt = [0, 0, 0, 0, 0, 0, 0];
@@ -426,29 +498,33 @@
     return sum.map(function (s, i) { return cnt[i] ? Math.round(s / cnt[i] * 10) / 10 : 0; });
   }
   function table(rows, a, b) {
-    return '<details class="an-numbers"><summary>Τα νούμερα</summary><div class="an-scroll"><table class="data"><thead><tr><th scope="col">' + esc(a) + '</th><th scope="col">' + esc(b) + '</th></tr></thead><tbody>' +
+    return '<details class="an-numbers"><summary>' + T('Τα νούμερα', 'The numbers') + '</summary><div class="an-scroll"><table class="data"><thead><tr><th scope="col">' + esc(a) + '</th><th scope="col">' + esc(b) + '</th></tr></thead><tbody>' +
       rows.map(function (r) { return '<tr><td>' + esc(r[0]) + '</td><td>' + esc(typeof r[1] === 'number' ? n(r[1]) : r[1]) + '</td></tr>'; }).join('') + '</tbody></table></div></details>';
   }
   function daysTable(rows) {
     var by = rows.length ? rows[0].by : 'day';
     if (by === 'day') {
-      return '<details class="an-numbers"><summary>Τα νούμερα ανά ημέρα</summary><div class="an-scroll"><table class="data"><thead><tr><th scope="col">Ημέρα</th><th scope="col">Επισκέψεις</th><th scope="col">Προβολές σελίδων</th></tr></thead><tbody>' +
-        rows.slice().reverse().map(function (r) { return '<tr><td>' + esc(dayLong(r.d)) + '</td>' + (r.v == null ? '<td colspan="2">χωρίς μετρήσεις</td>' : '<td>' + n(r.v) + '</td><td>' + n(r.pv) + '</td>') + '</tr>'; }).join('') + '</tbody></table></div></details>';
+      return '<details class="an-numbers"><summary>' + T('Τα νούμερα ανά ημέρα', 'The numbers by day') + '</summary><div class="an-scroll"><table class="data"><thead><tr><th scope="col">' + T('Ημέρα', 'Day') + '</th><th scope="col">' + T('Επισκέψεις', 'Visits') + '</th><th scope="col">' + T('Προβολές σελίδων', 'Page views') + '</th></tr></thead><tbody>' +
+        rows.slice().reverse().map(function (r) { return '<tr><td>' + esc(dayLong(r.d)) + '</td>' + (r.v == null ? '<td colspan="2">' + T('χωρίς μετρήσεις', 'not measured') + '</td>' : '<td>' + n(r.v) + '</td><td>' + n(r.pv) + '</td>') + '</tr>'; }).join('') + '</tbody></table></div></details>';
     }
-    var what = by === 'month' ? 'Μήνας' : 'Εβδομάδα';
-    return '<details class="an-numbers"><summary>Τα νούμερα ανά ' + (by === 'month' ? 'μήνα' : 'εβδομάδα') + '</summary><div class="an-scroll"><table class="data"><thead><tr><th scope="col">' + what + '</th><th scope="col">Επισκέψεις</th><th scope="col">Προβολές σελίδων</th><th scope="col">Επισκέψεις ανά ημέρα</th></tr></thead><tbody>' +
-      rows.slice().reverse().map(function (r) { return '<tr><td>' + esc(by === 'week' ? spanLabel(r.d, r.last) : groupLabel(r)) + '</td>' + (r.v == null ? '<td colspan="3">χωρίς μετρήσεις</td>' : '<td>' + n(r.tv) + '</td><td>' + n(r.tpv) + '</td><td>' + dec(r.v) + '</td>') + '</tr>'; }).join('') + '</tbody></table></div></details>';
+    var what = by === 'month' ? T('Μήνας', 'Month') : T('Εβδομάδα', 'Week');
+    return '<details class="an-numbers"><summary>' + (by === 'month' ? T('Τα νούμερα ανά μήνα', 'The numbers by month') : T('Τα νούμερα ανά εβδομάδα', 'The numbers by week')) + '</summary><div class="an-scroll"><table class="data"><thead><tr><th scope="col">' + what + '</th><th scope="col">' + T('Επισκέψεις', 'Visits') + '</th><th scope="col">' + T('Προβολές σελίδων', 'Page views') + '</th><th scope="col">' + T('Επισκέψεις ανά ημέρα', 'Visits per day') + '</th></tr></thead><tbody>' +
+      rows.slice().reverse().map(function (r) { return '<tr><td>' + esc(by === 'week' ? spanLabel(r.d, r.last) : groupLabel(r)) + '</td>' + (r.v == null ? '<td colspan="3">' + T('χωρίς μετρήσεις', 'not measured') + '</td>' : '<td>' + n(r.tv) + '</td><td>' + n(r.tpv) + '</td><td>' + dec(r.v) + '</td>') + '</tr>'; }).join('') + '</tbody></table></div></details>';
   }
   /** The unmeasured stretches inside a period, said in words. */
   function gapNote(w) {
     var list = (data.gaps || []).filter(function (g) { return g[0] <= w.to && g[1] >= w.from; });
-    return list.map(function (g) { return ' Από ' + esc(dayLong(g[0])) + ' έως ' + esc(dayLong(g[1])) + ' δεν υπάρχουν μετρήσεις (κενό στη γραμμή).'; }).join('');
+    return list.map(function (g) {
+      return T(' Από ' + esc(dayLong(g[0])) + ' έως ' + esc(dayLong(g[1])) + ' δεν υπάρχουν μετρήσεις (κενό στη γραμμή).',
+        ' From ' + esc(dayLong(g[0])) + ' to ' + esc(dayLong(g[1])) + ' nothing was measured (a gap in the line).');
+    }).join('');
   }
   /** Which counter the line comes from, and where it changes over. */
   function lineSource(w) {
     var src = (data && data.sources) || {}, first = src.site && src.site.first;
     if (src.ga4 && first && w.from < first && first <= w.to) {
-      return ' Έως ' + esc(dayLong(addDay(first, -1))) + ' από το Google Analytics, από ' + esc(dayLong(first)) + ' από τον μετρητή του ιστότοπου.';
+      return T(' Έως ' + esc(dayLong(addDay(first, -1))) + ' από το Google Analytics, από ' + esc(dayLong(first)) + ' από τον μετρητή του ιστότοπου.',
+        ' Up to ' + esc(dayLong(addDay(first, -1))) + ' from Google Analytics; from ' + esc(dayLong(first)) + ' from the website\'s own visit counter.');
     }
     if (first && w.from >= first) return ' ' + srcNote('site') + '.';
     if (src.ga4) return ' ' + srcNote('ga4') + '.';
@@ -461,63 +537,75 @@
     switch (dim) {
       case 'stage': return STAGES[it.k] || it.k;
       case 'gender': return GENDERS[it.k] || it.k;
-      case 'industry': return (PO && PO.industryLabel(it.k)) || it.k;
+      case 'industry': return (PO && PO.industryLabel(it.k, L.lang)) || it.k;
       case 'country': return countryLabel(it.k);
-      case 'study': return it.k === '05' ? 'Έως 5 έτη' : it.k === '10' ? '10 έτη ή περισσότερα' : (+it.k) + ' έτη';
+      case 'study': return it.k === '05' ? T('Έως 5 έτη', 'Up to 5 years') : it.k === '10' ? T('10 έτη ή περισσότερα', '10 years or more') : (+it.k) + T(' έτη', ' years');
+      // the field of study and the city are stored in Greek: an English page names them in English where it can
+      case 'direction': return L.en && DIRECTION_EN[it.k] ? DIRECTION_EN[it.k] : it.name || it.k;
+      case 'city': return L.en ? cityLabel(it.name || it.k) : it.name || it.k;
       default: return it.name || it.k;
     }
+  }
+  function notEnough() {
+    return '<p class="an-empty">' + T('Δεν υπάρχουν ακόμα αρκετές απαντήσεις (χρειάζονται τουλάχιστον ' + n(members.minAnswers || 5) + ').',
+      'There are not enough answers yet (at least ' + n(members.minAnswers || 5) + ' are needed).') + '</p>';
   }
   function memberDim(dim, title, sub) {
     var d = members.dims && members.dims[dim];
     if (!d) return '';
     var answered = d.answered || 0;
-    var note = (sub ? sub + ' · ' : '') + 'Απάντησαν ' + n(answered) + ' από ' + n(members.registered);
-    if (!d.items) return card(title, note, '<p class="an-empty">Δεν υπάρχουν ακόμα αρκετές απαντήσεις (χρειάζονται τουλάχιστον ' + n(members.minAnswers || 5) + ').</p>');
-    return card(title, note, bars(d.items.map(function (it) { return { label: label(dim, it), n: it.n, other: it.k === '_other' }; }), { caption: title, total: answered, unit: 'Μέλη' }));
+    var note = (sub ? sub + ' · ' : '') + T('Απάντησαν ' + n(answered) + ' από ' + n(members.registered), n(answered) + ' of ' + n(members.registered) + ' answered');
+    if (!d.items) return card(title, note, notEnough());
+    return card(title, note, bars(d.items.map(function (it) { return { label: label(dim, it), n: it.n, other: it.k === '_other' }; }), { caption: title, total: answered, unit: T('Μέλη', 'Members') }));
   }
   function memberColumns(dim, title, sub) {
     var d = members.dims && members.dims[dim];
     if (!d) return '';
-    var note = (sub ? sub + ' · ' : '') + 'Απάντησαν ' + n(d.answered || 0) + ' από ' + n(members.registered);
-    if (!d.items) return card(title, note, '<p class="an-empty">Δεν υπάρχουν ακόμα αρκετές απαντήσεις (χρειάζονται τουλάχιστον ' + n(members.minAnswers || 5) + ').</p>');
+    var note = (sub ? sub + ' · ' : '') + T('Απάντησαν ' + n(d.answered || 0) + ' από ' + n(members.registered), n(d.answered || 0) + ' of ' + n(members.registered) + ' answered');
+    if (!d.items) return card(title, note, notEnough());
     var items = d.items.map(function (it) {
       var l = label(dim, it);
-      return { n: it.n, short: it.k === '_other' ? 'Λοιπά' : dim === 'study' ? (it.k === '05' ? '≤5' : it.k === '10' ? '10+' : String(+it.k)) : String(it.k).replace(/^(\d{4})–\d\d(\d\d)$/, '$1–$2'), tip: [n(it.n) + ' μέλη', l] };
+      return { n: it.n, short: it.k === '_other' ? T('Λοιπά', 'Other') : dim === 'study' ? (it.k === '05' ? '≤5' : it.k === '10' ? '10+' : String(+it.k)) : String(it.k).replace(/^(\d{4})–\d\d(\d\d)$/, '$1–$2'), tip: [n(it.n) + T(' μέλη', it.n === 1 ? ' member' : ' members'), l] };
     });
     return card(title, note, chartSlot('columns', items, title) +
-      table(d.items.map(function (it) { return [label(dim, it), it.n]; }), dim === 'study' ? 'Χρόνια σπουδών' : 'Περίοδος', 'Μέλη'));
+      table(d.items.map(function (it) { return [label(dim, it), it.n]; }), dim === 'study' ? T('Χρόνια σπουδών', 'Years of study') : T('Περίοδος', 'Period'), T('Μέλη', 'Members')));
   }
   function membersHTML() {
-    var h = '<section class="an-part" id="meli" aria-labelledby="an-members-h"><h2 id="an-members-h">Τα μέλη μας</h2>' +
-      '<p class="an-lead">Ανώνυμα στατιστικά όσων έχουν εγγραφεί στον ιστότοπο, ενημερωμένα κάθε φορά που κάποιος εγγράφεται ή αλλάζει τα στοιχεία του. ' +
+    var h = '<section class="an-part" id="meli" aria-labelledby="an-members-h"><h2 id="an-members-h">' + T('Τα μέλη μας', 'Our members') + '</h2>' +
+      '<p class="an-lead">' + T('Ανώνυμα στατιστικά όσων έχουν εγγραφεί στον ιστότοπο, ενημερωμένα κάθε φορά που κάποιος εγγράφεται ή αλλάζει τα στοιχεία του. ' +
       'Μετράμε μόνο σύνολα ανά ερώτηση· ομάδες με λιγότερα από 3 άτομα συγχωνεύονται στα «Λοιπά» και κάθε ερώτηση εμφανίζεται μόνο όταν την έχουν απαντήσει τουλάχιστον 5 άτομα. ' +
-      'Δεν δημοσιεύεται κανένα όνομα, e-mail ή στοιχείο ενός συγκεκριμένου ατόμου.</p>';
-    if (membersState === 'loading') return h + '<div class="loading"><span class="spinner" aria-hidden="true"></span>Φόρτωση…</div></section>';
-    if (membersState !== 'ok') return h + '<div class="notice"><strong>Τα στατιστικά των μελών θα εμφανιστούν σύντομα</strong><p>Μετρώνται αυτόματα από τις εγγραφές στον ιστότοπο.</p></div></section>';
+      'Δεν δημοσιεύεται κανένα όνομα, e-mail ή στοιχείο ενός συγκεκριμένου ατόμου.',
+        'Anonymous statistics about the people registered on the website, updated every time someone registers or changes their details. ' +
+        'We count only the totals for each question; groups of fewer than 3 people are merged into “Other”, and a question appears only once at least 5 people have answered it. ' +
+        'No name, e-mail address or other detail of any one person is published.') + '</p>';
+    if (membersState === 'loading') return h + '<div class="loading"><span class="spinner" aria-hidden="true"></span>' + T('Φόρτωση…', 'Loading…') + '</div></section>';
+    if (membersState !== 'ok') return h + '<div class="notice"><strong>' + T('Τα στατιστικά των μελών θα εμφανιστούν σύντομα', 'The members\' statistics will appear soon') + '</strong><p>' +
+      T('Μετρώνται αυτόματα από τις εγγραφές στον ιστότοπο.', 'They are counted automatically from the registrations on the website.') + '</p></div></section>';
     var m = members;
-    h += '<p class="an-period">Τρέχουσα εικόνα' + (m.t ? ' · ενημερώθηκε ' + esc(dayLong(String(m.t).slice(0, 10))) : '') + '</p>';
-    h += '<div class="an-kpis">' + kpi(n(m.registered), 'Εγγεγραμμένοι') + kpi(n(m.active), 'Ενεργά μέλη') +
-      kpi(m.dims && m.dims.country && m.dims.country.items ? n(m.dims.country.items.filter(function (x) { return x.k !== '_other'; }).length) : '–', 'Χώρες με τουλάχιστον 3 μέλη') +
-      kpi(m.dims && m.dims.employer && m.dims.employer.items ? n(m.dims.employer.items.filter(function (x) { return x.k !== '_other'; }).length) : '–', 'Εργοδότες με τουλάχιστον 3 μέλη') + '</div>';
+    h += '<p class="an-period">' + T('Τρέχουσα εικόνα', 'As things stand') + (m.t ? T(' · ενημερώθηκε ', ' · updated ') + esc(dayLong(String(m.t).slice(0, 10))) : '') + '</p>';
+    h += '<div class="an-kpis">' + kpi(n(m.registered), T('Εγγεγραμμένοι', 'Registered')) + kpi(n(m.active), T('Ενεργά μέλη', 'Active members')) +
+      kpi(m.dims && m.dims.country && m.dims.country.items ? n(m.dims.country.items.filter(function (x) { return x.k !== '_other'; }).length) : '–', T('Χώρες με τουλάχιστον 3 μέλη', 'Countries with at least 3 members')) +
+      kpi(m.dims && m.dims.employer && m.dims.employer.items ? n(m.dims.employer.items.filter(function (x) { return x.k !== '_other'; }).length) : '–', T('Εργοδότες με τουλάχιστον 3 μέλη', 'Employers with at least 3 members')) + '</div>';
+    var FIVE = T('ανά πενταετία', 'in five-year periods');
     h += '<div class="an-grid">' +
-      memberDim('stage', 'Ιδιότητα') +
-      memberDim('direction', 'Κατεύθυνση σπουδών') +
-      memberColumns('entry', 'Έτος εισαγωγής στη ΣΕΜΦΕ', 'ανά πενταετία') +
-      memberColumns('grad', 'Έτος αποφοίτησης', 'ανά πενταετία') +
-      memberColumns('study', 'Χρόνια σπουδών στη ΣΕΜΦΕ', 'από την εισαγωγή ως την αποφοίτηση') +
-      memberDim('gender', 'Φύλο', 'προαιρετική ερώτηση') +
-      memberDim('industry', 'Κλάδος εργασίας') +
-      memberDim('employer', 'Εργοδότες', 'όσοι έχουν τουλάχιστον 3 μέλη μας') +
-      memberDim('country', 'Χώρα') +
-      memberDim('city', 'Πόλη');
+      memberDim('stage', T('Ιδιότητα', 'Status')) +
+      memberDim('direction', T('Κατεύθυνση σπουδών', 'Field of study')) +
+      memberColumns('entry', T('Έτος εισαγωγής στη ΣΕΜΦΕ', 'Year of entry to SEMFE'), FIVE) +
+      memberColumns('grad', T('Έτος αποφοίτησης', 'Year of graduation'), FIVE) +
+      memberColumns('study', T('Χρόνια σπουδών στη ΣΕΜΦΕ', 'Years of study at SEMFE'), T('από την εισαγωγή ως την αποφοίτηση', 'from entry to graduation')) +
+      memberDim('gender', T('Φύλο', 'Gender'), T('προαιρετική ερώτηση', 'optional question')) +
+      memberDim('industry', T('Κλάδος εργασίας', 'Industry')) +
+      memberDim('employer', T('Εργοδότες', 'Employers'), T('όσοι έχουν τουλάχιστον 3 μέλη μας', 'those with at least 3 of our members')) +
+      memberDim('country', T('Χώρα', 'Country')) +
+      memberDim('city', T('Πόλη', 'City'));
     if (m.growth && m.growth.length) {
       var total = 0;
       var items = m.growth.map(function (g) {
         total += g[1];
-        return { n: g[1], short: MONTHS[+g[0].slice(5, 7) - 1] + (g[0].slice(5, 7) === '01' || g === m.growth[0] ? ' ' + g[0].slice(2, 4) : ''), tip: [n(g[1]) + (g[1] === 1 ? ' νέα εγγραφή' : ' νέες εγγραφές'), monthName(g[0]), 'σύνολο ως τότε: ' + n(total)] };
+        return { n: g[1], short: MONTHS[+g[0].slice(5, 7) - 1] + (g[0].slice(5, 7) === '01' || g === m.growth[0] ? ' ' + g[0].slice(2, 4) : ''), tip: [n(g[1]) + (g[1] === 1 ? T(' νέα εγγραφή', ' new registration') : T(' νέες εγγραφές', ' new registrations')), monthName(g[0]), T('σύνολο ως τότε: ', 'total by then: ') + n(total)] };
       });
-      h += card('Εγγραφές ανά μήνα', 'Νέες εγγραφές στον ιστότοπο κάθε μήνα', chartSlot('columns', items, 'Εγγραφές ανά μήνα') +
-        table(m.growth.map(function (g) { return [monthName(g[0]), g[1]]; }), 'Μήνας', 'Νέες εγγραφές'), 'an-wide');
+      h += card(T('Εγγραφές ανά μήνα', 'Registrations per month'), T('Νέες εγγραφές στον ιστότοπο κάθε μήνα', 'New registrations on the website each month'), chartSlot('columns', items, T('Εγγραφές ανά μήνα', 'Registrations per month')) +
+        table(m.growth.map(function (g) { return [monthName(g[0]), g[1]]; }), T('Μήνας', 'Month'), T('Νέες εγγραφές', 'New registrations')), 'an-wide');
     }
     return h + '</div></section>';
   }
@@ -528,7 +616,7 @@
     var keep = document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute('data-range');
     drawn = [];
     chartId = 0;
-    app.innerHTML = '<div class="an">' + (data ? trafficHTML() : '<div class="loading"><span class="spinner" aria-hidden="true"></span>Φόρτωση…</div>') + membersHTML() + '</div>';
+    app.innerHTML = '<div class="an">' + (data ? trafficHTML() : '<div class="loading"><span class="spinner" aria-hidden="true"></span>' + T('Φόρτωση…', 'Loading…') + '</div>') + membersHTML() + '</div>';
     drawAll();
     if (keep) { var b = app.querySelector('[data-range="' + keep + '"]'); if (b) b.focus(); }
   }

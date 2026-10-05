@@ -160,9 +160,11 @@ export function measurementGaps(days, to) {
  *   site   { docs } or null (not set up)
  *   ga     { days, windows: { key: blocks } } or null
  *   titles path -> page title (functions/site-paths.json)
+ *   titlesEn  path -> the page's English title, for the English copy of the
+ *             page (en/analytics/); optional, each page row then carries titleEn
  *   today  'YYYY-MM-DD' in Greece; the last day counted is the day before
  */
-export function buildFile({ site, ga, titles, today, generated }) {
+export function buildFile({ site, ga, titles, titlesEn, today, generated }) {
   const to = addDays(today, -1);
   const days = mergeDays(site && site.docs, ga && ga.days);
   const first = Object.keys(days)[0] || '';
@@ -194,7 +196,8 @@ export function buildFile({ site, ga, titles, today, generated }) {
     const s = site ? siteWindow(site.docs, from, end) : null;
     const g = ga && ga.windows && ga.windows[key] ? ga.windows[key] : null;
     const title = p => titles[p] || p;
-    const pageItems = map => topItems(map, TOP.pages, 'path').map(x => ({ path: x.path, title: title(x.path), n: x.n }));
+    const pageItems = map => topItems(map, TOP.pages, 'path').map(x => Object.assign({ path: x.path, title: title(x.path) },
+      titlesEn && titlesEn[x.path] ? { titleEn: titlesEn[x.path] } : {}, { n: x.n }));
     // pages: the site when it counted any, else GA4
     if (s && s.pv > 0) { const pg = Object.assign({}, s.pages); delete pg.other; w.pages = { src: 'site', items: pageItems(pg) }; }
     else if (g && g.pages) w.pages = { src: 'ga4', items: pageItems(g.pages) };
@@ -377,7 +380,7 @@ async function main() {
   if (failed) { console.log('::warning::a source that is set up did not answer: data/analytics.json is left as it is.'); return 1; }
 
   const today = athensDay(new Date());
-  const file = buildFile({ site, ga, titles: paths.titles, today, generated: today });
+  const file = buildFile({ site, ga, titles: paths.titles, titlesEn: paths.titlesEn, today, generated: today });
   // the date says when the figures last CHANGED, so an unchanged day writes nothing
   const same = prev && JSON.stringify(Object.assign({}, prev, { generated: null })) === JSON.stringify(Object.assign({}, file, { generated: null }));
   if (same) file.generated = prev.generated;

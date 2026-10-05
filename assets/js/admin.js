@@ -10,6 +10,7 @@
  * config.js only decides whether this page tries. */
 (function () {
   'use strict';
+  var L = window.SEMFE_I18N, T = L.t;
   var A = window.SemfeAuth;
   var app = document.getElementById('admin-app');
   if (!A || !app) return;
@@ -17,10 +18,20 @@
   // registered accounts: the list (null while loading), its error, search, view, the ticked rows
   var users = null, usersErr = null, uq = '', uview = 'all', picked = [], merging = false, uMsg = null;
   var YEAR = new Date().getFullYear();
-  var STAGES = { graduate: 'Απόφοιτος', 'final-year': 'Τελειόφοιτος', faculty: 'ΔΕΠ' };
+  var STAGES = { graduate: T('Απόφοιτος', 'Graduate'), 'final-year': T('Τελειόφοιτος', 'Final-year student'), faculty: T('ΔΕΠ', 'Faculty member') };
+  // the Greek name is what is STORED (members/{uid}.direction, chosen from a list on account/); the English page shows the second
+  var DIRECTION_EN = { 'Εφαρμοσμένα Μαθηματικά': 'Applied Mathematics', 'Εφαρμοσμένη Φυσική': 'Applied Physics', 'Άλλη / δεν ισχύει': 'Other / not applicable' };
+  function directionLabel(v) { return L.en && DIRECTION_EN[v] ? DIRECTION_EN[v] : v; }
   var PROVIDER = { 'google.com': 'Google', 'facebook.com': 'Facebook', 'oidc.linkedin': 'LinkedIn', linkedin: 'LinkedIn', password: 'E-mail' };
   function providerName(p) { return PROVIDER[p] || String(p || ''); }
-  var STATUS = { pending: ['warn', 'Σε αναμονή'], active: ['ok', 'Ενεργό μέλος'], rejected: ['err', 'Απορρίφθηκε'] };
+  var STATUS = { pending: ['warn', T('Σε αναμονή', 'Pending')], active: ['ok', T('Ενεργό μέλος', 'Active member')], rejected: ['err', T('Απορρίφθηκε', 'Rejected')] };
+  // the column names of the applications table (its headings and each cell's label on a phone)
+  var COL = { member: T('Μέλος', 'Member'), status: T('Κατάσταση', 'Status'), semfe: T('ΣΕΜΦΕ', 'SEMFE'), work: T('Εργασία', 'Work'),
+    applied: T('Αίτηση', 'Applied'), fees: T('Συνδρομές', 'Fees'), actions: T('Ενέργειες', 'Actions') };
+  // ... and of the registered users table
+  var UCOL = { pick: T('Επιλογή', 'Select'), user: T('Χρήστης', 'User'), methods: T('Τρόποι σύνδεσης', 'Sign-in methods'), app: T('Αίτηση', 'Application'),
+    created: T('Εγγραφή', 'Registered'), lastSeen: T('Τελευταία σύνδεση', 'Last sign-in'), actions: T('Ενέργειες', 'Actions') };
+  var NO_NAME = T('(χωρίς όνομα)', '(no name)'), NO_EMAIL = T('χωρίς e-mail', 'no e-mail');
 
   function html(s) { app.innerHTML = s; }
   A.onChange(function (u) {
@@ -29,17 +40,17 @@
     // a different account (or none) starts from a clean users list: signing out
     // and in again without a reload must not leave the old spinner behind
     users = null; usersErr = null; picked = []; merging = false; uMsg = null;
-    if (!A.configured) return html('<div class="notice warn"><strong>Η σύνδεση μελών δεν έχει ενεργοποιηθεί ακόμα.</strong><p>Δείτε το FIREBASE-SETUP.md.</p></div>');
+    if (!A.configured) return html('<div class="notice warn"><strong>' + T('Η σύνδεση μελών δεν έχει ενεργοποιηθεί ακόμα.', 'Member sign-in is not switched on yet.') + '</strong><p>' + T('Δείτε το FIREBASE-SETUP.md.', 'See FIREBASE-SETUP.md.') + '</p></div>');
     if (!u) {
-      html('<div class="panel"><h2>Μόνο για διαχειριστές</h2><p>Συνδεθείτε με τον λογαριασμό διαχειριστή.</p><button type="button" class="btn btn-primary" data-open>Σύνδεση</button></div>');
+      html('<div class="panel"><h2>' + T('Μόνο για διαχειριστές', 'Administrators only') + '</h2><p>' + T('Συνδεθείτε με τον λογαριασμό διαχειριστή.', 'Sign in with an administrator account.') + '</p><button type="button" class="btn btn-primary" data-open>' + T('Σύνδεση', 'Sign in') + '</button></div>');
       app.querySelector('[data-open]').addEventListener('click', function (e) { A.open('signin', e.currentTarget); });
       return;
     }
     if (!A.isAdmin(u)) {
-      return html('<div class="notice err"><strong>Δεν έχετε πρόσβαση σε αυτή τη σελίδα.</strong><p>Είστε συνδεδεμένος/η ως ' + esc(u.email || A.displayName(u)) +
-        (u.email && !u.emailVerified ? ' (το e-mail δεν έχει επιβεβαιωθεί)' : '') + '. Η σελίδα είναι μόνο για τους διαχειριστές του μητρώου μελών.</p></div>');
+      return html('<div class="notice err"><strong>' + T('Δεν έχετε πρόσβαση σε αυτή τη σελίδα.', 'You do not have access to this page.') + '</strong><p>' + T('Είστε συνδεδεμένος/η ως ', 'You are signed in as ') + esc(u.email || A.displayName(u)) +
+        (u.email && !u.emailVerified ? T(' (το e-mail δεν έχει επιβεβαιωθεί)', ' (the e-mail address is not confirmed)') : '') + T('. Η σελίδα είναι μόνο για τους διαχειριστές του μητρώου μελών.', '. This page is only for the administrators of the membership register.') + '</p></div>');
     }
-    html('<div class="loading"><span class="spinner" aria-hidden="true"></span>Φόρτωση αιτήσεων…</div>');
+    html('<div class="loading"><span class="spinner" aria-hidden="true"></span>' + T('Φόρτωση αιτήσεων…', 'Loading applications…') + '</div>');
     A.db().then(function (d) {
       db = d; FV = firebase.firestore.FieldValue;
       unsub = db.collection('members').onSnapshot(function (qs) {
@@ -51,7 +62,9 @@
         if (users === null && !usersErr) loadUsers();
         if (alertCounts === null) loadAlertCounts();
       }, function (e) {
-        html('<div class="notice err"><strong>Δεν ήταν δυνατή η φόρτωση</strong><p>' + esc(A.friendly(e)) + '</p><p>Αν μόλις ρυθμίσατε το Firebase, βεβαιωθείτε ότι δημοσιεύσατε το firestore.rules και ότι το ' + esc(u.email) + ' υπάρχει και στο isAdmin() των κανόνων.</p></div>');
+        html('<div class="notice err"><strong>' + T('Δεν ήταν δυνατή η φόρτωση', 'Could not load') + '</strong><p>' + esc(A.friendly(e)) + '</p><p>' +
+          T('Αν μόλις ρυθμίσατε το Firebase, βεβαιωθείτε ότι δημοσιεύσατε το firestore.rules και ότι το ' + esc(u.email) + ' υπάρχει και στο isAdmin() των κανόνων.',
+            'If you have just set up Firebase, make sure you published firestore.rules and that ' + esc(u.email) + ' is also listed in isAdmin() in the rules.') + '</p></div>');
       });
     }, function (e) { html('<div class="notice err"><p>' + esc(A.friendly(e)) + '</p></div>'); });
   });
@@ -72,8 +85,8 @@
   function alertLine() {
     var AL = window.SEMFE_ALERTS, c = alertCounts;
     if (!AL || !c || c._any == null) return '';
-    return '<strong>Ειδοποιήσεις με e-mail:</strong> ' + c._any + (c._any === 1 ? ' μέλος' : ' μέλη') + ' · ' +
-      AL.TOPICS.map(function (t) { return esc(t.label) + ' ' + (c[t.key] || 0); }).join(' · ');
+    return '<strong>' + T('Ειδοποιήσεις με e-mail:', 'E-mail alerts:') + '</strong> ' + c._any + (c._any === 1 ? T(' μέλος', ' member') : T(' μέλη', ' members')) + ' · ' +
+      AL.TOPICS.map(function (t) { return esc(L.en && t.en ? t.en.label : t.label) + ' ' + (c[t.key] || 0); }).join(' · ');
   }
   function ts(t) { return t && t.toMillis ? t.toMillis() : 0; }
   function date(t) { var ms = ts(t); if (!ms) return ''; var d = new Date(ms); return d.getDate() + '/' + (d.getMonth() + 1) + '/' + d.getFullYear(); }
@@ -136,13 +149,13 @@
     var paidNow = all.filter(function (m) { return m.status === 'active' && (m.duesYears || []).indexOf(YEAR) !== -1; }).length;
     var list = visible();
     app.querySelector('[data-tiles]').innerHTML =
-      tile(all.length, 'Αιτήσεις συνολικά') + tile(count('pending'), 'Σε αναμονή') + tile(count('active'), 'Ενεργά μέλη') + tile(paidNow, 'Συνδρομή ' + YEAR);
+      tile(all.length, T('Αιτήσεις συνολικά', 'Applications in total')) + tile(count('pending'), T('Σε αναμονή', 'Pending')) + tile(count('active'), T('Ενεργά μέλη', 'Active members')) + tile(paidNow, T('Συνδρομή ' + YEAR, YEAR + ' fee paid'));
     var al = app.querySelector('[data-alert-line]');
     if (al) { al.innerHTML = alertLine(); al.hidden = !al.innerHTML; }
     app.querySelectorAll('[data-filter]').forEach(function (b) { b.setAttribute('aria-pressed', String(filter === b.getAttribute('data-filter'))); });
-    app.querySelector('[data-csv]').textContent = 'Εξαγωγή CSV (' + list.length + ')';
-    app.querySelector('[data-list]').innerHTML = !list.length ? '<p class="muted">Καμία αίτηση σε αυτή την κατηγορία.</p>'
-      : '<div class="table-wrap"><table class="data stack"><thead><tr><th>Μέλος</th><th>Κατάσταση</th><th>ΣΕΜΦΕ</th><th>Εργασία</th><th>Αίτηση</th><th>Συνδρομές</th><th>Ενέργειες</th></tr></thead><tbody>' +
+    app.querySelector('[data-csv]').textContent = T('Εξαγωγή CSV (', 'Export CSV (') + list.length + ')';
+    app.querySelector('[data-list]').innerHTML = !list.length ? '<p class="muted">' + T('Καμία αίτηση σε αυτή την κατηγορία.', 'No applications in this category.') + '</p>'
+      : '<div class="table-wrap"><table class="data stack"><thead><tr><th>' + COL.member + '</th><th>' + COL.status + '</th><th>' + COL.semfe + '</th><th>' + COL.work + '</th><th>' + COL.applied + '</th><th>' + COL.fees + '</th><th>' + COL.actions + '</th></tr></thead><tbody>' +
         list.map(row).join('') + '</tbody></table></div>';
     wireRows();
     // focus inside the frame (search box, filters, buttons) was never lost; only rows are redrawn
@@ -152,56 +165,61 @@
     html('<div data-admin-frame><div class="tiles" data-tiles></div>' +
       '<p class="muted" data-alert-line hidden style="font-size:.92rem;margin:-6px 0 18px"></p>' +
       '<div class="dir-tools">' +
-      '<div class="filters" role="group" aria-label="Κατάσταση" style="margin:0">' +
-      [['pending', 'Σε αναμονή'], ['active', 'Ενεργά'], ['rejected', 'Απορρίφθηκαν'], ['all', 'Όλες']].map(function (f) {
+      '<div class="filters" role="group" aria-label="' + T('Κατάσταση', 'Status') + '" style="margin:0">' +
+      [['pending', T('Σε αναμονή', 'Pending')], ['active', T('Ενεργά', 'Active')], ['rejected', T('Απορρίφθηκαν', 'Rejected')], ['all', T('Όλες', 'All')]].map(function (f) {
         return '<button type="button" data-filter="' + f[0] + '" aria-pressed="' + (filter === f[0]) + '">' + f[1] + '</button>';
       }).join('') + '</div>' +
-      '<div class="field"><label for="adm-q" class="sr-only">Αναζήτηση</label><input id="adm-q" type="search" placeholder="Αναζήτηση: όνομα, e-mail, εργοδότης…" value="' + esc(query) + '"></div></div>' +
+      '<div class="field"><label for="adm-q" class="sr-only">' + T('Αναζήτηση', 'Search') + '</label><input id="adm-q" type="search" placeholder="' + T('Αναζήτηση: όνομα, e-mail, εργοδότης…', 'Search: name, e-mail, employer…') + '" value="' + esc(query) + '"></div></div>' +
       '<div class="section-foot" style="margin:0 0 16px">' +
-      '<button type="button" class="btn btn-outline btn-sm" data-csv>Εξαγωγή CSV</button>' +
-      '<button type="button" class="btn btn-outline btn-sm" data-copy="consentNewsletter">Αντιγραφή e-mail: newsletter</button>' +
-      '<button type="button" class="btn btn-outline btn-sm" data-copy="consentJobs">Αντιγραφή e-mail: θέσεις εργασίας</button>' +
+      '<button type="button" class="btn btn-outline btn-sm" data-csv>' + T('Εξαγωγή CSV', 'Export CSV') + '</button>' +
+      '<button type="button" class="btn btn-outline btn-sm" data-copy="consentNewsletter">' + T('Αντιγραφή e-mail: newsletter', 'Copy e-mails: newsletter') + '</button>' +
+      '<button type="button" class="btn btn-outline btn-sm" data-copy="consentJobs">' + T('Αντιγραφή e-mail: θέσεις εργασίας', 'Copy e-mails: job openings') + '</button>' +
       '<span class="form-ok" data-msg role="status"></span></div>' +
       '<div data-list></div>' +
-      '<div class="panel users-panel" id="users" style="margin-top:32px"><h2 tabindex="-1">Εγγεγραμμένοι χρήστες</h2>' +
-      '<p class="muted intro">Όλοι οι λογαριασμοί σύνδεσης, με ή χωρίς αίτηση μέλους: όνομα, e-mail, τρόποι σύνδεσης, πότε γράφτηκαν και πότε μπήκαν τελευταία φορά. ' +
+      '<div class="panel users-panel" id="users" style="margin-top:32px"><h2 tabindex="-1">' + T('Εγγεγραμμένοι χρήστες', 'Registered users') + '</h2>' +
+      T('<p class="muted intro">Όλοι οι λογαριασμοί σύνδεσης, με ή χωρίς αίτηση μέλους: όνομα, e-mail, τρόποι σύνδεσης, πότε γράφτηκαν και πότε μπήκαν τελευταία φορά. ' +
       'Όταν ένα άτομο έχει δύο λογαριασμούς (π.χ. έναν με Google κι έναν με LinkedIn), τσεκάρετε τους δύο και πατήστε <strong>«Ένωση επιλεγμένων»</strong>: η αίτηση, οι συνδρομές, η καταχώριση στον κατάλογο και οι τρόποι σύνδεσης μεταφέρονται στον λογαριασμό που κρατάτε και ο άλλος διαγράφεται. ' +
-      'Όσοι έχουν το ίδιο όνομα ή e-mail με άλλον λογαριασμό σημειώνονται <em>«Πιθανό διπλό»</em>. Το κάθε μέλος μπορεί επίσης να ενώσει μόνο του τους λογαριασμούς του, από τη σελίδα «Ο λογαριασμός μου».</p>' +
-      '<div class="dir-tools"><div class="field"><label for="usr-q" class="sr-only">Αναζήτηση χρηστών</label><input id="usr-q" type="search" placeholder="Αναζήτηση: όνομα ή e-mail" value="' + esc(uq) + '"></div>' +
-      '<div class="filters" role="group" aria-label="Εμφάνιση χρηστών" style="margin:0">' +
-      [['all', 'Όλοι'], ['noapp', 'Χωρίς αίτηση'], ['dup', 'Πιθανά διπλά']].map(function (f) {
+      'Όσοι έχουν το ίδιο όνομα ή e-mail με άλλον λογαριασμό σημειώνονται <em>«Πιθανό διπλό»</em>. Το κάθε μέλος μπορεί επίσης να ενώσει μόνο του τους λογαριασμούς του, από τη σελίδα «Ο λογαριασμός μου».</p>',
+      '<p class="muted intro">Every sign-in account, with or without a membership application: name, e-mail, sign-in methods, when they registered and when they last signed in. ' +
+      'When one person has two accounts (for example one with Google and one with LinkedIn), tick both and press <strong>Merge selected</strong>: the application, the fees, the directory listing and the sign-in methods move to the account you keep, and the other is deleted. ' +
+      'Accounts with the same name or e-mail as another account are marked <em>Possible duplicate</em>. Each member can also merge their own accounts themselves, from the My account page.</p>') +
+      '<div class="dir-tools"><div class="field"><label for="usr-q" class="sr-only">' + T('Αναζήτηση χρηστών', 'Search users') + '</label><input id="usr-q" type="search" placeholder="' + T('Αναζήτηση: όνομα ή e-mail', 'Search: name or e-mail') + '" value="' + esc(uq) + '"></div>' +
+      '<div class="filters" role="group" aria-label="' + T('Εμφάνιση χρηστών', 'Show users') + '" style="margin:0">' +
+      [['all', T('Όλοι', 'All')], ['noapp', T('Χωρίς αίτηση', 'No application')], ['dup', T('Πιθανά διπλά', 'Possible duplicates')]].map(function (f) {
         return '<button type="button" data-ufilter="' + f[0] + '" aria-pressed="' + (uview === f[0]) + '">' + f[1] + '</button>';
       }).join('') + '</div></div>' +
-      '<div class="section-foot" style="margin:0 0 12px"><button type="button" class="btn btn-dark btn-sm" data-umerge disabled>Ένωση επιλεγμένων</button>' +
-      '<button type="button" class="btn btn-outline btn-sm" data-ucsv>Εξαγωγή CSV</button>' +
-      '<button type="button" class="btn btn-outline btn-sm" data-ureload>Ανανέωση</button>' +
+      '<div class="section-foot" style="margin:0 0 12px"><button type="button" class="btn btn-dark btn-sm" data-umerge disabled>' + T('Ένωση επιλεγμένων', 'Merge selected') + '</button>' +
+      '<button type="button" class="btn btn-outline btn-sm" data-ucsv>' + T('Εξαγωγή CSV', 'Export CSV') + '</button>' +
+      '<button type="button" class="btn btn-outline btn-sm" data-ureload>' + T('Ανανέωση', 'Refresh') + '</button>' +
       '<span class="muted" data-ucount role="status"></span></div>' +
-      '<div data-umsg role="status"></div><div data-umerge-box></div><div data-users><div class="loading"><span class="spinner" aria-hidden="true"></span>Φόρτωση χρηστών…</div></div></div></div>');
+      '<div data-umsg role="status"></div><div data-umerge-box></div><div data-users>' + loadingUsers() + '</div></div></div>');
     wireFrame();
     wireUsersFrame();
   }
+  function loadingUsers() { return '<div class="loading"><span class="spinner" aria-hidden="true"></span>' + T('Φόρτωση χρηστών…', 'Loading users…') + '</div>'; }
   function tile(v, l) { return '<div class="tile"><div class="v">' + v + '</div><div class="l">' + l + '</div></div>'; }
   function row(m) {
     var st = STATUS[m.status || 'pending'] || STATUS.pending, years = (m.duesYears || []).slice().sort();
     var li = /^https:\/\/([a-z]{2,3}\.)?(www\.)?linkedin\.com\//i.test(m.linkedin || '') ? m.linkedin : '';
     var paid = years.indexOf(YEAR) !== -1;
+    var PO = window.SEMFE_PROFILE;
     return '<tr data-id="' + esc(m.id) + '">' +
-      '<td data-label="Μέλος"><strong>' + esc(m.firstName + ' ' + m.lastName) + '</strong><br><a href="mailto:' + esc(m.email) + '">' + esc(m.email) + '</a>' + (m.phone ? '<br>' + esc(m.phone) : '') +
-      (li ? '<br><a href="' + esc(li) + '" target="_blank" rel="noopener">LinkedIn</a>' : '') + (m.note ? '<br><em class="muted">«' + esc(m.note) + '»</em>' : '') + '</td>' +
-      '<td data-label="Κατάσταση"><span class="badge ' + st[0] + '">' + st[1] + '</span>' + (m.reviewedBy ? '<br><small class="muted">' + esc(m.reviewedBy) + ' ' + date(m.reviewedAt) + '</small>' : '') + '</td>' +
-      '<td data-label="ΣΕΜΦΕ">' + esc(STAGES[m.stage] || m.stage || '') + (m.entryYear ? '<br>Εισ. ' + esc(m.entryYear) : '') + (m.gradYear ? '<br>Αποφ. ' + esc(m.gradYear) : '') + (m.direction ? '<br>' + esc(m.direction) : '') + '</td>' +
-      '<td data-label="Εργασία">' + ([esc([m.position, m.employer].filter(Boolean).join(', ')),
-        m.industry && window.SEMFE_PROFILE ? '<span class="muted">' + esc(window.SEMFE_PROFILE.industryLabel(m.industry)) + '</span>' : '',
-        m.city || m.country ? '<span class="muted">' + esc(window.SEMFE_PROFILE ? window.SEMFE_PROFILE.placeLine(m.city, m.country) : m.city) + '</span>' : '']
+      '<td data-label="' + COL.member + '"><strong>' + esc(m.firstName + ' ' + m.lastName) + '</strong><br><a href="mailto:' + esc(m.email) + '">' + esc(m.email) + '</a>' + (m.phone ? '<br>' + esc(m.phone) : '') +
+      (li ? '<br><a href="' + esc(li) + '" target="_blank" rel="noopener">LinkedIn</a>' : '') + (m.note ? '<br><em class="muted">' + T('«', '“') + esc(m.note) + T('»', '”') + '</em>' : '') + '</td>' +
+      '<td data-label="' + COL.status + '"><span class="badge ' + st[0] + '">' + st[1] + '</span>' + (m.reviewedBy ? '<br><small class="muted">' + esc(m.reviewedBy) + ' ' + date(m.reviewedAt) + '</small>' : '') + '</td>' +
+      '<td data-label="' + COL.semfe + '">' + esc(STAGES[m.stage] || m.stage || '') + (m.entryYear ? '<br>' + T('Εισ. ', 'Entered ') + esc(m.entryYear) : '') + (m.gradYear ? '<br>' + T('Αποφ. ', 'Graduated ') + esc(m.gradYear) : '') + (m.direction ? '<br>' + esc(directionLabel(m.direction)) : '') + '</td>' +
+      '<td data-label="' + COL.work + '">' + ([esc([m.position, m.employer].filter(Boolean).join(', ')),
+        m.industry && PO ? '<span class="muted">' + esc(PO.industryLabel(m.industry, L.lang)) + '</span>' : '',
+        m.city || m.country ? '<span class="muted">' + esc(PO ? PO.placeLine(m.city, m.country, L.lang) : m.city) + '</span>' : '']
         .filter(Boolean).join('<br>') || '—') + '</td>' +
-      '<td data-label="Αίτηση">' + date(m.createdAt) + '<br><small class="muted">' + esc(providerName(m.provider)) + '</small></td>' +
-      '<td data-label="Συνδρομές">' + (years.length ? esc(years.join(', ')) : '—') + '</td>' +
-      '<td class="acts" data-label="Ενέργειες"><div class="acts-in">' +
-      (m.status !== 'active' ? '<button type="button" class="btn btn-dark btn-sm" data-act="approve">Έγκριση</button> ' : '') +
-      '<button type="button" class="btn btn-outline btn-sm" data-act="dues" aria-pressed="' + paid + '">' + (paid ? '✓ Πλήρωσε ' + YEAR : 'Πλήρωσε ' + YEAR) + '</button> ' +
-      (m.status !== 'rejected' ? '<button type="button" class="btn btn-outline btn-sm" data-act="reject">Απόρριψη</button> ' : '') +
-      (m.status !== 'pending' ? '<button type="button" class="btn btn-outline btn-sm" data-act="pending">Σε αναμονή</button> ' : '') +
-      '<button type="button" class="btn btn-danger btn-sm" data-act="delete">Διαγραφή</button></div></td></tr>';
+      '<td data-label="' + COL.applied + '">' + date(m.createdAt) + '<br><small class="muted">' + esc(providerName(m.provider)) + '</small></td>' +
+      '<td data-label="' + COL.fees + '">' + (years.length ? esc(years.join(', ')) : '—') + '</td>' +
+      '<td class="acts" data-label="' + COL.actions + '"><div class="acts-in">' +
+      (m.status !== 'active' ? '<button type="button" class="btn btn-dark btn-sm" data-act="approve">' + T('Έγκριση', 'Approve') + '</button> ' : '') +
+      '<button type="button" class="btn btn-outline btn-sm" data-act="dues" aria-pressed="' + paid + '">' + (paid ? T('✓ Πλήρωσε ' + YEAR, '✓ Paid ' + YEAR) : T('Πλήρωσε ' + YEAR, 'Paid ' + YEAR)) + '</button> ' +
+      (m.status !== 'rejected' ? '<button type="button" class="btn btn-outline btn-sm" data-act="reject">' + T('Απόρριψη', 'Reject') + '</button> ' : '') +
+      (m.status !== 'pending' ? '<button type="button" class="btn btn-outline btn-sm" data-act="pending">' + T('Σε αναμονή', 'Set to pending') + '</button> ' : '') +
+      '<button type="button" class="btn btn-danger btn-sm" data-act="delete">' + T('Διαγραφή', 'Delete') + '</button></div></td></tr>';
   }
 
   function wireFrame() {
@@ -216,7 +234,8 @@
         var emails = all.filter(function (m) { return m.status === 'active' && m[key]; }).map(function (m) { return m.email; });
         window.SEMFE_UTIL.copyText(emails.join(', '), function (ok) {
           msg.className = ok ? 'form-ok' : 'form-error';
-          msg.textContent = ok ? 'Αντιγράφηκαν ' + emails.length + ' διευθύνσεις (ενεργά μέλη). Επικολλήστε τις στο πεδίο Bcc.' : 'Η αντιγραφή απέτυχε.';
+          msg.textContent = ok ? T('Αντιγράφηκαν ' + emails.length + ' διευθύνσεις (ενεργά μέλη). Επικολλήστε τις στο πεδίο Bcc.',
+              'Copied ' + emails.length + (emails.length === 1 ? ' address' : ' addresses') + ' (active members). Paste them into the Bcc field.') : T('Η αντιγραφή απέτυχε.', 'Copying failed.');
         });
       });
     });
@@ -236,14 +255,15 @@
     var job;
     if (kind === 'approve') job = ref.update(merge({ status: 'active' }, stamp));
     else if (kind === 'pending' || kind === 'reject') {
-      if (kind === 'reject' && !window.confirm('Απόρριψη της αίτησης του/της ' + who + ';')) return;
+      if (kind === 'reject' && !window.confirm(T('Απόρριψη της αίτησης του/της ' + who + ';', 'Reject the application of ' + who + '?'))) return;
       job = ref.update(merge({ status: kind === 'reject' ? 'rejected' : 'pending' }, stamp))
         .then(function () { return db.collection('directory').doc(m.id).delete(); });
     } else if (kind === 'dues') {
       var paid = (m.duesYears || []).indexOf(YEAR) !== -1;
       job = ref.update(merge({ duesYears: paid ? FV.arrayRemove(YEAR) : FV.arrayUnion(YEAR) }, stamp));
     } else if (kind === 'delete') {
-      if (!window.confirm('Οριστική διαγραφή της αίτησης του/της ' + who + ';\n\nΟ λογαριασμός σύνδεσης παραμένει· διαγράφεται από τη λίστα «Εγγεγραμμένοι χρήστες» πιο κάτω.')) return;
+      if (!window.confirm(T('Οριστική διαγραφή της αίτησης του/της ' + who + ';\n\nΟ λογαριασμός σύνδεσης παραμένει· διαγράφεται από τη λίστα «Εγγεγραμμένοι χρήστες» πιο κάτω.',
+        'Permanently delete the application of ' + who + '?\n\nThe sign-in account stays; it is deleted from the Registered users list further down.'))) return;
       job = db.collection('directory').doc(m.id).delete().catch(function () {}).then(function () { return ref.delete(); });
     }
     if (!job) return;
@@ -259,7 +279,7 @@
   function loadUsers() {
     usersErr = null;
     var box = app.querySelector('[data-users]');
-    if (box && users === null) box.innerHTML = '<div class="loading"><span class="spinner" aria-hidden="true"></span>Φόρτωση χρηστών…</div>';
+    if (box && users === null) box.innerHTML = loadingUsers();
     return A.callAccounts({ action: 'list' }).then(function (j) {
       users = (j.accounts || []).slice();
       var here = {}; users.forEach(function (u) { here[u.uid] = 1; });
@@ -318,23 +338,26 @@
       countEl.textContent = '';
       mergeBtn.disabled = true;
       box.innerHTML = usersErr.code === 'semfe/accounts-unreachable'
-        ? '<div class="notice warn"><strong>Η λίστα χρηστών δεν είναι διαθέσιμη ακόμα</strong><p>Χρειάζεται η νέα λειτουργία «accounts» στο Firebase. Από τον φάκελο του site τρέξτε: ' +
-          '<code>firebase deploy --only functions --project semfe-alumni</code> (οδηγίες στο FIREBASE-SETUP.md, «Λίστα χρηστών και ένωση λογαριασμών»).</p>' +
-          '<p><button type="button" class="btn btn-outline btn-sm" data-uretry>Δοκιμή ξανά</button></p></div>'
-        : '<div class="notice err"><strong>Δεν ήταν δυνατή η φόρτωση των χρηστών</strong><p>' + esc(A.friendly(usersErr)) + '</p>' +
-          '<p><button type="button" class="btn btn-outline btn-sm" data-uretry>Δοκιμή ξανά</button></p></div>';
+        ? '<div class="notice warn"><strong>' + T('Η λίστα χρηστών δεν είναι διαθέσιμη ακόμα', 'The users list is not available yet') + '</strong><p>' +
+          T('Χρειάζεται η νέα λειτουργία «accounts» στο Firebase. Από τον φάκελο του site τρέξτε: ', 'It needs the new “accounts” function in Firebase. From the site\'s folder run: ') +
+          '<code>firebase deploy --only functions --project semfe-alumni</code>' +
+          T(' (οδηγίες στο FIREBASE-SETUP.md, «Λίστα χρηστών και ένωση λογαριασμών»).', ' (instructions in FIREBASE-SETUP.md, in the section on the users list and merging accounts).') + '</p>' +
+          '<p><button type="button" class="btn btn-outline btn-sm" data-uretry>' + T('Δοκιμή ξανά', 'Try again') + '</button></p></div>'
+        : '<div class="notice err"><strong>' + T('Δεν ήταν δυνατή η φόρτωση των χρηστών', 'Could not load the users') + '</strong><p>' + esc(A.friendly(usersErr)) + '</p>' +
+          '<p><button type="button" class="btn btn-outline btn-sm" data-uretry>' + T('Δοκιμή ξανά', 'Try again') + '</button></p></div>';
       var r = box.querySelector('[data-uretry]');
-      if (r) r.addEventListener('click', function () { box.innerHTML = '<div class="loading"><span class="spinner" aria-hidden="true"></span>Φόρτωση χρηστών…</div>'; loadUsers(); });
+      if (r) r.addEventListener('click', function () { box.innerHTML = loadingUsers(); loadUsers(); });
       return;
     }
     if (!users) return;
     var list = visibleUsers(), dups = users.filter(function (u) { return u._dup; }).length, noapp = users.filter(function (u) { return !u.application; }).length;
-    countEl.textContent = list.length + ' από ' + users.length + ' λογαριασμούς · ' + noapp + ' χωρίς αίτηση' + (dups ? ' · ' + dups + ' πιθανά διπλά' : '');
+    countEl.textContent = T(list.length + ' από ' + users.length + ' λογαριασμούς · ' + noapp + ' χωρίς αίτηση' + (dups ? ' · ' + dups + ' πιθανά διπλά' : ''),
+      list.length + ' of ' + users.length + (users.length === 1 ? ' account' : ' accounts') + ' · ' + noapp + ' without an application' + (dups ? ' · ' + dups + (dups === 1 ? ' possible duplicate' : ' possible duplicates') : ''));
     mergeBtn.disabled = picked.length !== 2 || merging;
-    mergeBtn.textContent = 'Ένωση επιλεγμένων' + (picked.length ? ' (' + picked.length + ')' : '');
-    app.querySelector('[data-ucsv]').textContent = 'Εξαγωγή CSV (' + list.length + ')';
-    box.innerHTML = !list.length ? '<p class="muted">Κανένας λογαριασμός εδώ.</p>'
-      : '<div class="table-wrap"><table class="data stack users"><thead><tr><th><span class="sr-only">Επιλογή</span></th><th>Χρήστης</th><th>Τρόποι σύνδεσης</th><th>Αίτηση</th><th>Εγγραφή</th><th>Τελευταία σύνδεση</th><th>Ενέργειες</th></tr></thead><tbody>' +
+    mergeBtn.textContent = T('Ένωση επιλεγμένων', 'Merge selected') + (picked.length ? ' (' + picked.length + ')' : '');
+    app.querySelector('[data-ucsv]').textContent = T('Εξαγωγή CSV (', 'Export CSV (') + list.length + ')';
+    box.innerHTML = !list.length ? '<p class="muted">' + T('Κανένας λογαριασμός εδώ.', 'No accounts here.') + '</p>'
+      : '<div class="table-wrap"><table class="data stack users"><thead><tr><th><span class="sr-only">' + UCOL.pick + '</span></th><th>' + UCOL.user + '</th><th>' + UCOL.methods + '</th><th>' + UCOL.app + '</th><th>' + UCOL.created + '</th><th>' + UCOL.lastSeen + '</th><th>' + UCOL.actions + '</th></tr></thead><tbody>' +
         list.map(userRow).join('') + '</tbody></table></div>';
     box.querySelectorAll('[data-pick]').forEach(function (c) {
       c.addEventListener('change', function () {
@@ -356,24 +379,24 @@
     var a = u.application, st = a ? (STATUS[a.status] || STATUS.pending) : null, self = me && u.uid === me.uid, name = uName(u);
     var methods = (u.methods || []).map(function (k) { return '<span class="chip-sm">' + esc(METHOD[k] || k) + '</span>'; }).join(' ') || '<span class="muted">—</span>';
     return '<tr data-uid="' + esc(u.uid) + '"' + (picked.indexOf(u.uid) !== -1 ? ' class="picked"' : '') + '>' +
-      '<td class="pick" data-label="Επιλογή"><input type="checkbox" data-pick="' + esc(u.uid) + '" aria-label="Επιλογή: ' + esc(name || u.email || u.uid) + '"' + (picked.indexOf(u.uid) !== -1 ? ' checked' : '') + '></td>' +
-      '<td data-label="Χρήστης"><strong>' + (name ? esc(name) : '<span class="muted">(χωρίς όνομα)</span>') + '</strong>' +
-      (self ? ' <span class="badge muted">εσείς</span>' : '') + (u._dup ? ' <span class="badge warn">Πιθανό διπλό</span>' : '') +
-      (u.email ? '<br><a href="mailto:' + esc(u.email) + '">' + esc(u.email) + '</a>' + (u.emailVerified ? '' : ' <small class="muted">(ανεπιβεβαίωτο)</small>') : '<br><span class="muted">χωρίς e-mail</span>') +
-      (a && a.email && a.email.toLowerCase() !== String(u.email || '').toLowerCase() ? '<br><small class="muted">στην αίτηση: ' + esc(a.email) + '</small>' : '') + '</td>' +
-      '<td data-label="Τρόποι σύνδεσης">' + methods + '</td>' +
-      '<td data-label="Αίτηση">' + (st ? '<span class="badge ' + st[0] + '">' + st[1] + '</span>' : '<span class="muted">—</span>') + '</td>' +
-      '<td data-label="Εγγραφή">' + day(u.created) + '</td>' +
-      '<td data-label="Τελευταία σύνδεση">' + day(u.lastSeen) + '</td>' +
-      '<td class="acts" data-label="Ενέργειες">' + (self ? '' : '<button type="button" class="btn btn-danger btn-sm" data-udel="' + esc(u.uid) + '">Διαγραφή</button>') + '</td></tr>';
+      '<td class="pick" data-label="' + UCOL.pick + '"><input type="checkbox" data-pick="' + esc(u.uid) + '" aria-label="' + T('Επιλογή: ', 'Select: ') + esc(name || u.email || u.uid) + '"' + (picked.indexOf(u.uid) !== -1 ? ' checked' : '') + '></td>' +
+      '<td data-label="' + UCOL.user + '"><strong>' + (name ? esc(name) : '<span class="muted">' + NO_NAME + '</span>') + '</strong>' +
+      (self ? ' <span class="badge muted">' + T('εσείς', 'you') + '</span>' : '') + (u._dup ? ' <span class="badge warn">' + T('Πιθανό διπλό', 'Possible duplicate') + '</span>' : '') +
+      (u.email ? '<br><a href="mailto:' + esc(u.email) + '">' + esc(u.email) + '</a>' + (u.emailVerified ? '' : ' <small class="muted">' + T('(ανεπιβεβαίωτο)', '(unconfirmed)') + '</small>') : '<br><span class="muted">' + NO_EMAIL + '</span>') +
+      (a && a.email && a.email.toLowerCase() !== String(u.email || '').toLowerCase() ? '<br><small class="muted">' + T('στην αίτηση: ', 'on the application: ') + esc(a.email) + '</small>' : '') + '</td>' +
+      '<td data-label="' + UCOL.methods + '">' + methods + '</td>' +
+      '<td data-label="' + UCOL.app + '">' + (st ? '<span class="badge ' + st[0] + '">' + st[1] + '</span>' : '<span class="muted">—</span>') + '</td>' +
+      '<td data-label="' + UCOL.created + '">' + day(u.created) + '</td>' +
+      '<td data-label="' + UCOL.lastSeen + '">' + day(u.lastSeen) + '</td>' +
+      '<td class="acts" data-label="' + UCOL.actions + '">' + (self ? '' : '<button type="button" class="btn btn-danger btn-sm" data-udel="' + esc(u.uid) + '">' + T('Διαγραφή', 'Delete') + '</button>') + '</td></tr>';
   }
   function byUid(uid) { return (users || []).filter(function (u) { return u.uid === uid; })[0]; }
   function describe(u) {
     var a = u.application, bits = [];
     if (u.email) bits.push(u.email);
-    bits.push((u.methods || []).map(function (k) { return METHOD[k] || k; }).join(' + ') || 'χωρίς τρόπο σύνδεσης');
-    bits.push(a ? 'αίτηση: ' + (STATUS[a.status] || STATUS.pending)[1] + ((a.duesYears || []).length ? ', συνδρομές ' + a.duesYears.join(', ') : '') : 'χωρίς αίτηση');
-    bits.push('από ' + day(u.created));
+    bits.push((u.methods || []).map(function (k) { return METHOD[k] || k; }).join(' + ') || T('χωρίς τρόπο σύνδεσης', 'no sign-in method'));
+    bits.push(a ? T('αίτηση: ', 'application: ') + (STATUS[a.status] || STATUS.pending)[1] + ((a.duesYears || []).length ? T(', συνδρομές ', ', fees ') + a.duesYears.join(', ') : '') : T('χωρίς αίτηση', 'no application'));
+    bits.push(T('από ', 'since ') + day(u.created));
     return bits.join(' · ');
   }
   function renderMergeBox() {
@@ -388,15 +411,17 @@
     if (me && two[1].uid === me.uid) two.reverse();
     var chosen = box.querySelector('input[name="keep"]:checked');
     var keepUid = chosen && picked.indexOf(chosen.value) !== -1 ? chosen.value : two[0].uid;
-    box.innerHTML = '<div class="merge-box" id="umerge"><h3 tabindex="-1">Ένωση δύο λογαριασμών</h3>' +
-      '<p class="muted">Ποιος λογαριασμός μένει; Ο άλλος διαγράφεται, αφού μεταφερθούν η αίτηση μέλους του, οι συνδρομές, η καταχώριση στον κατάλογο και οι τρόποι σύνδεσής του.</p>' +
-      '<fieldset class="keep-pick"><legend class="sr-only">Ο λογαριασμός που μένει</legend>' +
+    box.innerHTML = '<div class="merge-box" id="umerge"><h3 tabindex="-1">' + T('Ένωση δύο λογαριασμών', 'Merge two accounts') + '</h3>' +
+      '<p class="muted">' + T('Ποιος λογαριασμός μένει; Ο άλλος διαγράφεται, αφού μεταφερθούν η αίτηση μέλους του, οι συνδρομές, η καταχώριση στον κατάλογο και οι τρόποι σύνδεσής του.',
+        'Which account stays? The other is deleted, once its membership application, fees, directory listing and sign-in methods have been moved over.') + '</p>' +
+      '<fieldset class="keep-pick"><legend class="sr-only">' + T('Ο λογαριασμός που μένει', 'The account that stays') + '</legend>' +
       two.map(function (u) {
         return '<label class="keep-opt"><input type="radio" name="keep" value="' + esc(u.uid) + '"' + (u.uid === keepUid ? ' checked' : '') + (me && u.uid !== me.uid && two.some(function (o) { return o.uid === me.uid; }) ? ' disabled' : '') + '>' +
-          '<span><strong>' + esc(uName(u) || '(χωρίς όνομα)') + '</strong><br><small class="muted">' + esc(describe(u)) + '</small></span></label>';
+          '<span><strong>' + esc(uName(u) || NO_NAME) + '</strong><br><small class="muted">' + esc(describe(u)) + '</small></span></label>';
       }).join('') + '</fieldset>' +
-      '<p class="muted" style="font-size:.88rem">Δεν μεταφέρονται: ο κωδικός (e-mail και κωδικός) του λογαριασμού που φεύγει, και ένα δεύτερο Google αν ο λογαριασμός που μένει έχει ήδη Google. Όταν υπάρχουν δύο αιτήσεις, συμπληρώνονται τα κενά της μίας από την άλλη και κρατιέται η πιο προχωρημένη κατάσταση.</p>' +
-      '<div class="section-foot" style="margin:0"><button type="button" class="btn btn-danger btn-sm" data-umerge-go>Ένωση (οριστική)</button><button type="button" class="btn btn-outline btn-sm" data-umerge-x>Ακύρωση</button></div>' +
+      '<p class="muted" style="font-size:.88rem">' + T('Δεν μεταφέρονται: ο κωδικός (e-mail και κωδικός) του λογαριασμού που φεύγει, και ένα δεύτερο Google αν ο λογαριασμός που μένει έχει ήδη Google. Όταν υπάρχουν δύο αιτήσεις, συμπληρώνονται τα κενά της μίας από την άλλη και κρατιέται η πιο προχωρημένη κατάσταση.',
+        'Not moved: the password (e-mail and password) of the account that goes, and a second Google sign-in if the account that stays already has one. When there are two applications, the gaps in one are filled from the other and the further-along status is kept.') + '</p>' +
+      '<div class="section-foot" style="margin:0"><button type="button" class="btn btn-danger btn-sm" data-umerge-go>' + T('Ένωση (οριστική)', 'Merge (permanent)') + '</button><button type="button" class="btn btn-outline btn-sm" data-umerge-x>' + T('Ακύρωση', 'Cancel') + '</button></div>' +
       '<div class="form-error" data-umerge-msg role="alert"></div></div>';
     box.querySelector('[data-umerge-x]').addEventListener('click', function () { merging = false; renderUsers(); var b = app.querySelector('[data-umerge]'); if (b) b.focus(); });
     box.querySelector('[data-umerge-go]').addEventListener('click', function () { runAdminMerge(box.querySelector('input[name="keep"]:checked').value, this); });
@@ -405,14 +430,17 @@
     var dropUid = picked.filter(function (x) { return x !== keepUid; })[0], keep = byUid(keepUid), drop = byUid(dropUid);
     var msg = app.querySelector('[data-umerge-msg]');
     if (!keep || !drop) return;
-    if (!window.confirm('Ένωση: μένει ο λογαριασμός «' + (uName(keep) || keep.email) + '» (' + (keep.email || 'χωρίς e-mail') + ') και διαγράφεται ο «' + (uName(drop) || drop.email) + '» (' + (drop.email || 'χωρίς e-mail') + ').\n\nΔεν αναιρείται. Συνέχεια;')) return;
+    if (!window.confirm(T('Ένωση: μένει ο λογαριασμός «' + (uName(keep) || keep.email) + '» (' + (keep.email || 'χωρίς e-mail') + ') και διαγράφεται ο «' + (uName(drop) || drop.email) + '» (' + (drop.email || 'χωρίς e-mail') + ').\n\nΔεν αναιρείται. Συνέχεια;',
+      'Merge: the account “' + (uName(keep) || keep.email) + '” (' + (keep.email || 'no e-mail') + ') stays and “' + (uName(drop) || drop.email) + '” (' + (drop.email || 'no e-mail') + ') is deleted.\n\nThis cannot be undone. Continue?'))) return;
     btn.disabled = true; msg.textContent = '';
     A.callAccounts({ action: 'merge', keep: keepUid, drop: dropUid }).then(function (j) {
       merging = false; picked = [];
       var rep = j.report || {};
       uMsg = rep.partial
-        ? { cls: 'err', text: 'Η ένωση έγινε μόνο εν μέρει: ο λογαριασμός ' + (drop.email || uName(drop)) + ' κρατήθηκε, γιατί ένας τρόπος σύνδεσής του δεν μεταφέρθηκε. ' + adminSummary(rep) + ' Δοκιμάστε ξανά σε λίγο.' }
-        : { cls: 'ok', text: 'Ενώθηκαν: έμεινε ο λογαριασμός ' + (keep.email || uName(keep)) + ', διαγράφηκε ο ' + (drop.email || uName(drop)) + '. ' + adminSummary(rep) };
+        ? { cls: 'err', text: T('Η ένωση έγινε μόνο εν μέρει: ο λογαριασμός ' + (drop.email || uName(drop)) + ' κρατήθηκε, γιατί ένας τρόπος σύνδεσής του δεν μεταφέρθηκε. ' + adminSummary(rep) + ' Δοκιμάστε ξανά σε λίγο.',
+            'The merge was only partly done: the account ' + (drop.email || uName(drop)) + ' was kept, because one of its sign-in methods was not moved. ' + adminSummary(rep) + ' Please try again shortly.') }
+        : { cls: 'ok', text: T('Ενώθηκαν: έμεινε ο λογαριασμός ' + (keep.email || uName(keep)) + ', διαγράφηκε ο ' + (drop.email || uName(drop)) + '. ' + adminSummary(rep),
+            'Merged: the account ' + (keep.email || uName(keep)) + ' stays, ' + (drop.email || uName(drop)) + ' was deleted. ' + adminSummary(rep)) };
       return loadUsers().then(function () { var h = app.querySelector('#users h2'); if (h) h.focus(); });
     }, function (e) {
       btn.disabled = false;
@@ -421,21 +449,22 @@
   }
   function adminSummary(r) {
     var bits = [];
-    if (r.application === 'moved') bits.push('Η αίτηση μεταφέρθηκε.');
-    else if (r.application === 'merged') bits.push('Οι δύο αιτήσεις έγιναν μία.');
-    if ((r.moved || []).length) bits.push('Νέοι τρόποι σύνδεσης: ' + r.moved.map(function (k) { return METHOD[k] || k; }).join(', ') + '.');
+    if (r.application === 'moved') bits.push(T('Η αίτηση μεταφέρθηκε.', 'The application was moved.'));
+    else if (r.application === 'merged') bits.push(T('Οι δύο αιτήσεις έγιναν μία.', 'The two applications became one.'));
+    if ((r.moved || []).length) bits.push(T('Νέοι τρόποι σύνδεσης: ', 'New sign-in methods: ') + r.moved.map(function (k) { return METHOD[k] || k; }).join(', ') + '.');
     var nm = (r.notMoved || []).map(function (x) { return (METHOD[x.method] || x.method) + (x.email ? ' (' + x.email + ')' : ''); });
-    if (nm.length) bits.push('Δεν μεταφέρθηκαν: ' + nm.join(', ') + '.');
+    if (nm.length) bits.push(T('Δεν μεταφέρθηκαν: ', 'Not moved: ') + nm.join(', ') + '.');
     return bits.join(' ');
   }
   function deleteUser(uid, btn) {
     var u = byUid(uid);
     if (!u) return;
-    if (!window.confirm('Οριστική διαγραφή του λογαριασμού «' + (uName(u) || '(χωρίς όνομα)') + '» (' + (u.email || 'χωρίς e-mail') + ');\n\nΔιαγράφονται ο λογαριασμός σύνδεσης, η αίτηση μέλους, η καταχώριση στον κατάλογο και η σύνδεση LinkedIn. Δεν αναιρείται.')) return;
+    if (!window.confirm(T('Οριστική διαγραφή του λογαριασμού «' + (uName(u) || '(χωρίς όνομα)') + '» (' + (u.email || 'χωρίς e-mail') + ');\n\nΔιαγράφονται ο λογαριασμός σύνδεσης, η αίτηση μέλους, η καταχώριση στον κατάλογο και η σύνδεση LinkedIn. Δεν αναιρείται.',
+      'Permanently delete the account “' + (uName(u) || '(no name)') + '” (' + (u.email || 'no e-mail') + ')?\n\nThe sign-in account, the membership application, the directory listing and the LinkedIn link are deleted. This cannot be undone.'))) return;
     btn.disabled = true;
     A.callAccounts({ action: 'delete', uid: uid }).then(function () {
       picked = picked.filter(function (x) { return x !== uid; });
-      uMsg = { cls: 'ok', text: 'Διαγράφηκε ο λογαριασμός ' + (u.email || uName(u) || uid) + '.' };
+      uMsg = { cls: 'ok', text: T('Διαγράφηκε ο λογαριασμός ' + (u.email || uName(u) || uid) + '.', 'The account ' + (u.email || uName(u) || uid) + ' was deleted.') };
       return loadUsers();
     }, function (e) { btn.disabled = false; window.alert(A.friendly(e)); });
   }
@@ -450,8 +479,8 @@
     app.querySelector('[data-ureload]').addEventListener('click', function () { uMsg = null; loadUsers(); });
     app.querySelector('[data-ucsv]').addEventListener('click', function () {
       if (!users) return;
-      csv([['name', 'Όνομα'], ['email', 'E-mail'], ['verified', 'Επιβεβαιωμένο e-mail'], ['methods', 'Τρόποι σύνδεσης'], ['app', 'Αίτηση'],
-        ['created', 'Εγγραφή'], ['lastSeen', 'Τελευταία σύνδεση'], ['dup', 'Πιθανό διπλό'], ['uid', 'Κωδικός λογαριασμού']],
+      csv([['name', T('Όνομα', 'Name')], ['email', 'E-mail'], ['verified', T('Επιβεβαιωμένο e-mail', 'Confirmed e-mail')], ['methods', T('Τρόποι σύνδεσης', 'Sign-in methods')], ['app', T('Αίτηση', 'Application')],
+        ['created', T('Εγγραφή', 'Registered')], ['lastSeen', T('Τελευταία σύνδεση', 'Last sign-in')], ['dup', T('Πιθανό διπλό', 'Possible duplicate')], ['uid', T('Κωδικός λογαριασμού', 'Account ID')]],
         visibleUsers().map(function (u) {
           return { name: uName(u), email: u.email, verified: !!u.emailVerified, methods: (u.methods || []).map(function (k) { return METHOD[k] || k; }).join(' + '),
             app: u.application ? (STATUS[u.application.status] || STATUS.pending)[1] : '', created: u.created ? new Date(u.created).toISOString().slice(0, 10) : '',
@@ -461,21 +490,22 @@
   }
 
   function downloadCsv(list) {
-    csv([['firstName', 'Όνομα'], ['lastName', 'Επώνυμο'], ['email', 'E-mail'], ['phone', 'Τηλέφωνο'], ['status', 'Κατάσταση'], ['stage', 'Ιδιότητα'],
-      ['entryYear', 'Εισαγωγή'], ['gradYear', 'Αποφοίτηση'], ['direction', 'Κατεύθυνση'], ['position', 'Θέση'], ['employer', 'Εργοδότης'], ['industry', 'Κλάδος'],
-      ['city', 'Πόλη'], ['country', 'Χώρα'], ['gender', 'Φύλο'], ['linkedin', 'LinkedIn'], ['duesYears', 'Συνδρομές'], ['consentNewsletter', 'Newsletter'], ['consentJobs', 'Θέσεις εργασίας'],
-      ['consentDirectory', 'Κατάλογος'], ['note', 'Σημείωση'], ['createdAt', 'Αίτηση'], ['provider', 'Σύνδεση']], list, 'semfe-members-');
+    csv([['firstName', T('Όνομα', 'First name')], ['lastName', T('Επώνυμο', 'Last name')], ['email', 'E-mail'], ['phone', T('Τηλέφωνο', 'Phone')], ['status', T('Κατάσταση', 'Status')], ['stage', T('Ιδιότητα', 'Role')],
+      ['entryYear', T('Εισαγωγή', 'Entry year')], ['gradYear', T('Αποφοίτηση', 'Graduation year')], ['direction', T('Κατεύθυνση', 'Specialisation')], ['position', T('Θέση', 'Position')], ['employer', T('Εργοδότης', 'Employer')], ['industry', T('Κλάδος', 'Industry')],
+      ['city', T('Πόλη', 'City')], ['country', T('Χώρα', 'Country')], ['gender', T('Φύλο', 'Gender')], ['linkedin', 'LinkedIn'], ['duesYears', T('Συνδρομές', 'Fees')], ['consentNewsletter', 'Newsletter'], ['consentJobs', T('Θέσεις εργασίας', 'Job openings')],
+      ['consentDirectory', T('Κατάλογος', 'Directory')], ['note', T('Σημείωση', 'Note')], ['createdAt', T('Αίτηση', 'Applied')], ['provider', T('Σύνδεση', 'Sign-in')]], list, 'semfe-members-');
   }
   function csv(cols, list, prefix) {
     var cell = function (v, key) {
       if (v && v.toMillis) v = new Date(v.toMillis()).toISOString().slice(0, 10);
       if (Array.isArray(v)) v = v.join(' ');
-      if (typeof v === 'boolean') v = v ? 'ναι' : 'όχι';
+      if (typeof v === 'boolean') v = v ? T('ναι', 'yes') : T('όχι', 'no');
       if (key === 'provider') v = providerName(v);
+      if (key === 'direction') v = directionLabel(v);
       var PO = window.SEMFE_PROFILE;
-      if (PO && key === 'gender') v = PO.genderLabel(v) || v;
-      if (PO && key === 'industry') v = PO.industryLabel(v) || v;
-      if (PO && key === 'country') v = PO.countryName(v) || v;
+      if (PO && key === 'gender') v = PO.genderLabel(v, L.lang) || v;
+      if (PO && key === 'industry') v = PO.industryLabel(v, L.lang) || v;
+      if (PO && key === 'country') v = PO.countryName(v, L.lang) || v;
       v = v == null ? '' : String(v);
       if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;           // stop spreadsheet formula injection
       return '"' + v.replace(/"/g, '""') + '"';

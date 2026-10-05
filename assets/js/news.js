@@ -52,15 +52,25 @@
     if (!str(e.title).trim() || e.title.length > TITLE_MAX) return 'title missing or longer than ' + TITLE_MAX;
     if (e.summary != null && (typeof e.summary !== 'string' || e.summary.length > SUMMARY_MAX)) return 'summary longer than ' + SUMMARY_MAX;
     if (e.url != null && !URL_RE.test(str(e.url))) return 'url must be https://… or a page of the site (whats-new/, #skopos)';
+    if (e.en != null && (typeof e.en !== 'object' || !str(e.en.title).trim() || e.en.title.length > TITLE_MAX ||
+      (e.en.summary != null && (typeof e.en.summary !== 'string' || e.en.summary.length > SUMMARY_MAX)))) return 'en must be { title, summary? } in English, within the same lengths';
     return '';
   }
 
-  /** The entry as it should read: an admin's wording where they gave one. */
-  function reads(e, doc) {
+  /** The entry as it should read: an admin's wording where they gave one.
+      lang 'en' (the English copy of the page) reads the entry's own English
+      text (e.en.title / e.en.summary in changelog.json) when it has one and
+      no admin has reworded it: an admin's wording is shown as they wrote it.
+      `lang` in the result says which language title and summary are in;
+      `el` is the Greek reading (what an admin edits). */
+  function reads(e, doc, lang) {
     var t = str(doc && doc.title).trim(), s = str(doc && doc.summary).trim();
+    var el = { title: t || e.title, summary: s || str(e.summary) };
+    var en = lang === 'en' && !(t || s) && e.en && str(e.en.title).trim() ? e.en : null;
     return {
       id: e.id, date: e.date, url: str(e.url),
-      title: t || e.title, summary: s || str(e.summary),
+      title: en ? str(en.title) : el.title, summary: en ? str(en.summary) : el.summary,
+      lang: en ? 'en' : 'el', el: el,
       original: { title: e.title, summary: str(e.summary) },
       edited: !!(t || s), status: statusOf(doc)
     };
@@ -68,8 +78,8 @@
 
   /** The changelog, split by decision. Each list newest first (the
       changelog's own order breaks ties); malformed or repeated entries are
-      left out. */
-  function split(updates, docs) {
+      left out. lang: as for reads(). */
+  function split(updates, docs, lang) {
     var out = { approved: [], pending: [], removed: [] }, seen = {}, list = [];
     (Object.prototype.toString.call(updates) === '[object Array]' ? updates : []).forEach(function (e, i) {
       if (problem(e) || seen[e.id]) return;
@@ -78,7 +88,7 @@
     });
     list.sort(function (a, b) { return a.e.date < b.e.date ? 1 : a.e.date > b.e.date ? -1 : a.i - b.i; });
     list.forEach(function (x) {
-      var r = reads(x.e, docs && docs[x.e.id]);
+      var r = reads(x.e, docs && docs[x.e.id], lang);
       out[r.status].push(r);
     });
     return out;

@@ -15,6 +15,10 @@
  * a key the component does not know) stops the build with a sentence naming the
  * page and the entry, never an empty card on the live site.
  *
+ * The English copy of a page (_src/en/) gets the same HTML with the fixed words
+ * a component writes itself (button labels, aria-labels) in English: ctx.lang
+ * is 'en' there, 'el' (the default) everywhere else.
+ *
  * Text in a field is plain text, except the fields marked "inline Markdown"
  * below, where [links](url), **bold** and *italics* work as in the rest of the
  * page. {{root}}, {{icon:name}} and the other placeholders work everywhere.
@@ -26,6 +30,8 @@
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const escAttr = s => esc(s).replace(/"/g, '&quot;');
 const cls = (base, extra) => [base, ...extra].join(' ');
+/** the component's own words in the page's language */
+const tr = (ctx, el, en) => ctx.lang === 'en' ? en : el;
 
 /** the entries of a block, each checked against what the component knows */
 function entries(list, spec, ctx) {
@@ -62,7 +68,7 @@ export const COMPONENTS = {
     <img src="${PROFILES}${escAttr(p.photo || p.id + '.jpg')}" alt="${escAttr(p.name)}" width="116" height="116" loading="lazy">
     <div class="role">${esc(p.role)}</div>
     <h3>${esc(p.name)}</h3>${p.linkedin ? `
-    <a class="btn btn-outline btn-sm li linkedin-btn" href="${escAttr(p.linkedin)}" target="_blank" rel="noopener" aria-label="${escAttr(p.name)} στο LinkedIn">{{icon:linkedin}}LinkedIn</a>` : ''}
+    <a class="btn btn-outline btn-sm li linkedin-btn" href="${escAttr(p.linkedin)}" target="_blank" rel="noopener" aria-label="${escAttr(p.name + tr(ctx, ' στο LinkedIn', ' on LinkedIn'))}">{{icon:linkedin}}LinkedIn</a>` : ''}
   </article>`);
       return `<div class="${cls('people', ctx.extra)}">\n${rows.join('\n')}\n</div>\n`;
     },
@@ -73,7 +79,7 @@ export const COMPONENTS = {
     spec: { required: ['id', 'name', 'role'], optional: ['photo'] },
     render(list, ctx) {
       const rows = entries(list, this.spec, ctx).map(p => `  <a href="{{root}}governance/#${escAttr(p.id)}" title="${escAttr(p.name + ', ' + p.role)}"><img src="${PROFILES}${escAttr(p.photo || p.id + '.jpg')}" alt="${escAttr(p.name)}" width="60" height="60" loading="lazy"></a>`);
-      return `<div class="${cls('people-mini', ctx.extra)}" role="group" aria-label="Μέλη του Διοικητικού Συμβουλίου">\n${rows.join('\n')}\n</div>\n`;
+      return `<div class="${cls('people-mini', ctx.extra)}" role="group" aria-label="${tr(ctx, 'Μέλη του Διοικητικού Συμβουλίου', 'Members of the Board of Directors')}">\n${rows.join('\n')}\n</div>\n`;
     },
   },
 
@@ -83,7 +89,7 @@ export const COMPONENTS = {
     render(list, ctx) {
       const rows = entries(list, this.spec, ctx).map(d => {
         const href = escAttr('{{root}}assets/docs/' + d.file);
-        return `  <div class="doc"><span class="ic" aria-hidden="true">${esc(d.type || 'PDF')}</span><div><h3>${esc(d.title)}</h3>${d.meta ? `<span class="muted">${esc(d.meta)}</span>` : ''}</div><div class="acts"><a class="btn btn-outline btn-sm" href="${href}" target="_blank" rel="noopener">{{icon:external}}Άνοιγμα</a><a class="btn btn-dark btn-sm" href="${href}" download>{{icon:download}}Λήψη</a></div></div>`;
+        return `  <div class="doc"><span class="ic" aria-hidden="true">${esc(d.type || 'PDF')}</span><div><h3>${esc(d.title)}</h3>${d.meta ? `<span class="muted">${esc(d.meta)}</span>` : ''}</div><div class="acts"><a class="btn btn-outline btn-sm" href="${href}" target="_blank" rel="noopener">{{icon:external}}${tr(ctx, 'Άνοιγμα', 'Open')}</a><a class="btn btn-dark btn-sm" href="${href}" download>{{icon:download}}${tr(ctx, 'Λήψη', 'Download')}</a></div></div>`;
       });
       return `<div class="${cls('docs', ctx.extra)}">\n${rows.join('\n')}\n</div>\n`;
     },
@@ -129,7 +135,7 @@ export const COMPONENTS = {
     spec: { required: ['value', 'label'], optional: ['count'], flags: ['count'] },
     render(list, ctx) {
       const rows = entries(list, this.spec, ctx).map(s => `  <div class="hero-stat"><div class="value"${s.count ? ' data-count' : ''}>${esc(s.value)}</div><div class="label">${esc(s.label)}</div></div>`);
-      return `<div class="${cls('hero-stats', ctx.extra)}" role="group" aria-label="Ο Σύλλογος με αριθμούς">\n${rows.join('\n')}\n</div>\n`;
+      return `<div class="${cls('hero-stats', ctx.extra)}" role="group" aria-label="${tr(ctx, 'Ο Σύλλογος με αριθμούς', 'The Association in numbers')}">\n${rows.join('\n')}\n</div>\n`;
     },
   },
 
