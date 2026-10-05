@@ -39,6 +39,6 @@
       return names.slice(0, -1).join(', ') + (en ? ' or ' : ' ή ') + names[names.length - 1];
     },
     /* the site's name in this page's language */
-    siteName: en ? 'Association of SEMFE NTUA Graduates' : ((window.SEMFE || {}).siteName || 'Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ')
+    siteName: en ? 'SEMFE Alumni Association' : ((window.SEMFE || {}).siteName || 'Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ')
   };
 })();

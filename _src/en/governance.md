@@ -4,7 +4,7 @@ nav: governance
 subnav: club
 title: Governance
 description: >-
-  The Board of Directors and the Audit Committee of the Association of SEMFE NTUA Graduates
+  The Board of Directors and the Audit Committee of the SEMFE Alumni Association
   for the 2025-2027 term, and the election results.
 hero:
   eyebrow: The Association

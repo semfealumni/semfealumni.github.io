@@ -6,7 +6,7 @@ firestore: true
 noindex: true
 scripts: [profile-options.js, alert-topics.js, admin.js, admin-feedback.js]
 title: Member administration
-description: Administration of the membership applications and fees of the Association of SEMFE NTUA Graduates.
+description: Administration of the membership applications and fees of the SEMFE Alumni Association.
 hero:
   eyebrow: Administration
   title: Member administration

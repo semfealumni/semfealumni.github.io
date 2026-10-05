@@ -3,7 +3,7 @@ path: privacy/
 layout: text
 title: Privacy policy
 description: >-
-  What data the website of the Association of SEMFE NTUA Graduates collects when
+  What data the website of the SEMFE Alumni Association collects when
   you create an account, why, where it is stored and how you delete it.
 hero:
   eyebrow: Legal
@@ -20,7 +20,7 @@ Last updated: 1 October 2026
 
 ## Who we are
 
-The data controller is the **Association of Graduates of the School of Applied Mathematical and Physical Sciences of NTUA** (“the Association”). Contact: [gradsemfe@gmail.com](mailto:gradsemfe@gmail.com).
+The data controller is the **SEMFE Alumni Association**, the association of the graduates of the School of Applied Mathematical and Physical Sciences of NTUA (“the Association”). Contact: [gradsemfe@gmail.com](mailto:gradsemfe@gmail.com).
 
 ## Without an account
 

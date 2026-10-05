@@ -7,7 +7,7 @@ noindex: true
 scripts: [feedback.js]
 title: Feedback and problems
 description: >-
-  Send the Association of SEMFE NTUA Graduates your comments, ideas or a problem you found
+  Send the SEMFE Alumni Association your comments, ideas or a problem you found
   on the website, with screenshots. Every message gets a number and we reply to you by
   e-mail.
 hero:
