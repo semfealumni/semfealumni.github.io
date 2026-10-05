@@ -125,8 +125,8 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   "ΣΕΜΦΕ ΕΜΠ" is part of the logo: when the header slims on scroll
   (`html.hdr-small`) it may only get smaller, never hidden, at any screen
   width (owner, 2026-10-01; smoke.mjs checks it at 1440, 1101, 390 and 320px).
-  The English pages say "ASSOCIATION OF GRADUATES" above "SEMFE NTUA", the
-  same rule.
+  The English pages say "SEMFE Alumni" (bold) above "Association", the same
+  rule.
 * **The top menu is kept short on purpose** (owner, like operationsacademia.org):
   the logo is the way home (no «Αρχική» link), the pages ABOUT the association
   and the site sit in one «Ο Σύλλογος ▾» drop-down (`NAV_GROUPS`, three
@@ -187,6 +187,12 @@ English one is pressed, the entire website is shown translated in English
 (apart from the announcements which shall appear as they were typed by the
 admins)."
 
+* **The English name is "SEMFE Alumni Association"** (owner, 2026-10-05),
+  never a word-for-word "Association of SEMFE NTUA Graduates": in the page
+  texts, the titles, the logo and the scripts (`SITE_NAME` / `STR.en` in
+  build.mjs, `siteName` in i18n.js). The legal pages add what it is: the
+  association of the graduates of the School of Applied Mathematical and
+  Physical Sciences of NTUA.
 * **Every page has an English twin**, `_src/en/<same name>.md`, built at
   `en/<path>` with the header, menu, footer, crumbs and dates in English
   (`NAV`, `STR` in `tools/build.mjs`, every label `[Greek, English]`). The twin

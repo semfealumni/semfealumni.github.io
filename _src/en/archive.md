@@ -4,12 +4,12 @@ nav: history
 subnav: history
 title: Archive
 description: >-
-  The documents of the Association of SEMFE NTUA Graduates: the Statute, election results
+  The documents of the SEMFE Alumni Association: the Statute, election results
   and financial reports.
 hero:
   eyebrow: History
   title: Archive
-  lede: "Documents of the Association of SEMFE Graduates: the Statute, elections and financial records."
+  lede: "Documents of the SEMFE Alumni Association: the Statute, elections and financial records."
 crumbs:
   - [History, how_we_started/]
   - [Archive, null]
@@ -44,7 +44,7 @@ crumbs:
 </div>
 <div class="doc-group">
 
-## Financial records of the Association of SEMFE Graduates
+## Financial records of the SEMFE Alumni Association
 
 ```{docs}
 - title: Financial report 2021

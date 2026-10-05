@@ -3,7 +3,7 @@ path: support/
 nav: support
 title: Membership and Donations
 description: >-
-  How to become a member of the Association of SEMFE NTUA Graduates, how to renew your
+  How to become a member of the SEMFE Alumni Association, how to renew your
   membership fee and how to make a donation (PayPal, IBAN, Revolut).
 hero:
   eyebrow: Members
@@ -18,7 +18,7 @@ crumbs:
 <div class="two-col">
 <div class="prose">
 
-The financial strength of the Association of SEMFE Graduates rests on the **donations** and **contributions** of its members. Donations and contributions cover the Association's **running costs** as well as the **costs of organising one-day conferences, events and meetings each year.** For more information, [contact us]({{root}}contact/).
+The financial strength of the SEMFE Alumni Association rests on the **donations** and **contributions** of its members. Donations and contributions cover the Association's **running costs** as well as the **costs of organising one-day conferences, events and meetings each year.** For more information, [contact us]({{root}}contact/).
 
 Thank you for your trust. For our part, we work every day to present our common starting point, SEMFE, and our members in the best possible way.
 
@@ -40,7 +40,7 @@ Thank you for your trust. For our part, we work every day to present our common 
 
 ## Become a member
 
-To become a member of the Association of SEMFE Graduates and get access to the members-only area of our website, *all* of the following must be true:
+To become a member of the SEMFE Alumni Association and get access to the members-only area of our website, *all* of the following must be true:
 
 </div>
 <ol class="steps">
@@ -140,7 +140,7 @@ Use the username **@kstouras** or the link [revolut.me/kstouras](https://revolut
 
 ## Support the Association
 
-Anyone who is inspired by the aims and work of the Association of SEMFE Graduates, as described in its [Statute]({{root}}assets/docs/foundation/katastatiko.pdf){ newtab } (PDF, in Greek), **whether or not they are a graduate**, can give any amount they wish to support its running.
+Anyone who is inspired by the aims and work of the SEMFE Alumni Association, as described in its [Statute]({{root}}assets/docs/foundation/katastatiko.pdf){ newtab } (PDF, in Greek), **whether or not they are a graduate**, can give any amount they wish to support its running.
 
 Payments can be made into the **Association's account** (see [“Payment”](#katathesi)) with the reference **“donation”**. If you include your full name and email with your payment, the Association will send you a letter of thanks.
 
@@ -157,7 +157,7 @@ Under the Statute, members of the Association:
 - Join an ever-growing “network of SEMFE graduates” of people with top professional experience or high-level research and academic careers. Our members are in regular contact, discussing job opportunities and studies, and sharing advice in general.
 - Give employers, SEMFE graduates and HR professionals the chance to look at their profile for employment, strictly if, and only if, the graduate has chosen to allow this.
 - Take part in themed workshops and briefings on the job market.
-- If they wish, receive a newsletter with the latest news of the Association of SEMFE Graduates.
+- If they wish, receive a newsletter with the latest news of the SEMFE Alumni Association.
 - If they wish, receive (exclusive) announcements of job and internship opportunities in Greece and abroad for SEMFE graduates. Many of these announcements are confidential and are made only to our members after [personal contact]({{root}}contact/). So you will not find them on any other website (e.g. LinkedIn, kariera.gr, etc.).
 
 { .checklist }

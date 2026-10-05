@@ -4,12 +4,12 @@ nav: history
 subnav: history
 title: Photo gallery
 description: >-
-  Moments from the Association of SEMFE NTUA Graduates: the Founding Assembly of 2013, the
+  Moments from the SEMFE Alumni Association: the Founding Assembly of 2013, the
   appeal for admission to the TEE, New Year cake cuttings and events.
 hero:
   eyebrow: History
   title: Photo gallery
-  lede: Moments from the Association of SEMFE Graduates. Click or tap a photo to see it full size.
+  lede: Moments from the SEMFE Alumni Association. Click or tap a photo to see it full size.
 crumbs:
   - [History, how_we_started/]
   - [Photo gallery, null]
@@ -20,7 +20,7 @@ crumbs:
 
 ```{gallery}
 - img: founding_2013.jpg
-  caption: Founding Assembly of the Association of SEMFE Graduates (Zografou, October 2013)
+  caption: Founding Assembly of the SEMFE Alumni Association (Zografou, October 2013)
   class: wide
   cap: true
 - img: 3-1536x2048.jpg

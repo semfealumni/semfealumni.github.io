@@ -2,7 +2,7 @@
 path: terms/
 layout: text
 title: Terms of use
-description: The terms of use of the website and of the member accounts of the Association of SEMFE NTUA Graduates.
+description: The terms of use of the website and of the member accounts of the SEMFE Alumni Association.
 hero:
   eyebrow: Legal
   title: Terms of use
@@ -18,7 +18,7 @@ Last updated: 30 September 2026
 
 ## The website
 
-The website belongs to the **Association of Graduates of the School of Applied Mathematical and Physical Sciences of NTUA** (“the Association”) and provides information about the Association's purposes, bodies, activities and announcements. Contact: [gradsemfe@gmail.com](mailto:gradsemfe@gmail.com).
+The website belongs to the **SEMFE Alumni Association**, the association of the graduates of the School of Applied Mathematical and Physical Sciences of NTUA (“the Association”), and provides information about the Association's purposes, bodies, activities and announcements. Contact: [gradsemfe@gmail.com](mailto:gradsemfe@gmail.com).
 
 ## Accounts
 

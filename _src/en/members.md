@@ -6,7 +6,7 @@ firestore: true
 noindex: true
 scripts: [profile-options.js, members.js]
 title: Members' area
-description: "The area for members of the Association of SEMFE NTUA Graduates only: your membership and the members' directory."
+description: "The area for members of the SEMFE Alumni Association only: your membership and the members' directory."
 hero:
   eyebrow: Members only
   title: Members' area

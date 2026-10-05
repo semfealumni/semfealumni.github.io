@@ -3,7 +3,7 @@ path: contact/
 nav: contact
 title: Contact
 description: >-
-  Contact the Association of SEMFE NTUA Graduates: e-mail and our channels on
+  Contact the SEMFE Alumni Association: e-mail and our channels on
   LinkedIn, Facebook, YouTube and Instagram.
 hero:
   eyebrow: The Association

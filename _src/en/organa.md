@@ -4,8 +4,7 @@ nav: organa
 subnav: club
 title: Bodies of the Association
 description: >-
-  The General Assembly, the Board of Directors and the Audit Committee of the Association of
-  SEMFE NTUA Graduates, and how elections are held.
+  The General Assembly, the Board of Directors and the Audit Committee of the SEMFE Alumni Association, and how elections are held.
 hero:
   eyebrow: The Association
   title: Bodies of the Association

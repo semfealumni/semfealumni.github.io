@@ -4,7 +4,7 @@ nav: ""
 scripts: [profile-options.js, analytics-page.js]
 title: Statistics
 description: >-
-  How many people visit the website of the Association of SEMFE NTUA Graduates, from which
+  How many people visit the website of the SEMFE Alumni Association, from which
   countries, cities, universities and companies, and anonymous statistics about our members.
 hero:
   eyebrow: The website

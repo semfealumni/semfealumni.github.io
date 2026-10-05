@@ -3,8 +3,7 @@ path: data-deletion/
 layout: text
 title: Data deletion
 description: >-
-  How to delete your account and all your data from the website of the Association
-  of SEMFE NTUA Graduates, and how to remove our access from your
+  How to delete your account and all your data from the website of the SEMFE Alumni Association, and how to remove our access from your
   {{signin-social}} account.
 hero:
   eyebrow: Legal

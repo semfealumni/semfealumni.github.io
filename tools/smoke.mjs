@@ -88,7 +88,7 @@ const LAYOUT_PAGES = [
   ['home', 'index.html'], ['governance', 'governance/index.html'], ['support', 'support/index.html'],
   ['fotothiki', 'fotothiki/index.html'], ['blog', 'blog/index.html'], ['post', POSTS[POSTS.length - 1]],
   ['account', 'account/index.html'],
-  // the English copy: its words are longer in places, the brand's top line too
+  // the English copy: its words are longer in places
   ['en home', 'en/index.html'], ['en support', 'en/support/index.html'], ['en post', 'en/' + POSTS[POSTS.length - 1]]
 ];
 
@@ -609,7 +609,7 @@ try {
   }
   // the narrowest phones, also without the web font (a wider fallback): menu
   // button, logo and name, «Σύνδεση» never overlap (the English header too:
-  // "ASSOCIATION OF GRADUATES", "Sign in")
+  // "SEMFE Alumni" over "Association", "Sign in")
   for (const w of [320, 360, 375]) {
     for (const [noFonts, home] of [[false, ''], [true, ''], [false, 'en/'], [true, 'en/']]) {
       const { ctx, page } = await open(SUB + home, { width: w, height: 640, phone: true, touch: true, noFonts });

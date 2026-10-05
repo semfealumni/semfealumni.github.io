@@ -43,7 +43,7 @@
     if (h1) h1.textContent = 'Sign in with LinkedIn';
     var loading = box.querySelector('.loading');
     if (loading) loading.innerHTML = '<span class="spinner" aria-hidden="true"></span>Completing your sign-in with LinkedIn…';
-    document.title = 'Sign in with LinkedIn · Association of SEMFE NTUA Graduates';
+    document.title = 'Sign in with LinkedIn · SEMFE Alumni Association';
   }
 
   function show(title, text, kind) {
