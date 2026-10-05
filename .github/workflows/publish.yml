@@ -9,6 +9,14 @@
 # running the build: the generated pages follow within minutes. A build that
 # changes nothing commits nothing. Needs no secret: it only uses GITHUB_TOKEN,
 # and its own commit touches no path listed below, so it cannot start itself.
+#
+# An announcement written on the website arrives as ONE commit titled
+# "Announcement: …". The editor and the function make the text safe, but this is
+# where it is really tried: the offline checks run on the built site, and if the
+# build or a check fails, that commit is reverted (a second commit, so the history
+# says what happened) instead of leaving every later announcement stuck behind it.
+# checks.yml skips such a commit, because its pages do not exist yet and a push
+# made with GITHUB_TOKEN starts no other workflow: the checks run here.
 name: publish
 on:
   push:
@@ -39,6 +47,22 @@ jobs:
           node-version: 24
       - name: Build
         run: node tools/build.mjs
+      - name: Check the built site (announcements written on the website)
+        if: startsWith(github.event.head_commit.message, 'Announcement:')
+        run: node tools/check.mjs
+      - name: Take the announcement back (it did not build or did not pass the checks)
+        if: failure() && startsWith(github.event.head_commit.message, 'Announcement:')
+        run: |
+          set -e
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git reset --hard HEAD && git clean -fdq          # whatever the failed build left
+          git revert --no-edit "$GITHUB_SHA"
+          for i in 1 2 3; do
+            if git push origin "HEAD:$GITHUB_REF_NAME"; then exit 0; fi
+            git pull --rebase origin "$GITHUB_REF_NAME"
+          done
+          exit 1
       - name: Commit the pages
         run: |
           set -e

@@ -32,7 +32,7 @@
   var FIGURE_BYTES = 520000, MAX_SIDE = 1600;
   var user = null, open = false, ready = null;           // ready: null = asking, true / false / 'unreachable'
   var figures = [], cover = 0, state = { title: '', category: T.CATEGORIES[0], description: '', body: '' };
-  var busy = false, tab = 'write', tips = false, md = null, poll = null;
+  var busy = false, tab = 'write', tips = false, md = null, poll = null, droppedPictures = false;
 
   /* ---- messages ---------------------------------------------------------- */
   var CODES = {
@@ -43,6 +43,7 @@
     'body-missing': 'Γράψτε το κείμενο της ανακοίνωσης.',
     'body-too-long': 'Το κείμενο είναι πολύ μεγάλο (έως ' + T.LIMITS.body + ' χαρακτήρες).',
     'braces': 'Μη γράφετε διπλές αγκύλες «{{».',
+    'link-bad': 'Οι σύνδεσμοι πρέπει να ξεκινούν με https:// (ή mailto:). Για σελίδα του ιστότοπου γράψτε ολόκληρη τη διεύθυνση, https://semfealumni.gr/…',
     'too-many-figures': 'Έως ' + T.LIMITS.figures + ' εικόνες σε κάθε ανακοίνωση.',
     'figure-bad': 'Μία από τις εικόνες δεν είναι αρχείο εικόνας που δέχεται ο ιστότοπος.',
     'figure-too-big': 'Μία από τις εικόνες είναι πολύ μεγάλη.',
@@ -55,11 +56,12 @@
     'github-token': 'Το κλειδί του GitHub έχει λήξει ή δεν έχει δικαίωμα εγγραφής. Ανανεώστε το (ANNOUNCE-SETUP.md).',
     'github-repo': 'Το αποθετήριο ή ο κλάδος του ιστότοπου δεν βρέθηκε (PUBLISH_REPO, ANNOUNCE-SETUP.md).',
     'github-busy': 'Το GitHub είναι απασχολημένο. Δοκιμάστε ξανά σε λίγο.',
-    'github-error': 'Το GitHub δεν δέχτηκε την ανακοίνωση. Δοκιμάστε ξανά σε λίγο· το κείμενό σας δεν χάθηκε.',
+    'github-error': 'Το GitHub δεν δέχτηκε την ανακοίνωση. Το κείμενό σας δεν χάθηκε. Αν δεν είστε σίγουροι ότι δεν δημοσιεύτηκε, κοιτάξτε πρώτα τη λίστα των ανακοινώσεων και μετά ξαναστείλτε την.',
     'bad-id-token': 'Η σύνδεσή σας έληξε. Αποσυνδεθείτε, συνδεθείτε ξανά και δοκιμάστε πάλι.',
     'not-signed-in': 'Συνδεθείτε για να δημοσιεύσετε.',
-    'publishAnnouncement-unreachable': 'Η υπηρεσία δημοσίευσης δεν απαντά: είτε δεν έχει εγκατασταθεί ακόμα (ANNOUNCE-SETUP.md) είτε υπάρχει πρόβλημα στο δίκτυο.',
-    'internal': 'Κάτι πήγε στραβά στον διακομιστή. Δοκιμάστε ξανά σε λίγο· το κείμενό σας δεν χάθηκε.'
+    'publishAnnouncement-unreachable': 'Η υπηρεσία δημοσίευσης δεν απαντά: είτε δεν έχει εγκατασταθεί ακόμα (ANNOUNCE-SETUP.md) είτε υπάρχει πρόβλημα στο δίκτυο. Το κείμενό σας δεν χάθηκε. Αν η αποστολή είχε ήδη ξεκινήσει, κοιτάξτε πρώτα τη λίστα των ανακοινώσεων και μετά ξαναστείλτε την.',
+    'internal': 'Κάτι πήγε στραβά στον διακομιστή. Το κείμενό σας δεν χάθηκε. Αν δεν είστε σίγουροι ότι δεν δημοσιεύτηκε, κοιτάξτε πρώτα τη λίστα των ανακοινώσεων και μετά ξαναστείλτε την.',
+    'file-too-big': 'Η εικόνα είναι πολύ μεγάλη (έως 25 MB).',
   };
   function explain(e) {
     var c = (e && e.code) || '';
@@ -67,10 +69,32 @@
     return CODES[c] || (c === 'relogin' ? A.friendly(e) : 'Δεν ολοκληρώθηκε (' + (c || 'άγνωστο σφάλμα') + '). Δοκιμάστε ξανά.');
   }
 
+  /* a repaint replaces the elements: remember which control had the focus and give it back */
+  var FOCUS_ATTRS = ['id', 'data-del', 'data-put', 'data-cover', 'data-size', 'data-alt', 'data-send', 'data-cancel', 'data-yes', 'data-no', 'data-tool', 'data-tips', 'data-tab'];
+  function focusKey() {
+    var a = document.activeElement;
+    if (!a || a === document.body || !box.contains(a)) return null;
+    for (var i = 0; i < FOCUS_ATTRS.length; i++) if (a.hasAttribute(FOCUS_ATTRS[i])) return [FOCUS_ATTRS[i], a.getAttribute(FOCUS_ATTRS[i])];
+    return null;
+  }
+  function restoreFocus(key) {
+    if (!key) return;
+    var el = key[0] === 'id' ? document.getElementById(key[1]) : box.querySelector('[' + key[0] + '="' + key[1] + '"]');
+    if (el && el !== document.activeElement) el.focus();
+  }
+  var previewTimer = null;
+  function previewSoon() {                                   // the preview follows what is typed, picture sizes and removals included
+    if (tab !== 'preview' || !box.querySelector('[data-preview]')) return;
+    clearTimeout(previewTimer); previewTimer = setTimeout(preview, 250);
+  }
+
   /* ---- the draft: text kept on this device ----------------------------------- */
   function loadDraft() {
     try { var d = JSON.parse(localStorage.getItem(DRAFT_KEY + user.uid) || 'null'); if (d && typeof d === 'object') for (var k in state) if (typeof d[k] === 'string') state[k] = d[k]; } catch (e) {}
     if (T.CATEGORIES.indexOf(state.category) < 0) state.category = T.CATEGORIES[0];
+    // pictures are not kept on this device: their lines would point at nothing
+    var cut = state.body.replace(/!\[[^\]\n]*\]\(\s*figure-\d+[^)\n]*\)[ \t]*\n*/g, '');
+    if (cut !== state.body) { state.body = cut; droppedPictures = true; }
   }
   var saveTimer = null;
   function saveDraft() {
@@ -144,6 +168,7 @@
   function shrink(file) {
     return new Promise(function (resolve, reject) {
       if (!/^image\//.test(file.type || '')) return reject({ code: 'semfe/figure-bad' });
+      if (file.size > 25 * 1024 * 1024) return reject({ code: 'semfe/file-too-big' });
       var rd = new FileReader();
       rd.onerror = function () { reject({ code: 'semfe/figure-bad' }); };
       rd.onload = function () {
@@ -184,9 +209,9 @@
           if (total + r.bytes > T.LIMITS.totalBytes) { note(explain({ code: 'semfe/figures-too-big' }), true); paintFigures(); return; }
           var fig = { name: file.name || 'εικόνα', dataUrl: r.dataUrl, base64: r.base64, bytes: r.bytes, w: r.w, h: r.h, alt: '', size: r.h > r.w * 1.15 ? 'medium' : 'full' };
           figures.push(fig);
-          if (!cover) cover = figures.length;
+          if (figures.length === 1) cover = 1;                         // the first picture is the card's; a later one never undoes the admin's choice
           insertMarker(figures.length);
-          note('', false); paintFigures();
+          note('', false); paintFigures(); previewSoon();
         }, function (e) { working--; note(file.name + ': ' + explain(e), true); paintFigures(); });
       });
     });
@@ -204,12 +229,13 @@
     el.value = v; state.body = v; saveDraft(); paintCount();
     figures.splice(i, 1);
     if (cover === n) cover = figures.length ? 1 : 0; else if (cover > n) cover--;
-    paintFigures();
+    paintFigures(); previewSoon();
+    var f = $('[data-file]'); if (f) f.focus();                // the removed picture's button is gone: the next thing to do is add or finish
   }
   /* the text sent: each picture's own description is the alt text of its marker */
   function bodyWithAlts() {
     return state.body.replace(/!\[[^\]\n]*\]\(figure-(\d+)\)/g, function (m, k) {
-      var f = figures[+k - 1], alt = f ? f.alt.replace(/[\[\]\n]/g, ' ').replace(/\s+/g, ' ').trim() : '';
+      var f = figures[+k - 1], alt = f ? f.alt.replace(/[\[\]\\\n]/g, ' ').replace(/\s+/g, ' ').trim() : '';
       return '![' + alt + '](figure-' + k + ')';
     });
   }
@@ -272,10 +298,11 @@
   }
   function paintFigures() {
     var list = $('[data-figs]'); if (!list) return;
-    var cards = figureCards();
+    var key = focusKey(), cards = figureCards();
     list.innerHTML = (cards ? '<ul class="ed-figlist">' + cards + '</ul>' : '') +
       (working ? '<p class="muted"><span class="spinner" aria-hidden="true"></span>Προετοιμασία εικόνας…</p>' : '') +
       (figures.length ? '<label class="ed-cover ed-nocover"><input type="radio" name="ed-cover" data-cover="0"' + (cover ? '' : ' checked') + '> Καμία εικόνα στην κάρτα (θα φαίνεται το λογότυπο)</label>' : '');
+    restoreFocus(key);
   }
   function toolbar() {
     return '<div class="ed-toolbar" role="toolbar" aria-label="Μορφοποίηση κειμένου">' + TOOLS.map(function (t) {
@@ -283,7 +310,8 @@
     }).join('') + '<button type="button" class="ed-tipsbtn" data-tips aria-expanded="' + tips + '">' + (tips ? 'Απόκρυψη συμβουλών μορφοποίησης' : 'Συμβουλές μορφοποίησης') + '</button></div>' +
       '<div class="ed-tips" data-tipsbox' + (tips ? '' : ' hidden') + '><pre aria-hidden="false">**έντονο**   *πλάγιο*   [σύνδεσμος](https://…)   > παράθεμα\n1. λίστα   - λίστα   ## επικεφαλίδα   ---</pre>' +
       '<p>Μια κενή γραμμή ξεκινά νέα παράγραφο. Για αλλαγή γραμμής μέσα στην παράγραφο, τελειώστε τη γραμμή με το σύμβολο <code>\\</code>.</p>' +
-      '<p>Οι εικόνες μπαίνουν με το κουμπί της εικόνας και εμφανίζονται εκεί που βρίσκεται η γραμμή <code>![](figure-1)</code>· μετακινήστε τη γραμμή όπου θέλετε.</p></div>';
+      '<p>Οι εικόνες μπαίνουν με το κουμπί της εικόνας και εμφανίζονται εκεί που βρίσκεται η γραμμή <code>![](figure-1)</code>· μετακινήστε τη γραμμή όπου θέλετε.</p>' +
+      '<p>Οι σύνδεσμοι ξεκινούν με <code>https://</code> (ή <code>mailto:</code>). Δεν επιτρέπεται HTML, και οι αγκύλες { } γράφονται ως ｛ ｝.</p></div>';
   }
   function statusLine() {
     if (ready === null) return '<p class="muted"><span class="spinner" aria-hidden="true"></span>Έλεγχος της υπηρεσίας δημοσίευσης…</p>';
@@ -302,8 +330,8 @@
       '<span class="hint">Η διεύθυνση της σελίδας φτιάχνεται από τον τίτλο.</span></div>' +
       '<fieldset class="fb-kinds"><legend>Είδος <span class="hint">(καθορίζει ποια μέλη θα ειδοποιηθούν με e-mail)</span></legend>' +
       T.CATEGORIES.map(function (c) { return '<label class="fb-kind"><input type="radio" name="ed-cat" value="' + esc(c) + '"' + (state.category === c ? ' checked' : '') + '><span>' + esc(c) + '</span></label>'; }).join('') + '</fieldset>' +
-      '<div class="field"><div class="ed-tabs" role="tablist" aria-label="Κείμενο"><button type="button" role="tab" id="ed-tab-write" aria-selected="' + (tab === 'write') + '" aria-controls="ed-pane-write" data-tab="write">Γράψιμο</button>' +
-      '<button type="button" role="tab" id="ed-tab-preview" aria-selected="' + (tab === 'preview') + '" aria-controls="ed-pane-preview" data-tab="preview">Προεπισκόπηση</button></div>' +
+      '<div class="field"><div class="ed-tabs" role="tablist" aria-label="Κείμενο"><button type="button" role="tab" id="ed-tab-write" aria-selected="' + (tab === 'write') + '" tabindex="' + (tab === 'write' ? 0 : -1) + '" aria-controls="ed-pane-write" data-tab="write">Γράψιμο</button>' +
+      '<button type="button" role="tab" id="ed-tab-preview" aria-selected="' + (tab === 'preview') + '" tabindex="' + (tab === 'preview' ? 0 : -1) + '" aria-controls="ed-pane-preview" data-tab="preview">Προεπισκόπηση</button></div>' +
       '<div id="ed-pane-write" role="tabpanel" aria-labelledby="ed-tab-write"' + (tab === 'write' ? '' : ' hidden') + '>' + toolbar() +
       '<label class="sr-only" for="ed-body">Κείμενο</label><textarea id="ed-body" data-body rows="12" placeholder="Γράψτε το κείμενο της ανακοίνωσης…" aria-describedby="ed-body-hint">' + esc(state.body) + '</textarea>' +
       '<p class="hint ed-hint" id="ed-body-hint"><span data-count></span></p></div>' +
@@ -316,10 +344,13 @@
       '<p class="ed-note" data-note role="alert"></p>' +
       '<div class="ed-actions" data-actions></div></form></section>';
     paintActions(); paintFigures(); paintCount();
+    var t0 = ta(); if (t0) t0.setSelectionRange(t0.value.length, t0.value.length);        // a picture added now goes at the end, not at the top
+    if (droppedPictures) { droppedPictures = false; note('Οι εικόνες του πρόχειρου δεν αποθηκεύονται σε αυτή τη συσκευή: προσθέστε τις ξανά.', false); }
     if (tab === 'preview') preview();
   }
   function paintActions() {
     var a = $('[data-actions]'); if (!a) return;
+    var key = focusKey(); setTimeout(function () { restoreFocus(key); }, 0);
     if (busy) { a.innerHTML = '<p class="muted"><span class="spinner" aria-hidden="true"></span>Δημοσίευση…</p>'; return; }
     if (a.getAttribute('data-confirm')) {
       a.innerHTML = '<p><strong>Να δημοσιευτεί τώρα;</strong> Η ανακοίνωση θα μπει στον ιστότοπο και θα σταλεί e-mail στα μέλη που επέλεξαν «' + esc(state.category) + '».</p>' +
@@ -331,11 +362,13 @@
   }
   function done(res) {
     clearTimeout(poll); poll = null;
-    var url = res.url;
-    box.innerHTML = '<section class="panel ed" aria-labelledby="ed-h"><h2 id="ed-h">Η ανακοίνωση στάλθηκε</h2>' +
-      '<div class="notice ok"><strong>Ο ιστότοπος ενημερώνεται.</strong><p>Η σελίδα θα είναι έτοιμη σε 2 με 4 λεπτά, στη διεύθυνση <code>' + esc(url.replace(/^https?:\/\/[^/]+/, '')) + '</code>.</p></div>' +
-      '<p class="muted" data-wait role="status"><span class="spinner" aria-hidden="true"></span>Περιμένουμε να εμφανιστεί…</p>' +
+    var url = String((res && res.url) || '');
+    open = true; box.hidden = false; bar.setAttribute('aria-expanded', 'true');             // the panel must be seen even if the box was collapsed meanwhile
+    box.innerHTML = '<section class="panel ed" aria-labelledby="ed-h"><h2 id="ed-h" tabindex="-1">Η ανακοίνωση στάλθηκε</h2>' +
+      '<div class="notice ok"><strong>Ο ιστότοπος ενημερώνεται.</strong><p>Η σελίδα θα είναι έτοιμη σε 2 με 4 λεπτά' + (url ? ', στη διεύθυνση <code>' + esc(url.replace(/^https?:\/\/[^/]+/, '')) + '</code>' : '') + '.</p></div>' +
+      (url ? '<p class="muted" data-wait role="status"><span class="spinner" aria-hidden="true"></span>Περιμένουμε να εμφανιστεί…</p>' : '') +
       '<p class="section-foot"><button type="button" class="btn btn-dark" data-new>Νέα ανακοίνωση</button> <button type="button" class="btn btn-outline" data-close>Κλείσιμο</button></p></section>';
+    var h = $('#ed-h'); if (h) h.focus();
     var tries = 0;
     (function again() {
       if (!box.querySelector('[data-wait]')) return;
@@ -371,6 +404,7 @@
     }, function (e) {
       busy = false; paintActions();
       var n = $('[data-note]'); if (n) { n.textContent = explain(e); n.className = 'ed-note form-error'; }
+      var sb = $('[data-send]'); if (sb) sb.focus();
     });
   }
   function checkReady() {
@@ -387,6 +421,17 @@
     var b = box.querySelector('[data-send]'); if (b) b.disabled = ready !== true;
   }
 
+  function selectTab(name, focus) {
+    tab = name;
+    Array.prototype.forEach.call(box.querySelectorAll('[data-tab]'), function (x) {
+      var on = x.getAttribute('data-tab') === name;
+      x.setAttribute('aria-selected', String(on)); x.tabIndex = on ? 0 : -1;
+      if (on && focus) x.focus();
+    });
+    $('#ed-pane-write').hidden = name !== 'write'; $('#ed-pane-preview').hidden = name !== 'preview';
+    if (name === 'preview') preview(); else if (!focus) ta().focus();
+  }
+
   box.addEventListener('input', function (e) {
     var t = e.target;
     if (t.hasAttribute('data-title')) state.title = t.value;
@@ -394,12 +439,12 @@
     else if (t.hasAttribute('data-body')) { state.body = t.value; paintCount(); }
     else if (t.hasAttribute('data-alt')) figures[+t.getAttribute('data-alt')].alt = t.value;
     else return;
-    saveDraft();
+    saveDraft(); previewSoon();
   });
   box.addEventListener('change', function (e) {
     var t = e.target;
-    if (t.name === 'ed-cat') { state.category = t.value; saveDraft(); paintActions(); }
-    else if (t.hasAttribute('data-size')) figures[+t.getAttribute('data-size')].size = t.value;
+    if (t.name === 'ed-cat') { state.category = t.value; saveDraft(); paintActions(); previewSoon(); }
+    else if (t.hasAttribute('data-size')) { figures[+t.getAttribute('data-size')].size = t.value; previewSoon(); }
     else if (t.hasAttribute('data-cover')) { cover = +t.getAttribute('data-cover'); paintFigures(); }
     else if (t.hasAttribute('data-file')) { addFiles(t.files); t.value = ''; }
   });
@@ -408,22 +453,22 @@
     if (!b) return;
     if (b.hasAttribute('data-tool')) { e.preventDefault(); ACTIONS[b.getAttribute('data-tool')](); }
     else if (b.hasAttribute('data-tips')) { tips = !tips; var tb = $('[data-tipsbox]'); tb.hidden = !tips; b.setAttribute('aria-expanded', String(tips)); b.textContent = tips ? 'Απόκρυψη συμβουλών μορφοποίησης' : 'Συμβουλές μορφοποίησης'; }
-    else if (b.hasAttribute('data-tab')) {
-      tab = b.getAttribute('data-tab');
-      Array.prototype.forEach.call(box.querySelectorAll('[data-tab]'), function (x) { x.setAttribute('aria-selected', String(x === b)); });
-      $('#ed-pane-write').hidden = tab !== 'write'; $('#ed-pane-preview').hidden = tab !== 'preview';
-      if (tab === 'preview') preview(); else ta().focus();
-    }
+    else if (b.hasAttribute('data-tab')) selectTab(b.getAttribute('data-tab'), false);
     else if (b.hasAttribute('data-put')) insertMarker(+b.getAttribute('data-put') + 1);
     else if (b.hasAttribute('data-del')) removeFigure(+b.getAttribute('data-del'));
     else if (b.hasAttribute('data-yes')) publish();
-    else if (b.hasAttribute('data-no')) { $('[data-actions]').removeAttribute('data-confirm'); paintActions(); }
+    else if (b.hasAttribute('data-no')) { $('[data-actions]').removeAttribute('data-confirm'); paintActions(); var sb = $('[data-send]'); if (sb) sb.focus(); }
     else if (b.hasAttribute('data-cancel') || b.hasAttribute('data-close')) { open = false; clearTimeout(poll); paint(); bar.focus(); }
     else if (b.hasAttribute('data-new')) { open = true; paint(); var ti = $('[data-title]'); if (ti) ti.focus(); }
   });
   box.addEventListener('submit', function (e) { e.preventDefault(); if (!busy) submit(); });
   box.addEventListener('keydown', function (e) {
     var t = e.target;
+    if (t.hasAttribute && t.hasAttribute('data-tab') && /^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) {      // the two tabs: arrows, Home and End move between them
+      e.preventDefault();
+      selectTab(e.key === 'ArrowLeft' || e.key === 'Home' ? 'write' : 'preview', true);
+      return;
+    }
     if (!t.hasAttribute || !t.hasAttribute('data-body') || !(e.ctrlKey || e.metaKey)) return;
     var k = String(e.key).toLowerCase();
     if (k === 'b') { e.preventDefault(); ACTIONS.bold(); } else if (k === 'i') { e.preventDefault(); ACTIONS.italic(); } else if (k === 'k') { e.preventDefault(); ACTIONS.link(); }
@@ -442,7 +487,7 @@
     });
   });
   bar.addEventListener('click', function () {
-    if (!user) return;
+    if (!user || busy) return;                                  // not while an announcement is being sent: it would hide the answer
     open = !open;
     if (open) { if (!state.title && !state.body) loadDraft(); paint(); checkReady(); var ti = $('[data-title]'); if (ti) ti.focus(); } else { paint(); }
   });
@@ -450,7 +495,11 @@
   /* ---- who is here ------------------------------------------------------------------------ */
   A.onChange(function (u) {
     var admin = !!(u && A.isAdmin(u));
-    if (admin && (!user || user.uid !== u.uid)) { user = u; state = { title: '', category: T.CATEGORIES[0], description: '', body: '' }; figures = []; cover = 0; loadDraft(); }
+    if (admin && (!user || user.uid !== u.uid)) {
+      var switched = !!user;
+      user = u; state = { title: '', category: T.CATEGORIES[0], description: '', body: '' }; figures = []; cover = 0; tab = 'write'; loadDraft();
+      if (switched && open && !busy) { paint(); checkReady(); }        // another admin signed in while the box was open: show THEIR draft, not the last one's
+    }
     if (!admin) { user = null; open = false; box.innerHTML = ''; box.hidden = true; }
     host.hidden = !admin;
   }, { passive: true });         // a visitor who never signed in must not make this page load the sign-in library

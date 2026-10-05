@@ -261,7 +261,7 @@ async function scenario(id, title, opts, fn) {
   const page = await ctx.newPage();
   page.setDefaultTimeout(8000);
   const errors = [];
-  page.on('pageerror', e => errors.push(e.message));
+  page.on('pageerror', e => errors.push(process.env.STACKS ? String(e.stack).split('\n').slice(0, 4).join(' | ') : e.message));
   page.on('dialog', async d => { env.dialogs.push({ type: d.type(), message: d.message() }); if (env.dialogPolicy === 'accept') await d.accept(); else await d.dismiss(); });
   try { await fn(page, env, ctx); }
   catch (e) { t(false, 'scenario threw: ' + String(e && e.stack || e).split('\n').slice(0, 3).join(' / ')); }
@@ -2363,7 +2363,7 @@ await scenario('P5', 'blog/: the preview is the site\'s own rendering, and hosti
   t(await hasText(pv.locator('.ed-title'), 'Προεπισκόπηση τίτλος'), 'the title has no markup');
   t(await hasText(pv, '<script>window.__xss=1</script>') && await hasText(pv, '<img src=x onerror=window.__xss=2>'), 'a pasted tag is shown as text, never run');
   t(!(await xssFired(page)) && await pv.locator('script, img[onerror]').count() === 0, '… and nothing ran');
-  t(await hasText(pv, '{ένα}') && await hasText(pv, '&'), 'braces and & are plain text');
+  t(await hasText(pv, '｛ένα｝') && await hasText(pv, '&'), 'braces become the full-width ｛ ｝ (no attribute or placeholder can be written), & is plain text');
   t(await hasText(pv.locator('.ed-address'), 'blog/'), 'it shows the address the announcement will have');
   await page.click('#ed-tab-write');
   await page.fill('#ed-body', 'Γράψτε {{root}} εδώ');
@@ -2416,7 +2416,105 @@ await scenario('P6', 'blog/: pictures are shrunk, listed, sized, renumbered and 
   await page.fill('#ed-body', 'Χωρίς εικόνα στο κείμενο');
   await page.click('[data-cover="0"]');
   t(await hasText(page.locator('.ed-fig-acts'), 'δεν θα δημοσιευτεί'), 'a picture that is neither in the text nor the card picture says it will not be published');
+  // «Καμία εικόνα στην κάρτα» is a choice: a picture added later does not undo it
+  await page.setInputFiles('[data-file]', { name: 'second.png', mimeType: 'image/png', buffer: await pngOf(page, 500, 300) });
+  t(await waitFor(page, () => document.querySelectorAll('.ed-fig').length === 2), 'another picture is added');
+  t(await page.$eval('[data-cover="0"]', r => r.checked) && !(await page.$eval('[data-cover="2"]', r => r.checked)), '… and the card still has no picture: the admin\'s choice is kept');
+  // the preview follows what is changed while it is open
+  await page.fill('#ed-body', 'Κείμενο\n\n![](figure-1)\n\n![](figure-2)');
+  await page.click('#ed-tab-preview');
+  t(await waitFor(page, () => document.querySelectorAll('[data-preview] img').length === 2, null, 10000), 'the preview shows both pictures');
+  await page.selectOption('[data-size="1"]', 'small');
+  t(await waitFor(page, () => /max-width:360px/.test(document.querySelectorAll('[data-preview] img')[1].getAttribute('style') || ''), null, 4000), 'changing a picture\'s width refreshes the open preview');
+  await page.fill('#ed-title', 'Νέος τίτλος');
+  t(await waitFor(page, () => /Νέος τίτλος/.test(document.querySelector('[data-preview] .ed-title').textContent), null, 4000), '… and so does the title');
+  await page.click('[data-del="1"]');
+  t(await waitFor(page, () => document.querySelectorAll('[data-preview] img').length === 1, null, 4000), '… and removing a picture');
+  t(await page.evaluate(() => !!document.activeElement && document.activeElement.hasAttribute('data-file')), 'after removing a picture the focus is on «επιλέξτε αρχεία», not lost');
 });
+
+await scenario('P11', 'blog/: a restored draft has no dangling picture lines, and a picture lands at the end of the text', ADMIN_OPTS(), async (page, env) => {
+  publishServer(env, async b => ({ json: { ok: true, ready: true } }));
+  await page.goto(URL_('blog/'));
+  await visible(page.locator('[data-announce-open]'), 8000);
+  await openEditor(page);
+  await page.fill('#ed-title', 'Πρόχειρο');
+  await page.fill('#ed-body', 'Πριν\n\n![Κάτι](figure-1)\n\nΜετά');
+  await sleep(500);
+  await page.reload();
+  await visible(page.locator('[data-announce-open]'), 8000);
+  await openEditor(page);
+  t(await bodyOf(page) === 'Πριν\n\nΜετά', 'the lines of pictures (which are not kept) are taken out of a restored draft: «' + (await bodyOf(page)).replace(/\n/g, '⏎') + '»');
+  t(await hasText(page.locator('[data-note]'), 'δεν αποθηκεύονται'), '… and it says so');
+  // not focused: a picture still goes to the END
+  await page.setInputFiles('[data-file]', { name: 'a.png', mimeType: 'image/png', buffer: await pngOf(page, 400, 300) });
+  await waitFor(page, () => document.querySelectorAll('.ed-fig').length === 1);
+  t((await bodyOf(page)).startsWith('Πριν\n\nΜετά') && (await bodyOf(page)).includes('![](figure-1)'), 'a picture added to a restored draft is put after the text, not at the top: «' + (await bodyOf(page)).replace(/\n/g, '⏎') + '»');
+});
+
+await scenario('P12', 'blog/: another admin signs in while the box is open: THEIR draft, not the last one\'s', ADMIN_OPTS(), async (page, env) => {
+  publishServer(env, async b => ({ json: { ok: true, ready: true, url: ORIGIN + SUB + 'blog/' } }));
+  await page.goto(URL_('blog/'));
+  await visible(page.locator('[data-announce-open]'), 8000);
+  await openEditor(page);
+  await page.fill('#ed-title', 'Του πρώτου διαχειριστή');
+  await page.fill('#ed-body', 'Κείμενο του πρώτου');
+  await sleep(500);
+  const second = (C.ADMIN_EMAILS || [])[1];
+  t(!!second, 'the site lists a second admin address');
+  await server(page, 'setAccount', 'u-admin2', acct('u-admin2', { email: second, name: 'Δεύτερος', verified: true, providers: ['google.com'] }));
+  await page.evaluate(() => window.__fb.server.switchTo('u-admin2'));
+  t(await waitFor(page, () => document.querySelector('#ed-title') && document.querySelector('#ed-title').value === ''), 'the title field shows the second admin\'s (empty) draft');
+  t(await bodyOf(page) === '', '… and so does the text: nothing of the first admin\'s is left to be sent under another name');
+  await page.fill('#ed-title', 'Του δεύτερου'); await page.fill('#ed-body', 'Κείμενο του δεύτερου');
+  await page.click('[data-send]');
+  t(await visible(page.locator('[data-yes]')), 'publishing works for the second admin (the confirmation appears)');
+  await page.click('[data-yes]');
+  await waitFor(page, () => /Η ανακοίνωση στάλθηκε/.test(document.querySelector('[data-announce-box]').textContent));
+  const pub = env.pubCalls.filter(c => c.body.action === 'publish');
+  t(pub.length === 1 && pub[0].body.title === 'Του δεύτερου' && /\.u-admin2\./.test(pub[0].auth), 'the request carries the second admin\'s text and token');
+  t(!!(await page.evaluate(() => localStorage.getItem('semfe:announce-draft:u-admin'))) === true, 'the first admin\'s draft is still kept under their own id');
+});
+
+await scenario('P13', 'blog/: keyboard and focus: tabs, card picture, removal, confirmation, and the box cannot be hidden while sending', ADMIN_OPTS(), async (page, env) => {
+  publishServer(env, async (b, n) => { if (b.action === 'status') return { json: { ok: true, ready: true } }; await sleep(1200); return { json: { ok: true, url: ORIGIN + SUB + 'blog/' } }; });
+  await page.goto(URL_('blog/'));
+  await visible(page.locator('[data-announce-open]'), 8000);
+  await openEditor(page);
+  await waitFor(page, () => !document.querySelector('[data-send]').disabled);
+  // tabs
+  t(await page.$eval('#ed-tab-write', b => b.tabIndex) === 0 && await page.$eval('#ed-tab-preview', b => b.tabIndex) === -1, 'only the selected tab is in the Tab order');
+  await page.focus('#ed-tab-write');
+  await page.keyboard.press('ArrowRight');
+  t(await page.evaluate(() => document.activeElement.id) === 'ed-tab-preview' && await page.$eval('#ed-tab-preview', b => b.getAttribute('aria-selected')) === 'true' && await page.locator('#ed-pane-preview').isVisible(), 'ArrowRight moves to «Προεπισκόπηση», selects it and shows it');
+  await page.keyboard.press('ArrowLeft');
+  t(await page.evaluate(() => document.activeElement.id) === 'ed-tab-write' && await page.locator('#ed-pane-write').isVisible(), 'ArrowLeft goes back');
+  await page.keyboard.press('End'); await page.keyboard.press('Home');
+  t(await page.evaluate(() => document.activeElement.id) === 'ed-tab-write', 'Home and End work');
+  // card picture radios keep their focus
+  await page.fill('#ed-title', 'Εστίαση'); await page.fill('#ed-body', 'Κείμενο');
+  await page.setInputFiles('[data-file]', { name: 'a.png', mimeType: 'image/png', buffer: await pngOf(page, 400, 300) });
+  await waitFor(page, () => document.querySelectorAll('.ed-fig').length === 1);
+  await page.setInputFiles('[data-file]', { name: 'b.png', mimeType: 'image/png', buffer: await pngOf(page, 400, 300) });
+  await waitFor(page, () => document.querySelectorAll('.ed-fig').length === 2);
+  await page.focus('[data-cover="1"]');
+  await page.keyboard.press('ArrowDown');
+  t(await page.evaluate(() => document.activeElement.getAttribute('data-cover')) !== null && await page.evaluate(() => document.querySelector('[data-cover]:checked') && document.querySelector('[data-cover]:checked').getAttribute('data-cover')) === '2', 'ArrowDown on the card-picture buttons selects the next one…');
+  t(await page.evaluate(() => document.activeElement.hasAttribute('data-cover')), '… and the focus stays on that group of buttons');
+  // confirmation
+  await page.click('[data-send]');
+  t(await page.evaluate(() => document.activeElement.hasAttribute('data-yes')), 'the confirmation puts the focus on «Ναι, δημοσίευση»');
+  await page.click('[data-no]');
+  t(await waitFor(page, () => document.activeElement.hasAttribute('data-send')), '«Όχι, πίσω» puts it back on «Δημοσίευση»');
+  // while sending, pressing «Νέα ανακοίνωση» must not hide the box
+  await page.click('[data-send]'); await page.click('[data-yes]');
+  await page.click('[data-announce-open]');
+  t(await page.locator('[data-announce-box]').isVisible(), 'pressing «Νέα ανακοίνωση» while it is being sent does not hide the box');
+  t(await waitFor(page, () => /Η ανακοίνωση στάλθηκε/.test(document.querySelector('[data-announce-box]').textContent), null, 8000) && await page.locator('[data-announce-box] .ed').isVisible(), 'the answer is visible when it arrives');
+  t(await page.evaluate(() => document.activeElement.id) === 'ed-h', '… and the focus is on its heading, for a screen reader');
+});
+
+
 
 await scenario('P7', 'blog/: publishing: confirmation, the request, the success panel; and what each failure says', ADMIN_OPTS(), async (page, env) => {
   let mode = 'ok';
@@ -2476,7 +2574,7 @@ await scenario('P7', 'blog/: publishing: confirmation, the request, the success 
   await fail('github-token', 'Το κλειδί του GitHub έχει λήξει');
   await fail('github-repo', 'Το αποθετήριο ή ο κλάδος');
   await fail('not-admin', 'Μόνο οι διαχειριστές');
-  await fail('github-error', 'το κείμενό σας δεν χάθηκε');
+  await fail('github-error', 'κείμενό σας δεν χάθηκε');
   await fail('abort', 'Η υπηρεσία δημοσίευσης δεν απαντά');
   mode = 'ok';
   await page.click('[data-send]'); await page.click('[data-yes]');

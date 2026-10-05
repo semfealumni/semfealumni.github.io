@@ -10,7 +10,8 @@ permissions:
 jobs:
   checks:
     # an announcement committed by the editor on blog/ has no built pages yet:
-    # the publish workflow adds them in its next commit, and that one is checked
+    # the publish workflow builds them and runs these checks itself (a commit it
+    # makes with GITHUB_TOKEN starts no other workflow, so the checks cannot run here)
     if: ${{ !startsWith(github.event.head_commit.message, 'Announcement:') }}
     runs-on: ubuntu-latest
     steps:

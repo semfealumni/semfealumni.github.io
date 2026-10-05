@@ -31,7 +31,7 @@
  * Every link the site writes is RELATIVE, so the same files work at
  * stouras.com/semfealumni/ today and at the root of semfealumni.gr later.
  * Only the canonical / og:url tags use SITE_URL. */
-import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, unlinkSync, rmdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderMarkdown, wrapLayout, splitFrontMatter, validateFrontMatter } from './markdown.mjs';
@@ -486,6 +486,20 @@ if (ROOTED) {
   for (const f of ['CNAME', 'robots.txt']) if (existsSync(path.join(ROOT, f))) DROP.push(f);
 }
 
+/* An announcement whose source file was deleted: its page goes too (and the
+   folders left empty). Without this, deleting _src/posts/x.md only removed it
+   from the lists and feeds, and its address kept answering. */
+{
+  const have = new Set(out.map(([f]) => f));
+  const dirs = (d, re) => existsSync(d) ? readdirSync(d, { withFileTypes: true }).filter(e => e.isDirectory() && re.test(e.name)).map(e => e.name) : [];
+  const blog = path.join(ROOT, 'blog');
+  for (const y of dirs(blog, /^\d{4}$/)) for (const m of dirs(path.join(blog, y), /^\d{2}$/)) for (const d of dirs(path.join(blog, y, m), /^\d{2}$/))
+    for (const slug of dirs(path.join(blog, y, m, d), /^[a-z0-9_-]+$/)) {
+      const rel = ['blog', y, m, d, slug, 'index.html'].join('/');
+      if (existsSync(path.join(ROOT, rel)) && !have.has(rel)) DROP.push(rel);
+    }
+}
+
 /* The announcements as feeds, for feed readers (the earlier site had them):
      feed.xml   Atom 1.0
      rss.xml    RSS 2.0
@@ -607,6 +621,7 @@ for (const f of DROP) {
   changed++;
   if (CHECK) { console.log(`should not exist while the site is at ${SITE_URL}: ${f}`); continue; }
   unlinkSync(path.join(ROOT, f));
+  for (let dir = path.dirname(path.join(ROOT, f)); dir.startsWith(path.join(ROOT, 'blog') + path.sep); dir = path.dirname(dir)) { try { rmdirSync(dir); } catch (e) { break; } }   // the folders it leaves empty
 }
 if (CHECK) {
   if (changed) { console.log(`${changed} page(s) differ from _src/. Run: node tools/build.mjs`); process.exit(1); }

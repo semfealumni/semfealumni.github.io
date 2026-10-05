@@ -842,7 +842,9 @@
     accounts: function () { return JSON.parse(JSON.stringify(state.accounts)); },
     setAccount: function (uid, patch) { var a = state.accounts[uid] || (state.accounts[uid] = { uid: uid, providers: [], created: now() }); for (var k in patch) a[k] = patch[k]; save(); },
     verify: function (uid, v) { if (state.accounts[uid]) { state.accounts[uid].emailVerified = v !== false; save(); } },
-    currentUid: function () { return state.currentUid; }
+    currentUid: function () { return state.currentUid; },
+    // another account becomes the signed-in one at once, as when it signs in from another tab: the page hears ONE change
+    switchTo: function (uid) { if (state.accounts[uid]) setCurrent(new User(uid)); }
   };
 
   window.__fbFakeInstall = function (part) {

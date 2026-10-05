@@ -4,7 +4,10 @@
    (tools/components.mjs), the sign-in conditions (tools/conditions.mjs), the
    front matter, and every real file of _src/ checked against all of them.
    No network, no install. */
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, cpSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderMarkdown, wrapLayout, splitFrontMatter, validateFrontMatter, dumpFrontMatter, dumpYamlList, parseAttrs, LAYOUTS } from './markdown.mjs';
@@ -199,6 +202,64 @@ for (const dir of ['pages', 'posts']) {
     if (dir === 'posts') t(`${file}: the file name starts with the date and ends with the slug`, f === `${page.data.date}-${page.data.slug}.md`, `  ${f} vs ${page.data.date}-${page.data.slug}.md`);
     try { renderMarkdown(page.body.replace(/<!--\/?if:[a-z]+-->/g, ''), file); t(`${file}: the body renders`, true); } catch (e) { t(`${file}: the body renders`, false, '  ' + e.message); }
   }
+}
+
+/* ---- announcements written on the website go through the REAL build -------------
+   The editor makes the text safe (assets/js/announce-text.js), but what matters is that
+   tools/build.mjs builds the site from whatever it commits: a build that stops would hold
+   back every later announcement. Hostile texts are built into a temporary copy. */
+{
+  const A = createRequire(import.meta.url)('../assets/js/announce-text.js');
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'semfe-mdself-'));
+  try {
+    cpSync(path.join(ROOT, 'tools'), path.join(dir, 'tools'), { recursive: true });
+    cpSync(path.join(ROOT, '_src'), path.join(dir, '_src'), { recursive: true });
+    mkdirSync(path.join(dir, 'assets/js'), { recursive: true });
+    for (const f of ['config.js', 'announce-text.js']) cpSync(path.join(ROOT, 'assets/js', f), path.join(dir, 'assets/js', f));
+    const NASTY = ['Καλημέρα <!--if:social--> συνέχεια', '<!--if:nosuch-->a<!--/if:nosuch-->', '<!--if:google-->G only<!--/if:google-->', '{*{post:nope}*} text', '![{*{post:nope}*}](figure-1)',
+      '![{*{posts}*}](figure-1)', '![{*{social}*}](figure-1)', '{*{icon:zzz}*}', '{[](a){post:x}}', '<script>alert(1)</script>', '[x](javascript:alert(1))', '{{root}}', 'a￾b \ud83d x',
+      '![' + '{*{posts}*}'.repeat(300) + '](figure-1)', '## Θέμα\n\n- ένα\n- δύο\n\n> παράθεμα\n\nΜε εκτίμηση,\\\nΤο Δ.Σ.'];
+    const day = i => '2026-11-' + String(i + 1).padStart(2, '0');
+    let wrote = 0;
+    NASTY.forEach((body, i) => {
+      let p;
+      try { p = A.buildPost({ title: 'Δοκιμή ' + i, category: 'Ανακοινώσεις', body, date: day(i), figures: [{ ext: 'jpg' }], cover: 1 }); } catch (e) { return; }   // a refusal is fine
+      writeFileSync(path.join(dir, p.path), p.text); wrote++;
+    });
+    // a very short one: its description must still be long enough for check.mjs
+    const short = A.buildPost({ title: 'Αναβολή', category: 'Εκδηλώσεις', body: 'Αναβάλλεται.', date: '2026-11-30', figures: [] });
+    writeFileSync(path.join(dir, short.path), short.text); wrote++;
+    t(`${wrote} hostile or odd announcements were written as _src/posts files`, wrote >= 8);
+    let out = '';
+    try { out = execFileSync(process.execPath, ['tools/build.mjs'], { cwd: dir, encoding: 'utf8', stdio: 'pipe' }); t('tools/build.mjs builds the site with them', true); }
+    catch (e) { t('tools/build.mjs builds the site with them', false, '  ' + String(e.stderr || e.message).split('\n').slice(0, 4).join('\n  ')); }
+    const generated = [];
+    (function walk(d) { for (const f of readdirSync(d, { withFileTypes: true })) { const full = path.join(d, f.name); if (f.isDirectory()) { if (!['tools', '_src', 'assets'].includes(f.name)) walk(full); } else if (/\.(html|xml|json)$/.test(f.name)) generated.push(full); } })(dir);
+    const posts = generated.filter(f => /blog[\\/]2026[\\/]11[\\/]/.test(f));
+    t(`${posts.length} announcement pages were written`, posts.length === wrote);
+    let leaks = '';
+    for (const f of generated) {
+      const text = readFileSync(f, 'utf8').replace(/<script[\s\S]*?<\/script>/gi, '');
+      if (/\{\{[^{}]{0,60}\}\}/.test(text)) leaks += `\n  ${path.relative(dir, f)}: a {{placeholder}} was left`;
+      if (/<!--\s*\/?if:/i.test(text)) leaks += `\n  ${path.relative(dir, f)}: a condition was left`;
+      if (/[￾￿]/.test(text)) leaks += `\n  ${path.relative(dir, f)}: U+FFFE or U+FFFF`;
+    }
+    for (const f of posts) if (/<script\b[^>]*>alert|onerror=|javascript:/i.test(readFileSync(f, 'utf8'))) leaks += `\n  ${path.relative(dir, f)}: script, handler or javascript: link`;
+    t('no {{placeholder}}, condition, script or invalid character in any page or feed' , leaks === '', leaks);
+    t('the bomb ![{*{posts}*}…] did not grow the pages (every post page stays small)', posts.every(f => readFileSync(f).length < 60000), posts.map(f => readFileSync(f).length).join(' '));
+    for (const f of ['feed.xml', 'rss.xml']) {
+      const x = readFileSync(path.join(dir, f), 'utf8');
+      t(f + ' has no character XML forbids', !/[\u0000-\u0008\u000b\u000c\u000e-\u001f￾￿]/.test(x) && !/[\ud800-\udbff](?![\udc00-\udfff])/.test(x));
+    }
+    t('the short announcement\'s page has a description of 20 characters or more', (readFileSync(posts.find(f => /anavoli/.test(f)), 'utf8').match(/<meta name="description" content="([^"]*)"/) || [, ''])[1].length >= 20);
+    // deleting a post's source file deletes its page, and the folders it leaves empty
+    const gone = path.join(dir, short.path);
+    rmSync(gone);
+    execFileSync(process.execPath, ['tools/build.mjs'], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+    t('deleting an announcement\'s source file removes its page too', !existsSync(path.join(dir, 'blog/2026/11/30')), posts.filter(f => /11[\\/]30/.test(f)).join());
+    const chk = execFileSync(process.execPath, ['tools/build.mjs', '--check'], { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+    t('and the build is up to date afterwards (--check)', /match _src/.test(chk), chk);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 
 console.log(bad ? `\n${bad} of ${n} checks failed` : `ok    ${n} checks`);

@@ -9,11 +9,16 @@
 
    What gets written is an ordinary _src/posts/YYYY-MM-DD-slug.md (YAML front
    matter + Markdown, see _src/README.md) and the pictures in
-   assets/img/posts/. The text is Markdown, with three things made harmless
-   first (escapeBody): "<" (so no HTML), "&" (so no entity can spell a
-   character that means something) and "{" "}" (so no attribute list and no
-   {{placeholder}} of the page builder can be written). A line break inside a
-   paragraph is a backslash at the end of the line; the editor's tips say so.
+   assets/img/posts/. The text is Markdown, with four things made harmless
+   first (escapeBody): "<" (so no HTML; and "<!" is broken so no <!--if:…-->
+   condition of the page builder can be written), "&" (so no entity can spell a
+   character that means something), "{" and "}" (they become the full-width
+   ｛ ｝, so no attribute list and no {{placeholder}} can be written, even by
+   putting markup between two braces, which Markdown strips from an image's
+   alt text), and code blocks (shown as text). A link must start with https://,
+   http://, mailto:, tel: or # (a relative address would be wrong at the
+   announcement's depth). A line break inside a paragraph is a backslash at the
+   end of the line; the editor's tips say so.
    Written in ES5 for every browser the site supports. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -24,6 +29,7 @@
   var LIMITS = {
     title: 150,
     description: 200,
+    descriptionMin: 20,        // the search-engine description of every page: tools/check.mjs wants this many
     body: 20000,
     alt: 200,
     figures: 8,
@@ -75,19 +81,43 @@
   }
 
   /* ---- the text ------------------------------------------------------------ */
-  function oneLine(s, max) {
-    return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, ' ').replace(/<[^>]*>/g, ' ').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, max === undefined ? 1e6 : max);
+  /** s without control characters, the two line separators, U+FFFE and U+FFFF (they make an XML feed invalid) and half of a surrogate pair */
+  function cleanChars(s) {
+    s = String(s == null ? '' : s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u2028\u2029\ufffe\uffff]/g, '');
+    var out = '', i, c, d;
+    for (i = 0; i < s.length; i++) {
+      c = s.charCodeAt(i);
+      if (c >= 0xD800 && c <= 0xDBFF) { d = s.charCodeAt(i + 1); if (d >= 0xDC00 && d <= 0xDFFF) { out += s.charAt(i) + s.charAt(i + 1); i++; } }
+      else if (!(c >= 0xDC00 && c <= 0xDFFF)) out += s.charAt(i);
+    }
+    return out;
   }
-  /** the body with "<", "&", "{" and "}" made plain characters (a backslash before each, unless it already has one), and no code blocks */
+  /** "{" and "}" as the full-width ｛ ｝: the page builder and the attribute lists only know the ASCII ones */
+  function plainBraces(s) { return s.replace(/\{/g, '\uff5b').replace(/\}/g, '\uff5d'); }
+  function oneLine(s, max) {
+    var cap = max === undefined ? 1e6 : max;
+    s = String(s == null ? '' : s).slice(0, cap * 4 + 100);                         // before any pattern runs: a huge input costs nothing
+    s = cleanChars(s).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/<[^>]*>/g, ' ').replace(/[<>]/g, '');
+    return cleanChars(plainBraces(s).replace(/\s+/g, ' ').trim().slice(0, cap));
+  }
+  /** the body with "<", "&" made plain characters (a backslash before each, unless it already has one), "<!" broken, "{" "}" full-width, and no code blocks */
   function escapeBody(text) {
-    var s = String(text == null ? '' : text).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u2028\u2029]/g, '');
-    s = s.replace(/(\\*)([<&{}])/g, function (m, bs, ch) { return bs.length % 2 ? m : bs + '\\' + ch; });
+    var s = cleanChars(String(text == null ? '' : text).replace(/\r\n?/g, '\n'));
+    s = plainBraces(s);
+    s = s.replace(/(\\*)([<&])/g, function (m, bs, ch) { return bs.length % 2 ? m : bs + '\\' + ch; });
+    s = s.replace(/(\\<)!/g, '$1\\!');                                              // no "<!" anywhere: <!--if:KEY--> is a condition of the page builder
     // a line that opens a code block (``` or ~~~) shows its marks instead: an announcement has no code blocks
     s = s.replace(/^( {0,3})([`~]{3,})/gm, function (m, sp, marks) { return sp + marks.replace(/[`~]/g, '\\$&'); });
     return s.replace(/^\n+/, '').replace(/\s+$/, '');
   }
-  /** "{{" would be filled in by the page builder ({{root}}, {{icon:…}}, {{latest}}…): it is refused in any text */
-  function hasPlaceholder(s) { return /\{\{|\\\{\\\{/.test(String(s)); }
+  /** "{{" would be filled in by the page builder ({{root}}, {{icon:…}}, {{latest}}…): it is refused, in plain words, in any text */
+  function hasPlaceholder(s) { return /\{\{/.test(String(s)); }
+  /** every link must be absolute (https://, http://, mailto:, tel:), an anchor (#…) or one of the picture lines: a relative one would be wrong at the announcement's depth */
+  function checkLinks(text) {
+    var m, re = /\]\(\s*([^)\s]*)/g, ref = /^ {0,3}\[[^\]\n]+\]:[ \t]*(\S+)/gm, ok = /^(https?:\/\/|mailto:|tel:|#|figure-\d+$)/i;
+    while ((m = re.exec(text))) if (m[1] && !ok.test(m[1])) throw AnnounceError('link-bad', m[1].slice(0, 60));
+    while ((m = ref.exec(text))) if (!ok.test(m[1])) throw AnnounceError('link-bad', m[1].slice(0, 60));
+  }
   /** the card's sentence when none is written: the first sentence-ish piece of the first paragraph, as plain text */
   function describe(body, title) {
     var paras = String(body).replace(/\r\n?/g, '\n').split(/\n\s*\n/), i, t = '';
@@ -126,25 +156,27 @@
     var raw = String(input.body == null ? '' : input.body);
     if (!raw.trim()) throw AnnounceError('body-missing');
     if (raw.length > LIMITS.body) throw AnnounceError('body-too-long');
-    if (hasPlaceholder(title) || hasPlaceholder(description) || hasPlaceholder(raw)) throw AnnounceError('braces');
+    if (hasPlaceholder(input.title) || hasPlaceholder(input.description) || hasPlaceholder(raw)) throw AnnounceError('braces');
+    checkLinks(raw);
     var figures = input.figures || [];
     if (figures.length > LIMITS.figures) throw AnnounceError('too-many-figures');
 
     var slug = uniqueSlug(slugify(title), input.taken || []);
     var body = escapeBody(raw);
-    if (hasPlaceholder(body)) throw AnnounceError('braces');
+    if (/[{}]/.test(body + title + description) || /<!/.test(body)) throw AnnounceError('braces');       // what escapeBody and oneLine were to guarantee
     var used = {}, images = [];
     var cover = input.cover ? +input.cover : 0;
     if (cover && !(cover >= 1 && cover <= figures.length)) throw AnnounceError('cover-bad');
     // ![describe it](figure-2) -> the picture's real address, and a way to size it
-    body = body.replace(/!\[([^\]\n]*)\]\(figure-(\d+)\)/g, function (m, alt, num) {
+    body = body.replace(/!\[([^\]\n]*)\]\(\s*figure-(\d+)(?:\s+"[^"\n]*")?\s*\)/g, function (m, alt, num) {
       var n = +num, f = figures[n - 1];
       if (!f) throw AnnounceError('figure-missing', 'figure-' + n);
       if (alt.length > LIMITS.alt) throw AnnounceError('alt-too-long');
       used[n] = true;
-      var size = SIZES[f.size] ? f.size : 'full';
-      return '![' + alt.replace(/\s+/g, ' ').trim() + '](' + imageRef(n, f) + '){ loading=lazy' + SIZES[size].attr + ' }';
+      var size = Object.prototype.hasOwnProperty.call(SIZES, f.size) ? f.size : 'full';
+      return '![' + alt.replace(/\s+/g, ' ').replace(/\\+$/, '').trim() + '](' + imageRef(n, f) + '){ loading=lazy' + SIZES[size].attr + ' }';
     });
+    if (/\(\s*figure-/.test(body)) throw AnnounceError('figure-bad', 'a picture line that is not ![describe it](figure-N)');
     function nameOf(n, f) { return input.date + '-' + slug + '-' + n + '.' + f.ext; }
     function imageRef(n, f) {
       if (['jpg', 'png', 'webp', 'gif'].indexOf(f.ext) < 0) throw AnnounceError('figure-bad');
@@ -157,7 +189,10 @@
       imageRef(n, f);
       images.push({ n: n, ext: f.ext, name: nameOf(n, f), path: 'assets/img/posts/' + nameOf(n, f) });
     });
-    if (!description) description = oneLine(describe(raw, title), LIMITS.description);
+    if (!description) description = oneLine(describe(plainBraces(cleanChars(raw)), title), LIMITS.description);
+    // every page's description must say something: the title goes first, then the association's name
+    if (description.length < LIMITS.descriptionMin && description.toLowerCase().indexOf(title.toLowerCase()) !== 0) description = oneLine(title + '. ' + description, LIMITS.description);
+    if (description.length < LIMITS.descriptionMin) description = oneLine(description + ' · Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ', LIMITS.description);
 
     var lines = ['---', 'title: ' + yamlText(title), 'date: ' + input.date, 'slug: ' + JSON.stringify(slug), 'category: ' + input.category];
     if (cover) lines.push('image: ' + nameOf(cover, figures[cover - 1]));
@@ -174,6 +209,6 @@
   return {
     LIMITS: LIMITS, CATEGORIES: CATEGORIES, SIZES: SIZES, AnnounceError: AnnounceError,
     slugify: slugify, uniqueSlug: uniqueSlug, athensDate: athensDate, oneLine: oneLine, escapeBody: escapeBody,
-    hasPlaceholder: hasPlaceholder, describe: describe, sniff: sniff, buildPost: buildPost, pathOf: pathOf
+    hasPlaceholder: hasPlaceholder, checkLinks: checkLinks, cleanChars: cleanChars, plainBraces: plainBraces, describe: describe, sniff: sniff, buildPost: buildPost, pathOf: pathOf
   };
 }));

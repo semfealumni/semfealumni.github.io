@@ -42,7 +42,15 @@ closed tab does not lose it.
 
 It is an ordinary file in the repository: to **correct or remove** an
 announcement afterwards, edit or delete its file in `_src/posts/` on github.com
-(the workflow rebuilds the pages), or in a clone and `node tools/build.mjs`.
+(the workflow rebuilds the pages: a deleted file takes its page, and the page's
+folders, with it; delete its pictures in `assets/img/posts/` too), or in a clone
+and `node tools/build.mjs`.
+
+**If the build stops** (it should not: the text is made safe, and the checks run on
+the built site) the workflow **takes the announcement back**: a second commit
+`Revert "Announcement: …"` removes it, so that one bad announcement can never hold
+back the next ones. Nobody is e-mailed about it. The editor then shows
+«Δεν εμφανίστηκε ακόμα»; look at **Actions > publish** to see why.
 
 ## Switching it on (15 minutes, once)
 
@@ -92,6 +100,11 @@ its own: `firebase functions:secrets:set GITHUB_PUBLISH_TOKEN --project semfe-al
 Answer `none` to leave publishing off.) It is kept in Google Secret Manager and
 never appears on the site or in the repository.
 
+`ALLOWED_ORIGINS` (the same setting as for the sign-in functions,
+FIREBASE-SETUP.md / MIGRATION.md) must list `https://semfealumni.gr` and
+`https://www.semfealumni.gr`: otherwise the browser refuses the answer and the
+editor says the service «δεν απαντά» although it is running.
+
 The repository and branch have defaults in `functions/index.js`
 (`PUBLISH_REPO` = `konstantinosStouras/semfealumni`, `PUBLISH_BRANCH` = `main`).
 **If the site's repository is another one** (it moves to
@@ -130,20 +143,32 @@ The editor says in Greek what failed; the codes behind the messages:
 | «Η υπηρεσία δημοσίευσης δεν απαντά» | `publishAnnouncement` is not deployed, or no network | step 2; the function's logs in the Firebase console |
 | «Το κλειδί του GitHub έχει λήξει ή δεν έχει δικαίωμα εγγραφής» | the token expired, was revoked, or is not for this repository or lacks **Contents: Read and write** | step 1 again, then `firebase functions:secrets:set GITHUB_PUBLISH_TOKEN` and deploy |
 | «Το αποθετήριο ή ο κλάδος … δεν βρέθηκε» | `PUBLISH_REPO` / `PUBLISH_BRANCH` is wrong, or the token does not reach that repository | step 2 |
-| «Το GitHub είναι απασχολημένο» | someone pushed at the same moment, four times in a row | press again |
+| «Το GitHub είναι απασχολημένο» | someone pushed at the same moment four times in a row, or GitHub's rate limit | wait a minute and press again |
+| «Οι σύνδεσμοι πρέπει να ξεκινούν με https://» | a link such as `[text](support/)`: a relative address would be wrong at the announcement's depth | write the whole address |
 | «Μόνο οι διαχειριστές …» | the signed-in address is not a verified admin | sign in with an address of `ADMIN_EMAILS` |
 | it was sent, but never appears | the build failed: open **Actions** > **publish** in the repository and read the red step | fix the file in `_src/posts/`, the workflow rebuilds |
 
 An announcement that was sent is a commit titled `Announcement: <slug>` on `main`.
 
+**Visit statistics**: the page of a new announcement is counted as «other» on the
+«Στατιστικά» page until the Cloud Functions are deployed again, because
+`recordVisit` knows the site's pages from `functions/site-paths.json` as it was at
+the last deploy. Deploy the functions now and then if the page-by-page figures
+matter.
+
 ## Safety
 
 * **Who may**: only a verified address in `ADMIN_EMAILS`, checked by the function
   from the sign-in token on every call. Hiding the button is only a courtesy.
-* **What may be written**: Markdown only. `<`, `&`, `{` and `}` in the text become
-  plain characters, so an announcement can carry no HTML, no script, no
-  attribute and no `{{placeholder}}` of the page builder, and a code block is
-  shown as text. Pictures are accepted by what they are (JPEG, PNG, WebP, GIF;
+* **What may be written**: Markdown only. `<` and `&` become plain characters
+  (and `<!` is broken, so no `<!--if:…-->` condition of the page builder can be
+  written), `{` and `}` become the full-width `｛ ｝` (Markdown strips markup from
+  an image's alt text, so even `{*{post:x}*}` would otherwise join into a
+  `{{placeholder}}`), and a code block is shown as text. So an announcement can
+  carry no HTML, no script, no attribute and no placeholder or condition.
+  Links must be absolute. The function and the tests run the text through the
+  build's own steps, and the `publish` workflow builds and checks the site
+  before keeping an announcement. Pictures are accepted by what they are (JPEG, PNG, WebP, GIF;
   never SVG), up to 8, 1.2 MB each and 6 MB together. The rules are
   `assets/js/announce-text.js`, which the function runs too (a copy in
   `functions/`, pinned by `node tools/check.mjs`), tested in

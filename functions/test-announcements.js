@@ -38,9 +38,10 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     assert.strictEqual(T.athensDate(Date.UTC(2026, 9, 5, 21, 30)), '2026-10-06');   // 00:30 on the 6th in Athens (UTC+3)
     assert.strictEqual(T.athensDate(Date.UTC(2026, 0, 5, 21, 30)), '2026-01-05');   // 23:30 on the 5th (UTC+2)
   });
-  await t('escapeBody: < & { } become plain characters, once', async () => {
-    assert.strictEqual(T.escapeBody('a <b>x</b> & {c} }'), 'a \\<b>x\\</b> \\& \\{c\\} \\}');
-    assert.strictEqual(T.escapeBody('already \\< \\& \\{ \\}'), 'already \\< \\& \\{ \\}');
+  await t('escapeBody: < & become plain characters once, { } become full-width, "<!" is broken', async () => {
+    assert.strictEqual(T.escapeBody('a <b>x</b> & {c} }'), 'a \\<b>x\\</b> \\& \uff5bc\uff5d \uff5d');
+    assert.strictEqual(T.escapeBody('already \\< \\&'), 'already \\< \\&');
+    assert.strictEqual(T.escapeBody('<!--if:social--> \\<!-- <!x'), '\\<\\!--if:social--> \\<\\!-- \\<\\!x');   // no "<!" is left: no <!--if:KEY--> condition can be written
     assert.strictEqual(T.escapeBody('two \\\\<'), 'two \\\\\\<');                    // an escaped backslash does not escape the "<"
     assert.strictEqual(T.escapeBody('\r\nline\r\n\r\n'), 'line');
     assert.strictEqual(T.escapeBody('a\u0000b c'), 'abc');
@@ -48,8 +49,8 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     assert.strictEqual(T.escapeBody('```js\ncode\n```\n~~~\nx\n   ```'), '\\`\\`\\`js\ncode\n\\`\\`\\`\n\\~\\~\\~\nx\n   \\`\\`\\`');
     assert.strictEqual(T.escapeBody('a `code` here'), 'a `code` here');
   });
-  await t('hasPlaceholder: any "{{", written or built from escapes', async () => {
-    assert.ok(T.hasPlaceholder('{{root}}') && T.hasPlaceholder('x {{ y') && T.hasPlaceholder('\\{\\{root\\}\\}'));
+  await t('hasPlaceholder: any "{{" (a friendly refusal; the full-width braces below make it harmless anyway)', async () => {
+    assert.ok(T.hasPlaceholder('{{root}}') && T.hasPlaceholder('x {{ y'));
     assert.ok(!T.hasPlaceholder('{a} {b}') && !T.hasPlaceholder('plain'));
   });
   await t('describe: the card sentence from the first paragraph, as plain text', async () => {
@@ -73,7 +74,7 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     const p = post({});
     assert.strictEqual(p.file, '2026-10-05-kopi-pitas.md');
     assert.strictEqual(p.path, '_src/posts/2026-10-05-kopi-pitas.md');
-    assert.strictEqual(p.text, '---\ntitle: "Κοπή πίτας"\ndate: 2026-10-05\nslug: "kopi-pitas"\ncategory: Εκδηλώσεις\ndescription: "Ένα κείμενο."\n---\n\nΈνα **κείμενο**.\n');
+    assert.strictEqual(p.text, '---\ntitle: "Κοπή πίτας"\ndate: 2026-10-05\nslug: "kopi-pitas"\ncategory: Εκδηλώσεις\ndescription: "Κοπή πίτας. Ένα κείμενο."\n---\n\nΈνα **κείμενο**.\n');
     assert.strictEqual(T.pathOf(p.date, p.slug), 'blog/2026/10/05/kopi-pitas/');
     assert.deepStrictEqual(p.images, []);
   });
@@ -105,7 +106,7 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     assert.strictEqual(code(() => post({ body: 'x'.repeat(20001) })), 'body-too-long');
     assert.strictEqual(code(() => post({ date: '5/10/2026' })), 'date-bad');
     assert.strictEqual(code(() => post({ body: 'Γράψτε {{root}}' })), 'braces');
-    assert.strictEqual(code(() => post({ body: 'Γράψτε \\{\\{icon:x\\}\\}' })), 'braces');
+    assert.strictEqual(code(() => post({ body: 'Γράψτε \\{\\{icon:x\\}\\}' })), 'no error');     // plain text once the braces are full-width
     assert.strictEqual(code(() => post({ body: 'a { \\{ b' })), 'no error');
     assert.strictEqual(code(() => post({ title: 'Τίτλος {{signin}}' })), 'braces');
     assert.strictEqual(code(() => post({ description: '{{latest}}' })), 'braces');
@@ -119,7 +120,7 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     const p = post({ title: 'A <!--if:google--> B', description: 'x <b> y' });
     const front = p.text.split('---')[1];
     assert.ok(!/[<>]/.test(front), front);
-    assert.ok(front.includes('title: "A B"') && front.includes('description: "x y"'), front);
+    assert.ok(front.includes('title: "A B"') && /description: "A B\. x y/.test(front), front);
   });
 
   /* the real pipeline: the file must read back through the SITE's own reader and render without markup */
@@ -135,7 +136,7 @@ const TOOLS = path.join(__dirname, '..', 'tools');
   await t('the hostile texts become plain text: no tag, no handler, no placeholder, and they read back', async () => {
     for (const h of HOSTILE) {
       let p;
-      try { p = post({ body: h + '\n\nund noch Text' }); } catch (e) { assert.ok(e.code === 'braces', h + ' -> ' + e.code); continue; }   // refused for "{{" is fine
+      try { p = post({ body: h + '\n\nund noch Text', figures: [{ ext: 'jpg' }] }); } catch (e) { assert.ok(e.code === 'braces' || e.code === 'link-bad' || e.code === 'figure-missing', h + ' -> ' + e.code); continue; }   // refused is fine
       const fm = md.splitFrontMatter(p.text, p.file);
       assert.strictEqual(fm.data.title, 'Κοπή πίτας');
       const html = md.renderMarkdown(fm.body, p.file);
@@ -180,6 +181,78 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     const p = post({ title: 'Ωραία μέρα!' });
     assert.ok(/^\d{4}-\d{2}-\d{2}-[a-z0-9_-]+\.md$/.test(p.file));
     assert.strictEqual(p.file, p.date + '-' + p.slug + '.md');
+  });
+
+  /* the build's own two steps: conditions on the file's text BEFORE Markdown, {{…}} filling on the HTML AFTER it */
+  const conditions = await import(pathToFileURL(path.join(TOOLS, 'conditions.mjs')).href);
+  const FILL = /\{\{[^{}]{0,60}\}\}/;
+  const NASTY = [
+    'Καλημέρα <!--if:social--> συνέχεια', '<!--if:nosuch-->a<!--/if:nosuch-->', '<!--if:google-->G only<!--/if:google-->', '<!-- x -->', '\\<!--if:x-->', '<!--/if:x-->', '<!if:x>',
+    '{*{post:nope}*} text', '![{*{post:nope}*}](figure-1)', '![{*{posts}*}](figure-1)', '![{*{social}*}](figure-1)', '{*{icon:user}*}', '{[](a){post:x}}', '{`{post:x}`}', '{ {post:x} }',
+    '{\\{post:x}\\}', '{_{latest}_}', '[{*{posts}*}](https://a.b)', '#{{x}}', '`{`{x}}`', '{{{root}}}', '{*{*{root}*}*}'
+  ];
+  await t('whatever is written, the file survives the build\'s two steps: no condition to apply, no {{placeholder}} to fill (body, alt text, description)', async () => {
+    let built = 0;
+    for (const h of NASTY) for (const description of ['', 'Μια περίληψη που γράφτηκε']) {
+      let p;
+      try { p = post({ body: h + '\n\nund noch Text', figures: [{ ext: 'jpg' }], description }); } catch (e) { assert.ok(['braces', 'link-bad', 'figure-missing'].includes(e.code), h + ' -> ' + e.code); continue; }
+      built++;
+      assert.strictEqual(conditions.applyConditions(p.text, 'x.md', () => { throw new Error('a condition was found for: ' + h); }), p.text);
+      const fm = md.splitFrontMatter(p.text, p.file), html = md.renderMarkdown(fm.body, p.file).replace(/\{\{root\}\}assets\/img\/posts\/[\w.-]+/g, 'IMG');
+      assert.ok(!FILL.test(html), 'a placeholder is left for fill() in: ' + h + '\n' + html);
+      assert.ok(!/[{}]/.test(fm.data.description + fm.data.title), 'a brace in the description for: ' + h);
+      assert.ok(!/<!/.test(p.text.replace(/\\<\\!/g, '')), 'a "<!" in the file for: ' + h);
+    }
+    assert.ok(built >= 30, 'only ' + built + ' of the texts were built: the test would prove little');
+  });
+  await t('the markup between two braces cannot join them again in an image\'s alt text (Markdown strips it)', async () => {
+    const p = post({ body: '![{*{post:nope}*}](figure-1)', figures: [{ ext: 'jpg' }] });
+    const html = md.renderMarkdown(md.splitFrontMatter(p.text, p.file).body, p.file);
+    assert.ok(/alt="｛｛post:nope｝｝"/.test(html) || /alt="｛/.test(html), html);
+    assert.ok(!/alt="\{/.test(html));
+  });
+  await t('a description made from the body cannot hold braces either ({*{post:nope}*} text)', async () => {
+    const p = post({ body: '{*{post:nope}*} text', description: '' });
+    assert.ok(!/[{}]/.test(md.splitFrontMatter(p.text, p.file).data.description));
+  });
+  await t('characters that make an XML feed invalid never reach a file: U+FFFE, U+FFFF, half a surrogate pair', async () => {
+    const p = post({ title: 'a￿b \ud83d', description: 'x￾y', body: 'a￾b \ud83d x\ude00 😀 end' });
+    assert.ok(!/[￾￿]/.test(p.text) && !/[\ud800-\udbff](?![\udc00-\udfff])|(?:[^\ud800-\udbff]|^)[\udc00-\udfff]/.test(p.text), JSON.stringify(p.text));
+    assert.ok(p.text.includes('😀'), 'a real emoji is kept');
+    const cut = T.oneLine('😀'.repeat(60), 25);                                   // cut in the middle of a pair
+    assert.ok(!/[\ud800-\udbff](?![\udc00-\udfff])/.test(cut), JSON.stringify(cut));
+  });
+  await t('oneLine does not slow down on a huge title (it is cut before any pattern runs)', async () => {
+    const t0 = Date.now();
+    for (const bad of ['<'.repeat(200000), '<a'.repeat(100000), ' '.repeat(300000) + 'x']) T.oneLine(bad, 151);
+    assert.ok(Date.now() - t0 < 500, 'took ' + (Date.now() - t0) + ' ms');
+  });
+  await t('a picture size that is a name of Object.prototype means "full", not "undefined"', async () => {
+    for (const size of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+      const p = post({ body: '![x](figure-1)', figures: [{ ext: 'jpg', size }] });
+      assert.ok(p.text.includes('){ loading=lazy }'), size + '\n' + p.text);
+    }
+  });
+  await t('picture lines: a title, spaces, a description ending in a backslash; anything else with figure- is refused', async () => {
+    const one = body => post({ body, figures: [{ ext: 'jpg' }] }).text;
+    assert.ok(/!\[x\]\(\{\{root\}\}assets\/img\/posts\/2026-10-05-kopi-pitas-1\.jpg\)\{ loading=lazy \}/.test(one('![x](figure-1 "a title")')));
+    assert.ok(/!\[x\]\(\{\{root\}\}/.test(one('![x](  figure-1  )')));
+    assert.ok(/!\[Φωτογραφία\]\(\{\{root\}\}/.test(one('![Φωτογραφία\\](figure-1)')), 'a backslash at the end of the description would escape the "]"');
+    assert.strictEqual(code(() => one('![x](figure-1 extra words)')), 'figure-bad');
+    assert.strictEqual(code(() => one('[a link to a picture](figure-1)')), 'figure-bad');   // not an image line: the link would point at a file that does not exist
+  });
+  await t('a short announcement still gets a description of at least 20 characters (tools/check.mjs wants it on every page)', async () => {
+    for (const [title, body] of [['Αναβολή', 'Αναβάλλεται.'], ['Ε', 'ok'], ['Τίτλος', '![x](figure-1)']]) {
+      const p = post({ title, body, figures: [{ ext: 'jpg' }] });
+      assert.ok(p.description.length >= T.LIMITS.descriptionMin, JSON.stringify(p.description));
+      assert.strictEqual(md.splitFrontMatter(p.text, p.file).data.description, p.description);
+    }
+    assert.ok(post({ title: 'Αναβολή', body: 'x', description: 'μικρή' }).description.length >= 20);
+    assert.strictEqual(post({ title: 'Αναβολή', body: 'x', description: 'Μια περιγραφή αρκετά μεγάλη' }).description, 'Μια περιγραφή αρκετά μεγάλη');
+  });
+  await t('links: https, http, mailto, tel and # are accepted; a relative address is refused (it would be wrong at the announcement\'s depth)', async () => {
+    for (const ok of ['[a](https://x.y/z)', '[a](http://x.y)', '[a](mailto:a@b.gr)', '[a](tel:+302101234567)', '[a](#top)', '[a]( https://x.y )', '[a](HTTPS://X.Y)']) assert.strictEqual(code(() => post({ body: ok })), 'no error', ok);
+    for (const bad of ['[a](support/)', '[a](/support/)', '[a](../x)', '[a](javascript:alert(1))', '[a](data:text/html,x)', '[a](ftp://x.y)', '[a]: support/\n\n[a]']) assert.strictEqual(code(() => post({ body: bad })), 'link-bad', bad);
   });
 
   /* ---- announcements.js, against a fake GitHub ------------------------------ */
@@ -318,6 +391,13 @@ const TOOLS = path.join(__dirname, '..', 'tools');
     assert.ok(r.logged.length === 1 && /tree 500/.test(r.logged[0].detail), 'the cause is logged for the owner');
     r = await call(OK, { github: mk('POST /git/blobs', 422) }); assert.strictEqual(r.body.error, 'github-error');
     assert.strictEqual(r.gh.head, 'c0', 'nothing was published');
+  });
+  await t('publish: a GitHub rate limit is "busy", not a bad token', async () => {
+    for (const [st, msg] of [[429, ''], [403, 'API rate limit exceeded for user'], [403, 'You have exceeded a secondary rate limit']]) {
+      const g = fakeGithub(); g.fetch = (orig => async (url, init) => { const r = await orig(url, init); if (/git\/ref\/heads/.test(url)) return { status: st, ok: false, json: async () => ({ message: msg }) }; return r; })(g.fetch);
+      const r = await call(OK, { github: g });
+      assert.deepStrictEqual([r.code, r.body.error], [503, 'github-busy'], st + ' ' + msg);
+    }
   });
   await t('publish: a refused announcement writes nothing (every code, before GitHub is asked)', async () => {
     const bad = (patch, want) => call(Object.assign({}, OK, patch)).then(r => { assert.deepStrictEqual([r.code, r.body.error], [400, want], JSON.stringify(patch).slice(0, 80)); assert.strictEqual(r.gh.calls.length, 0, want + ': GitHub was asked'); });

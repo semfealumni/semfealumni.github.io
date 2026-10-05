@@ -49,7 +49,8 @@ function github(deps, cfg) {
         'User-Agent': 'semfe-alumni-announcements',
         'Content-Type': 'application/json'
       },
-      body: body === undefined ? undefined : JSON.stringify(body)
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: AbortSignal.timeout(25000)                       // a GitHub that does not answer must not hold the request for the whole function timeout
     });
     let json = null;
     try { json = await res.json(); } catch (e) { /* an empty answer */ }
@@ -58,6 +59,7 @@ function github(deps, cfg) {
 }
 /* what a refused GitHub call means for the admin */
 function refusal(r, what) {
+  if (r.status === 429 || (r.status === 403 && /rate limit|abuse|secondary/i.test((r.json && r.json.message) || ''))) return new HttpError(503, 'github-busy');   // a limit, not the token
   if (r.status === 401 || r.status === 403) return new HttpError(503, 'github-token');      // expired, revoked, or not allowed on this repository
   if (r.status === 404) return new HttpError(503, 'github-repo');                          // the repository or branch is not the one the token reaches
   const e = new HttpError(502, 'github-error');

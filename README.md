@@ -100,7 +100,8 @@ An **admin** who is signed in can also write an announcement on
 title, a formatted text area (toolbar, preview), pictures and the kind of
 announcement, and **«Δημοσίευση»** publishes it a few minutes later: the
 Cloud Function `publishAnnouncement` commits the `.md` file and the pictures,
-and the `publish` workflow builds the pages. It needs a GitHub token once:
+and the `publish` workflow builds the pages and checks them (an announcement
+that does not build is taken back automatically). It needs a GitHub token once:
 **[ANNOUNCE-SETUP.md](ANNOUNCE-SETUP.md)**. Until then the box opens, says that
 publishing is not set up, and still lets the admin write and preview.
 
