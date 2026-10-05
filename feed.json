@@ -6,6 +6,17 @@
  "language": "el",
  "items": [
   {
+   "id": "https://semfealumni.gr/blog/2026/10/05/test/",
+   "url": "https://semfealumni.gr/blog/2026/10/05/test/",
+   "title": "test",
+   "summary": "test. sdfdsf · Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ",
+   "content_html": "<p>sdfdsf</p>",
+   "date_published": "2026-10-05T12:00:00Z",
+   "tags": [
+    "Ανακοινώσεις"
+   ]
+  },
+  {
    "id": "https://semfealumni.gr/blog/2026/02/11/2026-kopi-pitas/",
    "url": "https://semfealumni.gr/blog/2026/02/11/2026-kopi-pitas/",
    "title": "Πρόσκληση για Κοπή Πίτας στις 27 Φεβρουαρίου 2026",
