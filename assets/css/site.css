@@ -1131,7 +1131,11 @@ tr.an-other .an-bar { background: var(--muted); }
 }
 
 /* ---- the announcement editor on blog/ (admins only; assets/js/announce.js) ---- */
-.announce { margin: 0 0 28px; }
+.announce { margin: -14px 0 42px; }
+/* the section above is padded 56px (40px on a phone): the bar is pulled up by
+   half the difference so the space above the button equals the space below it
+   (owner, 2026-10-05: "center this better"). Same total space as before. */
+@media (max-width: 600px) { .announce { margin: -6px 0 34px; } }
 .announce-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
 .announce-bar .muted { margin: 0; font-size: .9rem; }
 .ed { margin-top: 18px; }
