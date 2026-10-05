@@ -13,9 +13,10 @@
  *
  * 2. The site's own counter (the recordVisit Cloud Function): one tiny
  *    message per page view, { page path, first page of the visit?, the site
- *    the visitor came from }. No cookie, no identifier: "first page of the
- *    visit" is remembered in sessionStorage, which the browser forgets when
- *    the tab closes. The function also looks up, on the first page, which
+ *    the visitor came from }. No cookie, no identifier, and nothing stored on
+ *    the device (storing a marker only to count visits would need consent,
+ *    Law 3471/2006 article 4(5)): a page is the first of a visit when the
+ *    visitor did not arrive from one of the site's own pages. The function also looks up, on the first page, which
  *    university or company the visitor's network belongs to, and keeps only
  *    that name (functions/netorg.js).
  *
@@ -54,17 +55,14 @@
   /* 2. the site's own counter */
   var url = String(A.visitUrl || '');
   if (!/^https:\/\//.test(url)) return;
-  var first = 0;
-  try {
-    if (!sessionStorage.getItem('semfeVisit')) { sessionStorage.setItem('semfeVisit', '1'); first = 1; }
-  } catch (e) {
-    return;     // storage refused: better uncounted than every page counted as a new visit
-  }
   var ref = '';
-  if (first && document.referrer) {
+  if (document.referrer) {
     try { ref = new URL(document.referrer).hostname; } catch (e) { ref = ''; }
-    if (hosts.indexOf(ref) !== -1) ref = '';
   }
+  // arriving from one of the site's own pages continues a visit; anything
+  // else (another site, a typed address, a bookmark) starts one
+  var first = hosts.indexOf(ref) === -1 ? 1 : 0;
+  if (!first) ref = '';
   var body = JSON.stringify({ p: location.pathname, s: first, r: ref });
   /* a plain-text message: the browser sends it without asking the server
      first, survives the visitor leaving the page, and expects no answer */

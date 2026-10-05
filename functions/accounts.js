@@ -280,6 +280,12 @@ async function mergeLocked({ auth, db, now, keep, drop, keepUid, dropUid, by }) 
     report.removed = null;
   } else {
     await Promise.all([members.doc(dropUid).delete(), dir.doc(dropUid).delete()]);
+    // the log of earlier merges INTO DROP now belongs to KEEP, the same person:
+    // deleting DROP would otherwise delete it (cleanupUser in linkedin.js)
+    const older = await db.collection('accountMerges').where('keep', '==', dropUid).get();
+    const olderRefs = [];
+    older.forEach(d => olderRefs.push(d.ref));
+    await Promise.all(olderRefs.map(r => r.set({ keep: keepUid }, { merge: true })));
     await auth.deleteUser(dropUid);
   }
 

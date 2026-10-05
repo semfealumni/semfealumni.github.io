@@ -691,7 +691,7 @@ await scenario('F2', 'account page: the application (validate, refused write, cr
   const msg = page.locator('#account-app [data-form-msg]');
   const boxes = () => page.evaluate(() => ['consentNewsletter', 'consentJobs', 'consentDirectory', 'acceptedPrivacy'].map(k => k + '=' + document.getElementById('f-' + k).checked));
   const fresh = await boxes();
-  t(fresh.every(x => x.endsWith('=true')), 'a first application starts with the four boxes ticked (the applicant may untick them)' + list(fresh));
+  t(fresh.every(x => x.endsWith('=false')), 'a first application starts with the four boxes UNticked (consent is never pre-ticked)' + list(fresh));
   const submit = () => page.click('#account-app form[data-apply] [type=submit]');
   const good = { firstName: 'Μαρία', lastName: 'Παπαδοπούλου', email: MARIA.email, phone: '6900000000', stage: 'graduate', direction: 'Εφαρμοσμένα Μαθηματικά',
     entryYear: '2008', gradYear: '2013', position: 'Data Scientist', employer: 'ACME', city: 'Αθήνα', linkedin: 'linkedin.com/in/maria-p', note: 'Γεια σας' };
@@ -716,7 +716,7 @@ await scenario('F2', 'account page: the application (validate, refused write, cr
   await bad({ linkedin: 'https://example.com/in/maria' }, true, 'Γράψτε τη διεύθυνση του προφίλ σας στο LinkedIn (linkedin.com/in/…).', 'a LinkedIn URL that is not linkedin.com');
   await bad({ entryYear: '2015', gradYear: '2010' }, true, 'Το έτος αποφοίτησης είναι πριν από το έτος εισαγωγής.', 'graduation before entry');
   await bad({ entryYear: '1850' }, true, 'Το έτος εισαγωγής δεν φαίνεται σωστό.', 'an impossible entry year');
-  await bad({}, false, 'Για να υποβάλετε αίτηση, χρειάζεται να συμφωνήσετε με την πολιτική απορρήτου.', 'privacy not accepted');
+  await bad({}, false, 'Για να υποβάλετε αίτηση, επιβεβαιώστε ότι διαβάσατε την πολιτική απορρήτου.', 'privacy not acknowledged');
   t((await calls(page, 'fs.set')).length === 0, 'no write while the form is invalid');
 
   // the server refuses the write (e.g. rules not published): the person must be TOLD

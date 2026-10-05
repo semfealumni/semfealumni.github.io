@@ -233,13 +233,15 @@ async function reverseDns(ip) {
     return (names && names[0]) || '';
   } catch (e) { return ''; }
 }
-/* the network's registration, over RDAP; ARIN's server redirects to the
-   registry of any region (RIPE for Greece and Europe) */
+/* the network's registration, over RDAP. RIPE NCC (in the EU) is asked first:
+   it answers for Greece and Europe itself and redirects any other address to
+   its own region's registry (ARIN, APNIC, LACNIC, AFRINIC), so a European
+   visitor's address never leaves the EU for this lookup (privacy policy) */
 async function registration(ip) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 3000);
   try {
-    const res = await fetch('https://rdap.arin.net/registry/ip/' + ip, {
+    const res = await fetch('https://rdap.db.ripe.net/ip/' + ip, {
       headers: { accept: 'application/rdap+json', 'user-agent': 'semfealumni-functions' },
       redirect: 'follow', signal: ctl.signal
     });

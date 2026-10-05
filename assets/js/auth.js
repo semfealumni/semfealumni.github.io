@@ -463,6 +463,17 @@
      account page: the application's status and how many ways in), kept per
      account in this browser, so the menu costs no reads of its own. */
   var MENU_KEY = 'semfe:menu:';
+  /* these per-account notes (and account.js's 'semfe:no-method-prompt:<uid>')
+     go with the session: a shared computer must not keep a signed-out or
+     deleted account's application status (privacy policy, «Cookies») */
+  function forgetNotes() {
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i--) {
+        var k = localStorage.key(i);
+        if (k && (k.indexOf(MENU_KEY) === 0 || k.indexOf('semfe:no-method-prompt:') === 0)) localStorage.removeItem(k);
+      }
+    } catch (e) {}
+  }
   function menuInfo(uid) { try { return JSON.parse(localStorage.getItem(MENU_KEY + uid) || '{}') || {}; } catch (e) { return {}; } }
   function noteMenu(patch) {
     var u = current;
@@ -586,7 +597,7 @@
     wrap.className = 'modal-backdrop';
     wrap.hidden = true;
     var formA = '<a href="' + esc(C.legacyApplyFormUrl || '#') + '" target="_blank" rel="noopener">';
-    var privacyA = '<a href="' + L.home + 'privacy/">';
+    var privacyA = '<a href="' + L.home + 'privacy/">', termsA = '<a href="' + L.home + 'terms/">';
     wrap.innerHTML =
       '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">' +
       '<button type="button" class="modal-x" data-close aria-label="' + T('Κλείσιμο', 'Close') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
@@ -620,8 +631,8 @@
       '<button type="submit" class="btn btn-dark btn-block" data-submit' + (configured ? '' : ' disabled') + '>' + T('Σύνδεση', 'Sign in') + '</button>' +
       '<div style="text-align:center" data-signin-only><button type="button" class="link-btn" data-forgot>' + T('Ξεχάσατε τον κωδικό;', 'Forgot your password?') + '</button></div>' +
       '</form>' +
-      '<p class="small" style="margin:0">' + T('Συνεχίζοντας, αποδέχεστε την ' + privacyA + 'Πολιτική απορρήτου</a> του Συλλόγου. Από τον πάροχο που επιλέγετε λαμβάνουμε μόνο το όνομα, το e-mail και τη φωτογραφία σας.',
-        'By continuing, you accept the Association\'s ' + privacyA + 'Privacy policy</a>. From the provider you choose we receive only your name, e-mail address and photo.') + '</p>' +
+      '<p class="small" style="margin:0">' + T('Συνεχίζοντας, αποδέχεστε τους ' + termsA + 'Όρους χρήσης</a> και επιβεβαιώνετε ότι διαβάσατε την ' + privacyA + 'Πολιτική απορρήτου</a> του Συλλόγου. Από τον πάροχο που επιλέγετε λαμβάνουμε μόνο το όνομα, το e-mail, τη φωτογραφία σας και ένα αναγνωριστικό του λογαριασμού σας εκεί.',
+        'By continuing, you accept the Association\'s ' + termsA + 'Terms of use</a> and confirm that you have read its ' + privacyA + 'Privacy policy</a>. From the provider you choose we receive only your name, e-mail address, photo and an identifier of your account there.') + '</p>' +
       '</div>' +
       // the card of a pending account (an e-mail + password account whose address is not confirmed yet)
       '<div class="verify-box" data-verify hidden>' +
@@ -871,7 +882,7 @@
   /* opts.stay: do not reload a member page afterwards (the verification
      card's «Αποσύνδεση», which turns the dialog into the sign-in form) */
   function signOut(opts) {
-    clearHint(); clearPending();
+    clearHint(); clearPending(); forgetNotes();
     pendingUser = null; watchVerify(false); verifyState = null; verifyErr = null;
     resetDialog();
     if (!configured) { current = null; paintHeader(); return Promise.resolve(); }
@@ -1166,7 +1177,7 @@
     friendly: friendly, flash: flash, esc: esc, avatarHtml: avatarHtml, displayName: displayName,
     enabledProviders: function () { return enabled.slice(); }, providerInfo: function (k) { return PROVIDERS[k]; }, methodsText: methodsText,
     callAccounts: callAccounts, callFunction: callFunction, mergeWith: mergeWith, mergeSummary: mergeSummary, linkedinStart: linkedinStart,
-    noteMenu: noteMenu, menuInfo: menuInfo, freshToken: freshToken,
+    noteMenu: noteMenu, menuInfo: menuInfo, forgetNotes: forgetNotes, freshToken: freshToken,
     // set the second sign-in window up BEFORE the click: a popup opened after
     // several awaited steps can be blocked (Safari keeps a click "fresh" briefly)
     prepareMerge: function () { if (configured) otherAuth().catch(function () {}); },

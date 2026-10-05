@@ -389,10 +389,11 @@
     var nameHint = frozen ? T('Για αλλαγή ονόματος <a href="' + A.home + 'contact/">επικοινωνήστε με τον Σύλλογο</a>.', 'To change your name, <a href="' + A.home + 'contact/">contact the Association</a>.') : '';
     var msg = formErr;
     var active = !!member && member.status === 'active';
-    // a first application starts with the four boxes ticked (owner,
-    // 2026-10-05); the applicant may untick any. A saved application shows
-    // what was saved, so a missing answer is never turned into a yes.
-    var tick = function (v) { return member ? !!v : v !== false; };
+    // every box starts unticked: consent must be an act of the applicant
+    // (GDPR Recital 32: "pre-ticked boxes ... should not ... constitute
+    // consent"; CJEU C-673/17, Planet49). A saved application shows what was
+    // saved, so a missing answer is never turned into a yes.
+    var tick = function (v) { return !!v; };
     var optional = T('Προαιρετικό', 'Optional');
     return '<div class="panel" id="apply"><h2 tabindex="-1">' + (member ? T('Επεξεργασία στοιχείων', 'Edit details') : T('Αίτηση μέλους', 'Membership application')) + '</h2>' +
       (member ? '' : '<p class="muted intro">' + T('Συμπληρώστε τα στοιχεία σας. Τα πεδία με <span class="req">*</span> είναι υποχρεωτικά. Θα τα ελέγξουμε και θα ενεργοποιήσουμε την ιδιότητα μέλους μόλις λάβουμε τη συνδρομή των ' + esc(fee()) + ' (δεν ισχύει για μέλη ΔΕΠ).',
@@ -420,8 +421,8 @@
       check('consentJobs', T('Θέλω να λαμβάνω ανακοινώσεις θέσεων εργασίας και πρακτικής άσκησης.', 'I would like to receive announcements of jobs and internships.'), tick(m.consentJobs)) +
       check('consentDirectory', active ? T('Θέλω να εμφανίζομαι στον κατάλογο μελών (τον βλέπουν μόνο ενεργά μέλη).', 'I would like to be listed in the members\' directory (only active members can see it).')
         : T('Όταν ενεργοποιηθεί η ιδιότητά μου, θέλω να εμφανίζομαι στον κατάλογο μελών (τον βλέπουν μόνο ενεργά μέλη).', 'When my membership becomes active, I would like to be listed in the members\' directory (only active members can see it).'), tick(m.consentDirectory)) +
-      check('acceptedPrivacy', T('Έχω διαβάσει την <a href="' + A.home + 'privacy/" target="_blank" rel="noopener">πολιτική απορρήτου</a> και συμφωνώ να αποθηκευτούν τα στοιχεία μου για την τήρηση του μητρώου μελών.',
-        'I have read the <a href="' + A.home + 'privacy/" target="_blank" rel="noopener">privacy policy</a> and agree that my details are stored to keep the register of members.'), tick(m.acceptedPrivacy), true) +
+      check('acceptedPrivacy', T('Έχω διαβάσει την <a href="' + A.home + 'privacy/" target="_blank" rel="noopener">πολιτική απορρήτου</a>, που εξηγεί πώς τηρούνται τα στοιχεία μου στο μητρώο μελών.',
+        'I have read the <a href="' + A.home + 'privacy/" target="_blank" rel="noopener">privacy policy</a>, which explains how my details are kept in the register of members.'), tick(m.acceptedPrivacy), true) +
       '</div></fieldset>' +
       '<div class="form-error" role="alert" id="apply-msg" tabindex="-1" data-form-msg>' + esc(msg) + '</div>' +
       '<div class="section-foot" style="margin-top:0"><button type="submit" class="btn btn-primary"' + (saving ? ' disabled' : '') + '>' + (saving ? T('Αποθήκευση…', 'Saving…') : member ? T('Αποθήκευση', 'Save') : T('Υποβολή αίτησης', 'Submit application')) + '</button>' +
@@ -642,7 +643,7 @@
       if (!/^https:\/\/([a-z]{2,3}\.)?(www\.)?linkedin\.com\//i.test(d.linkedin.replace(/^http:/i, 'https:'))) return bad('linkedin', T('Γράψτε τη διεύθυνση του προφίλ σας στο LinkedIn (linkedin.com/in/…).', 'Please type the address of your LinkedIn profile (linkedin.com/in/…).'));
       d.linkedin = d.linkedin.replace(/^http:/i, 'https:');
     }
-    if (!d.acceptedPrivacy) return bad('acceptedPrivacy', T('Για να υποβάλετε αίτηση, χρειάζεται να συμφωνήσετε με την πολιτική απορρήτου.', 'To submit an application, you need to agree to the privacy policy.'));
+    if (!d.acceptedPrivacy) return bad('acceptedPrivacy', T('Για να υποβάλετε αίτηση, επιβεβαιώστε ότι διαβάσατε την πολιτική απορρήτου.', 'To submit an application, please confirm that you have read the privacy policy.'));
     return '';
   }
   // while a save is on its way, the redraws its own write causes must not
@@ -851,6 +852,7 @@
       });
     }).then(function () {
       try { localStorage.removeItem('semfe:auth-hint'); } catch (e) {}
+      if (A.forgetNotes) A.forgetNotes();
       html('<div class="notice ok" tabindex="-1" id="deleted-msg"><strong>' + T('Ο λογαριασμός σας διαγράφηκε.', 'Your account has been deleted.') + '</strong><p>' +
         T('Διαγράψαμε τον λογαριασμό σύνδεσης, την αίτηση μέλους, την καταχώρισή σας στον κατάλογο και τις ειδοποιήσεις με e-mail.',
           'We deleted your sign-in account, your membership application, your entry in the directory and your e-mail alerts.') + '</p></div>');

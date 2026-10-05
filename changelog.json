@@ -2,6 +2,17 @@
   "about": "The «Τι νέο» list (whats-new/). Newest first. Each entry is a SUGGESTION: it is shown publicly only after an admin approves it on the page. Fields: id (lowercase letters, digits, dashes; never reuse one), date (YYYY-MM-DD), title, summary, url (optional: a page of the site, or https://). Optional: en = { title, summary }, the entry in English for the English copy of the page (en/whats-new/); without it the English page shows the Greek.",
   "updates": [
     {
+      "id": "2026-10-05-nomika-keimena",
+      "date": "2026-10-05",
+      "title": "Νέα πολιτική απορρήτου, όροι χρήσης και οδηγίες διαγραφής",
+      "summary": "Ξαναγράψαμε τα τρία νομικά κείμενα του ιστότοπου, στα ελληνικά και στα αγγλικά. Λένε πιο αναλυτικά ποια δεδομένα κρατάμε, γιατί, για πόσο και ποιος τα βλέπει, ποια δικαιώματα έχετε και πώς τα ασκείτε, τι διαγράφεται όταν διαγράφετε τον λογαριασμό σας, και πώς ζητάτε να αφαιρεθεί μια φωτογραφία ή μια αναφορά σας. Μαζί άλλαξαν και τρία πράγματα στον ιστότοπο: τα κουτάκια για newsletter, θέσεις εργασίας και κατάλογο μελών στην αίτηση είναι πια κενά μέχρι να τα επιλέξετε εσείς, ο μετρητής επισκέψεων δεν αποθηκεύει τίποτα στη συσκευή σας, και οι σημειώσεις της σύνδεσης σβήνουν από τον browser όταν αποσυνδέεστε.",
+      "url": "privacy/",
+      "en": {
+        "title": "A new privacy policy, terms of use and deletion instructions",
+        "summary": "We rewrote the website's three legal texts, in Greek and in English. They explain in more detail what data we keep, why, for how long and who sees it, what rights you have and how to exercise them, what is deleted when you delete your account, and how to ask for a photograph or a mention of you to be removed. Three things on the website changed with them: the newsletter, job and directory boxes in the application are now empty until you tick them yourself, the visit counter stores nothing on your device, and the sign-in notes are erased from your browser when you sign out."
+      }
+    },
+    {
       "id": "2026-10-05-agglika",
       "date": "2026-10-05",
       "title": "Ο ιστότοπος και στα αγγλικά",

@@ -353,8 +353,10 @@ Setup for the owner: `ANALYTICS-SETUP.md`. Two parts, two sources each:
   recounted by the `memberStats` Cloud Function on every write to
   `members/{uid}` that touches a counted field, and by the daily workflow.
   One function counts both: `functions/member-stats.js`.
-* **Privacy is the design, keep it:** `visit.js` stores nothing but a
-  sessionStorage flag, runs only on `ANALYTICS.hosts`, never under GPC/DNT,
+* **Privacy is the design, keep it:** `visit.js` stores nothing on the device
+  (the first page of a visit is the one not reached from the site's own pages:
+  a marker kept only for counting would need consent under Law 3471/2006
+  article 4(5)), runs only on `ANALYTICS.hosts`, never under GPC/DNT,
   never for crawlers, never on `noTrack` pages (admin, LinkedIn callback);
   GA4 is cookieless (`client_storage: 'none'`) and gets the path without its
   query. `recordVisit` never stores or logs the address: `functions/netorg.js`
