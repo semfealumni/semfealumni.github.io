@@ -12,6 +12,7 @@ exclude:
   - ANALYTICS-SETUP.md
   - ALERTS-SETUP.md
   - ANNOUNCE-SETUP.md
+  - MOVE-TO-ORG.md
   - tools
   - functions
   - firebase.json

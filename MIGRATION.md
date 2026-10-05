@@ -1,5 +1,8 @@
 # Moving the site to semfealumni.gr
 
+> **Later:** the site's repository moved into the GitHub organisation, see
+> `MOVE-TO-ORG.md`. This file is the record of the first move (from stouras.com).
+
 **Done on 1 October 2026.** The site now lives at https://semfealumni.gr/. The
 domain's records and what keeps it working are in `DOMAIN.md`; what follows is
 kept as the record of how the move was made (and how to undo it).

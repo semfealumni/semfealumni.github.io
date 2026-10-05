@@ -2,8 +2,8 @@
 
 The website of the **Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ** (alumni association
 of the School of Applied Mathematical and Physical Sciences, NTUA), redesigned
-from the association's MkDocs site
-([semfealumni/semfealumni.github.io](https://github.com/semfealumni/semfealumni.github.io))
+from the association's MkDocs site (its last
+version is kept in `_past-website-versions/`)
 with a modern look and **member sign-in** (Google, LinkedIn or e-mail)
 through Firebase. (The code also supports Facebook; it is left out for now.)
 
@@ -48,6 +48,8 @@ as they are here; there is nothing to install to publish it.
     functions/                 Cloud Functions: LinkedIn sign-in, accounts list/merge, feedback e-mails,
                                the visit counter (recordVisit), the members' statistics (memberStats),
                                the e-mail alerts, and publishAnnouncement (the editor's backend)
+    _past-website-versions/    the association's earlier websites, kept (not published; see its README)
+    MOVE-TO-ORG.md             how the site was moved into the organisation, and the cutover steps
     tools/                     build, checks and tests (not published)
     CLAUDE.md, .github/        repository conventions; the CI checks run on every push
 
@@ -179,14 +181,15 @@ addresses keep working through small forwarding pages.
 
 ## Hosting
 
-The site lives in its own repository, `konstantinosStouras/semfealumni`.
-GitHub Pages publishes it from the `main` branch, root folder (Settings, Pages,
+The site lives in this repository, `semfealumni/semfealumni.github.io`, in the
+GitHub organisation SEMFE Alumni (it was built in `konstantinosStouras/semfealumni`
+and moved here with its history: **`MOVE-TO-ORG.md`**). GitHub Pages publishes it from the `main` branch, root folder (Settings, Pages,
 Source: "Deploy from a branch", `main`, `/ (root)`), with the custom domain
 `semfealumni.gr` (the `CNAME` file, written by the build). The domain is
-VERIFIED in the owner's GitHub account (a TXT record
-`_github-pages-challenge-konstantinosstouras` at papaki, the registrar, which
+VERIFIED in the organisation (a TXT record
+`_github-pages-challenge-semfealumni` at papaki, the registrar, which
 must stay), so no other account can claim it. DNS at papaki: four A and four
-AAAA records to GitHub Pages, `www` a CNAME to `konstantinosstouras.github.io`.
+AAAA records to GitHub Pages, `www` a CNAME to `semfealumni.github.io`.
 A missing address shows this site's own `404.html`. Every DNS record, the
 verification code and what to do if one goes missing: **`DOMAIN.md`**.
 

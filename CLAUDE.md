@@ -1,9 +1,13 @@
 # SEMFE Alumni website: repository conventions
 
 The website of the Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ, served by GitHub Pages
-from `main` at **https://semfealumni.gr/** (custom domain, verified in the
-owner's GitHub account; it was a preview at www.stouras.com/semfealumni/ until
-1 October 2026). Greek-language, plain HTML/CSS/JS, no framework.
+from `main` at **https://semfealumni.gr/** (custom domain, verified in the GitHub
+organisation `semfealumni`; the repository is `semfealumni/semfealumni.github.io`,
+moved there from `konstantinosStouras/semfealumni`: `MOVE-TO-ORG.md`). It was a
+preview at www.stouras.com/semfealumni/ until 1 October 2026. The association's
+earlier MkDocs site is kept in `_past-website-versions/` (underscore: never
+published, and its workflow stays switched off; do not move anything out of there
+into `.github/workflows/`). Greek-language, plain HTML/CSS/JS, no framework.
 Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
 
 ## Pages are generated
@@ -61,7 +65,7 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   does not offer Node 24 yet. Move them together when it does.
 * Search engines are allowed (`INDEXABLE = true` in `tools/build.mjs`): this is
   the official site. Never delete `CNAME`, and never remove the
-  `_github-pages-challenge-konstantinosstouras` TXT record at papaki: either
+  `_github-pages-challenge-semfealumni` TXT record at papaki: either
   one takes the site off its address. Every DNS record is listed in
   `DOMAIN.md`; keep it in step with papaki.
 * **The move to semfealumni.gr** is prepared: `MIGRATION.md` and

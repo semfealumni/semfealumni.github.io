@@ -93,7 +93,7 @@ const FEEDBACK_TO = defineString('FEEDBACK_TO', {
 const SMTP_HOST = defineString('SMTP_HOST', { default: 'smtp.gmail.com', description: 'Mail server for the feedback e-mails' });
 const SMTP_PORT = defineString('SMTP_PORT', { default: '465', description: 'Mail server port (465 = SSL)' });
 const PUBLISH_REPO = defineString('PUBLISH_REPO', {
-  default: 'konstantinosStouras/semfealumni',
+  default: 'semfealumni/semfealumni.github.io',
   description: 'The GitHub repository (owner/name) the announcements written on blog/ are committed to'
 });
 const PUBLISH_BRANCH = defineString('PUBLISH_BRANCH', { default: 'main', description: 'The branch the site is published from' });

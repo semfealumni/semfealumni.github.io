@@ -1,11 +1,12 @@
 # The domain semfealumni.gr: where it lives and what keeps it working
 
-The site is served by GitHub Pages from this repository at
-**https://semfealumni.gr/** (since 1 October 2026). Three things keep it there:
+The site is served by GitHub Pages from this repository
+(`semfealumni/semfealumni.github.io`) at **https://semfealumni.gr/** (since
+1 October 2026; in this organisation's repository since the move in `MOVE-TO-ORG.md`). Three things keep it there:
 
 1. the **`CNAME`** file in this repository (written by `tools/build.mjs`);
 2. the **DNS records** at papaki, the registrar (below);
-3. the domain being **verified** in the GitHub account `konstantinosStouras`,
+3. the domain being **verified** in the GitHub organisation `semfealumni`,
    through the TXT record below. GitHub re-checks it from time to time: if the
    record is deleted, the domain stops being verified and another GitHub
    account could claim it.
@@ -17,8 +18,8 @@ The site is served by GitHub Pages from this repository at
   Leave «Διαχείριση nameservers» alone (it must stay `dns1.papaki.gr`,
   `dns2.papaki.gr`), and do not use «Ανακατεύθυνση» (it would send the domain
   to papaki's own servers instead of GitHub).
-* **GitHub, the verification:** avatar > Settings > **Pages** > Verified
-  domains > semfealumni.gr.
+* **GitHub, the verification:** the organisation's page > Settings > **Pages** >
+  Verified domains > semfealumni.gr.
 * **GitHub, the site:** this repository > Settings > **Pages** > Custom domain
   `semfealumni.gr`, «Enforce HTTPS» ticked.
 
@@ -35,8 +36,9 @@ The site is served by GitHub Pages from this repository at
 | `semfealumni.gr` | AAAA | `2606:50c0:8001::153` | GitHub Pages (IPv6) |
 | `semfealumni.gr` | AAAA | `2606:50c0:8002::153` | GitHub Pages (IPv6) |
 | `semfealumni.gr` | AAAA | `2606:50c0:8003::153` | GitHub Pages (IPv6) |
-| `www.semfealumni.gr` | CNAME | `konstantinosstouras.github.io` | www forwards to semfealumni.gr |
-| `_github-pages-challenge-konstantinosstouras.semfealumni.gr` | TXT | `a6cf7a889ca6a1f58955428cd298d1` | **keeps the domain verified: never delete** |
+| `www.semfealumni.gr` | CNAME | `semfealumni.github.io` | www forwards to semfealumni.gr |
+| `_github-pages-challenge-semfealumni.semfealumni.gr` | TXT | the code GitHub shows under the organisation's Settings > Pages > Verified domains (write it here after the cutover) | **keeps the domain verified: never delete** |
+| `_github-pages-challenge-konstantinosstouras.semfealumni.gr` | TXT | `a6cf7a889ca6a1f58955428cd298d1` | the earlier verification, in the account `konstantinosStouras`: delete it a week after the cutover (`MOVE-TO-ORG.md`, Part C step 8) |
 
 TTL: 1 hour (3600) for all. papaki shows the TXT value in quotes; that is how
 DNS writes text, the quotes are not part of the code.
@@ -58,11 +60,11 @@ whoever controls the domain's DNS also controls the GitHub account.
 
 ## Check it from anywhere
 
-    nslookup -type=TXT _github-pages-challenge-konstantinosstouras.semfealumni.gr
+    nslookup -type=TXT _github-pages-challenge-semfealumni.semfealumni.gr
     nslookup -type=A semfealumni.gr
 
 or in a browser:
-https://dns.google/resolve?name=_github-pages-challenge-konstantinosstouras.semfealumni.gr&type=TXT
+https://dns.google/resolve?name=_github-pages-challenge-semfealumni.semfealumni.gr&type=TXT
 
 `node tools/migrate.mjs --verify https://semfealumni.gr/` checks the pages,
 HTTPS and the www forwarding.

@@ -67,13 +67,13 @@ The function needs a key to commit on the association's behalf. It should be a
    left menu) > **Personal access tokens** > **Fine-grained tokens** >
    **Generate new token**.
 2. **Token name**: `SEMFE announcements`.
-3. **Resource owner**: the owner of the repository (the **semfealumni**
-   organisation once the site lives there, otherwise your own account).
+3. **Resource owner**: the **semfealumni** organisation (the site's repository
+   belongs to it).
 4. **Expiration**: the longest it allows (one year). Put the date in your
    calendar: after it, publishing stops with the message «Το κλειδί του GitHub
    έχει λήξει» and you repeat this step.
 5. **Repository access**: **Only select repositories**, and choose the site's
-   repository (`semfealumni`, later `semfealumni.github.io`).
+   repository, `semfealumni.github.io`.
 6. **Permissions** > **Repository permissions** > **Contents**: **Read and write**.
    Nothing else (Metadata: Read-only is added by itself).
 7. **Generate token** and copy it (it starts with `github_pat_`). It is shown
@@ -106,12 +106,11 @@ FIREBASE-SETUP.md / MIGRATION.md) must list `https://semfealumni.gr` and
 editor says the service «δεν απαντά» although it is running.
 
 The repository and branch have defaults in `functions/index.js`
-(`PUBLISH_REPO` = `konstantinosStouras/semfealumni`, `PUBLISH_BRANCH` = `main`).
-**If the site's repository is another one** (it moves to
-`semfealumni/semfealumni.github.io`), put it in `functions/.env.semfe-alumni`
-before deploying:
+(`PUBLISH_REPO` = `semfealumni/semfealumni.github.io`, `PUBLISH_BRANCH` = `main`).
+**If the site's repository is ever another one**, put it in
+`functions/.env.semfe-alumni` before deploying:
 
-    PUBLISH_REPO=semfealumni/semfealumni.github.io
+    PUBLISH_REPO=owner/name
     PUBLISH_BRANCH=main
 
 Check the output: the function list now has **`publishAnnouncement`** (ten
