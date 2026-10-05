@@ -5,6 +5,7 @@ at the top (the "front matter"), then the text in Markdown.
 
     _src/pages/*.md    the pages: governance.md becomes semfealumni.gr/governance/
     _src/posts/*.md    the announcements, named YYYY-MM-DD-slug.md
+    _src/en/*.md       the English copy of each page (same file name): en/governance/
 
 This folder is never published (a folder that starts with `_` is not served).
 The site is built from it by `node tools/build.mjs`, which writes the HTML that
@@ -100,7 +101,7 @@ Plain CommonMark: `## heading`, `**bold**`, `*italic*`, `[text](address)`,
 | `## Title { #anchor }` | an id on a heading |
 | a line `{ .checklist }` after a list or a quote | a class on that list or quote |
 | `{{icon:arrow}}` | an icon from the build's list, inline |
-| `{{signin}}`, `{{signin-social}}` | the sign-in methods the site offers, as a sentence ("Google, LinkedIn ή e-mail") |
+| `{{signin}}`, `{{signin-social}}` | the sign-in methods the site offers, as a sentence ("Google, LinkedIn ή e-mail"; on an English page "Google, LinkedIn or e-mail") |
 | `{{latest}}`, `{{posts}}`, `{{social}}` alone on a line | the newest announcements, all of them, the social links |
 | `{{post:slug}}` as a link address | the address of an announcement |
 
@@ -173,6 +174,40 @@ start after a blank line when it follows HTML, or it is passed through as HTML.
 `a`, `text` and a stats `label` may use `**bold**` and `[links](address)`; every
 other field is plain text. A new kind of block is one entry in
 `tools/components.mjs` and one example in `tools/md-selftest.mjs`.
+
+## The English copy (`_src/en/`)
+
+Every page has an English twin with the **same file name** in `_src/en/`,
+built at `en/<path>` (`_src/en/governance.md` becomes semfealumni.gr/en/governance/).
+The two flags at the top of every page switch between the two copies; a
+visitor who picks English is sent to the English page from then on (the
+browser remembers the choice), until they pick Greek again.
+
+* **Copy the Greek file and translate the text.** Keep the front matter keys
+  that say how the page works exactly as in Greek (`path` WITHOUT `en/`, `nav`,
+  `subnav`, `scripts`, `firestore`, `noindex`, `noTrack`, `layout`…): the build
+  refuses a twin that differs. Translate `title`, `description`, `hero` and the
+  crumb texts.
+* **Keep every address as in Greek**: `{{root}}contact/`, `{{root}}#orama`,
+  `{{post:slug}}`. On an English page the build points every link to a page
+  that has an English copy at that copy (`en/contact/`); files keep theirs.
+  Keep ids, classes, `data-*` attributes and placeholders (`{{signin}}` reads
+  "Google, LinkedIn or e-mail" in English).
+* In a YAML block translate the text fields (`name` in Latin letters, `role`,
+  `caption`…), never `id`, `img`, `file`, `photo`. The words a block writes
+  itself (Open / Download) follow the page's language.
+* **An English page holds no Greek letter** outside an element marked
+  `lang="el"`: `node tools/check.mjs` fails on one, and on a Greek page that
+  has no English twin. The only pages without one are listed in `GREEK_ONLY`
+  in `tools/build.mjs` (the 404 page, which says it in both languages, and
+  the LinkedIn return page).
+* **The announcements are not translated.** Each one also gets an English page
+  (`en/blog/…`) with the site around it in English and its text exactly as
+  written, marked `lang="el"`. Nothing to write in `_src/en/` for them.
+
+The words around a page (menu, footer, crumbs, dates, the flags) are in
+`tools/build.mjs` (`NAV`, `STR`), each in both languages; the scripts write
+their messages twice too (`T('Ελληνικά', 'English')`, see `assets/js/i18n.js`).
 
 ## How it is built
 

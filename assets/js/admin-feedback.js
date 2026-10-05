@@ -9,11 +9,12 @@
  * Shown only to admins; firestore.rules is what actually decides. */
 (function () {
   'use strict';
+  var L = window.SEMFE_I18N, T = L.t;
   var A = window.SemfeAuth, U = window.SEMFE_UTIL || {};
   var sec = document.getElementById('feedback'), app = document.getElementById('admin-feedback');
   if (!A || !sec || !app) return;
   var esc = A.esc;
-  var KIND = { problem: 'Πρόβλημα', idea: 'Πρόταση', other: 'Άλλο' };
+  var KIND = { problem: T('Πρόβλημα', 'Problem'), idea: T('Πρόταση', 'Suggestion'), other: T('Άλλο', 'Other') };
   var db = null, unsub = null, all = null, err = null, view = 'open', closing = null, drafts = {}, me = null, jumped = false, msgs = {};
   var shotCache = {};              // ticket -> [data URLs] once fetched, 'loading', or 'error'
 
@@ -63,16 +64,17 @@
       if (f.selectionStart != null) pos = f.selectionStart;
     }
     var c = counts();
-    var head = '<h2 id="afb-h" tabindex="-1">Σχόλια μελών</h2>' +
-      '<p class="muted">Τα μηνύματα από τη σελίδα <a href="' + A.root + 'feedback/">Σχόλια και προβλήματα</a>. Κλείστε ένα με μια σύντομη απάντηση: ο αποστολέας τη λαμβάνει με e-mail (αν το e-mail του είναι επιβεβαιωμένο) και τη βλέπει και στη σελίδα.</p>';
-    if (err) { app.innerHTML = head + '<div class="notice err"><p>' + esc(err) + '</p><p>Αν η σελίδα Σχόλια είναι καινούργια, δημοσιεύστε ξανά το firestore.rules (FEEDBACK-SETUP.md).</p></div>'; return; }
-    if (!all) { app.innerHTML = head + '<div class="loading"><span class="spinner" aria-hidden="true"></span>Φόρτωση…</div>'; return; }
+    var head = '<h2 id="afb-h" tabindex="-1">' + T('Σχόλια μελών', 'Members\' feedback') + '</h2>' +
+      T('<p class="muted">Τα μηνύματα από τη σελίδα <a href="' + A.home + 'feedback/">Σχόλια και προβλήματα</a>. Κλείστε ένα με μια σύντομη απάντηση: ο αποστολέας τη λαμβάνει με e-mail (αν το e-mail του είναι επιβεβαιωμένο) και τη βλέπει και στη σελίδα.</p>',
+        '<p class="muted">The messages from the <a href="' + A.home + 'feedback/">Feedback and problems</a> page. Close one with a short answer: the sender receives it by e-mail (if their e-mail address is confirmed) and also sees it on that page.</p>');
+    if (err) { app.innerHTML = head + '<div class="notice err"><p>' + esc(err) + '</p><p>' + T('Αν η σελίδα Σχόλια είναι καινούργια, δημοσιεύστε ξανά το firestore.rules (FEEDBACK-SETUP.md).', 'If the Feedback page is new, publish firestore.rules again (FEEDBACK-SETUP.md).') + '</p></div>'; return; }
+    if (!all) { app.innerHTML = head + '<div class="loading"><span class="spinner" aria-hidden="true"></span>' + T('Φόρτωση…', 'Loading…') + '</div>'; return; }
     var tabs = TABS.map(function (t) {
       return '<button type="button" data-view-tab="' + t[0] + '" aria-pressed="' + (view === t[0]) + '">' + t[1] + ' (' + c[t[0]] + ')</button>';
     }).join('');
     var list = all.filter(function (x) { return view === 'all' || (view === 'closed') === (x.status === 'closed'); });
-    app.innerHTML = head + '<div class="filters" role="group" aria-label="Ποια μηνύματα">' + tabs + '</div>' +
-      (list.length ? list.map(card).join('') : '<p class="muted">' + (view === 'open' ? 'Κανένα ανοιχτό μήνυμα.' : 'Κανένα μήνυμα εδώ.') + '</p>');
+    app.innerHTML = head + '<div class="filters" role="group" aria-label="' + T('Ποια μηνύματα', 'Which messages') + '">' + tabs + '</div>' +
+      (list.length ? list.map(card).join('') : '<p class="muted">' + (view === 'open' ? T('Κανένα ανοιχτό μήνυμα.', 'No open messages.') : T('Κανένα μήνυμα εδώ.', 'No messages here.')) + '</p>');
     wire();
     loadShots(list);
     // the old control is gone with the old markup: put the focus back on the
@@ -82,7 +84,7 @@
       if (el) { el.focus({ preventScroll: true }); if (pos != null) try { el.setSelectionRange(pos, pos); } catch (e) {} }
     }
   }
-  var TABS = [['open', 'Ανοιχτά'], ['closed', 'Ολοκληρωμένα'], ['all', 'Όλα']];
+  var TABS = [['open', T('Ανοιχτά', 'Open')], ['closed', T('Ολοκληρωμένα', 'Closed')], ['all', T('Όλα', 'All')]];
   function paintCounts() {
     var c = counts();
     TABS.forEach(function (t) { var b = app.querySelector('[data-view-tab="' + t[0] + '"]'); if (b) b.textContent = t[1] + ' (' + c[t[0]] + ')'; });
@@ -105,10 +107,10 @@
   }
   function shotsHtml(t, n) {
     var c = shotCache[t];
-    if (c === 'error') return '<p class="form-error">Τα στιγμιότυπα δεν φορτώθηκαν.</p>';
-    if (!Array.isArray(c)) return '<p class="muted"><span class="spinner" aria-hidden="true"></span>' + n + (n === 1 ? ' στιγμιότυπο' : ' στιγμιότυπα') + '…</p>';
+    if (c === 'error') return '<p class="form-error">' + T('Τα στιγμιότυπα δεν φορτώθηκαν.', 'The screenshots did not load.') + '</p>';
+    if (!Array.isArray(c)) return '<p class="muted"><span class="spinner" aria-hidden="true"></span>' + n + (n === 1 ? T(' στιγμιότυπο', ' screenshot') : T(' στιγμιότυπα', ' screenshots')) + '…</p>';
     return c.map(function (u, i) {
-      return '<a class="fb-thumb" href="' + esc(u) + '" data-view="' + i + '"><img src="' + esc(u) + '" alt="Στιγμιότυπο ' + (i + 1) + ' του ' + esc(t) + '"></a>';
+      return '<a class="fb-thumb" href="' + esc(u) + '" data-view="' + i + '"><img src="' + esc(u) + '" alt="' + T('Στιγμιότυπο ' + (i + 1) + ' του ' + esc(t), 'Screenshot ' + (i + 1) + ' of ' + esc(t)) + '"></a>';
     }).join('');
   }
   function paintShots(t) {
@@ -126,41 +128,42 @@
 
   function card(x) {
     var closed = x.status === 'closed', t = x.ticket;
-    var mail = x.email ? esc(x.email) + (x.emailVerified ? '' : ' <span class="badge muted">μη επιβεβαιωμένο</span>') : '<span class="muted">χωρίς e-mail</span>';
+    var mail = x.email ? esc(x.email) + (x.emailVerified ? '' : ' <span class="badge muted">' + T('μη επιβεβαιωμένο', 'unconfirmed') + '</span>') : '<span class="muted">' + T('χωρίς e-mail', 'no e-mail') + '</span>';
     var shots = x.shots ? shotsHtml(t, x.shots) : '';
     var sentBits = [];
     if (x.mailError) sentBits.push('<span class="form-error">E-mail: ' + esc(x.mailError) + '</span>');
     // nothing mailed ten minutes after it arrived: the e-mail function is not deployed (or not running)
     else if (!x.mailedAt && ms(x.createdAt) && Date.now() - ms(x.createdAt) > 10 * 60 * 1000)
-      sentBits.push('Δεν στάλθηκε e-mail για αυτό το μήνυμα (η υπηρεσία e-mail δεν έχει ενεργοποιηθεί: FEEDBACK-SETUP.md).');
-    if (closed && x.resolutionSentAt) sentBits.push('Η απάντηση στάλθηκε με e-mail ' + esc(when(x.resolutionSentAt)) + '.');
+      sentBits.push(T('Δεν στάλθηκε e-mail για αυτό το μήνυμα (η υπηρεσία e-mail δεν έχει ενεργοποιηθεί: FEEDBACK-SETUP.md).', 'No e-mail was sent for this message (the e-mail service is not switched on: FEEDBACK-SETUP.md).'));
+    if (closed && x.resolutionSentAt) sentBits.push(T('Η απάντηση στάλθηκε με e-mail ' + esc(when(x.resolutionSentAt)) + '.', 'The answer was sent by e-mail on ' + esc(when(x.resolutionSentAt)) + '.'));
     var form = closing === t
       ? '<form class="form sub-form afb-close" data-close-form novalidate>' +
-        '<div class="field"><label for="afb-res-' + esc(t) + '">Τι κάναμε (το κείμενο πηγαίνει στον αποστολέα όπως είναι)</label>' +
+        '<div class="field"><label for="afb-res-' + esc(t) + '">' + T('Τι κάναμε (το κείμενο πηγαίνει στον αποστολέα όπως είναι)', 'What we did (the text goes to the sender exactly as written)') + '</label>' +
         '<textarea id="afb-res-' + esc(t) + '" rows="4" maxlength="5000" required>' + esc((drafts[t] || {}).text || '') + '</textarea></div>' +
-        '<div class="field"><label for="afb-url-' + esc(t) + '">Σύνδεσμος για να το δει (προαιρετικό)</label>' +
+        '<div class="field"><label for="afb-url-' + esc(t) + '">' + T('Σύνδεσμος για να το δει (προαιρετικό)', 'A link where they can see it (optional)') + '</label>' +
         '<input id="afb-url-' + esc(t) + '" type="url" maxlength="500" placeholder="https://…" value="' + esc((drafts[t] || {}).url || '') + '"></div>' +
-        '<p class="muted" style="margin:0">' + (x.email && x.emailVerified ? 'Θα σταλεί e-mail στο ' + esc(x.email) + '.' : 'Ο αποστολέας δεν έχει επιβεβαιωμένο e-mail: θα δει την απάντηση στη σελίδα Σχόλια.') + '</p>' +
+        '<p class="muted" style="margin:0">' + (x.email && x.emailVerified ? T('Θα σταλεί e-mail στο ' + esc(x.email) + '.', 'An e-mail will be sent to ' + esc(x.email) + '.')
+          : T('Ο αποστολέας δεν έχει επιβεβαιωμένο e-mail: θα δει την απάντηση στη σελίδα Σχόλια.', 'The sender has no confirmed e-mail address: they will see the answer on the Feedback page.')) + '</p>' +
         '<div class="form-error" data-close-msg role="alert"></div>' +
-        '<p class="section-foot"><button type="submit" class="btn btn-dark btn-sm" data-act="send">Κλείσιμο και αποστολή απάντησης</button> ' +
-        '<button type="button" class="btn btn-outline btn-sm" data-act="cancel">Άκυρο</button></p></form>'
+        '<p class="section-foot"><button type="submit" class="btn btn-dark btn-sm" data-act="send">' + T('Κλείσιμο και αποστολή απάντησης', 'Close and send the answer') + '</button> ' +
+        '<button type="button" class="btn btn-outline btn-sm" data-act="cancel">' + T('Άκυρο', 'Cancel') + '</button></p></form>'
       : '';
     return '<article class="panel afb-card" data-t="' + esc(t) + '">' +
-      '<div class="fb-item-head"><code>' + esc(t) + '</code><span class="badge ' + (closed ? 'ok">Ολοκληρώθηκε' : 'warn">Ανοιχτό') + '</span>' +
+      '<div class="fb-item-head"><code>' + esc(t) + '</code><span class="badge ' + (closed ? 'ok">' + T('Ολοκληρώθηκε', 'Closed') : 'warn">' + T('Ανοιχτό', 'Open')) + '</span>' +
       '<span class="muted">' + esc([when(x.createdAt), KIND[x.kind] || ''].filter(Boolean).join(' · ')) + '</span></div>' +
-      '<p class="afb-from"><strong>' + esc(x.name || '(χωρίς όνομα)') + '</strong> · ' + mail + '</p>' +
-      (x.page && /^https?:\/\//.test(x.page) ? '<p class="afb-page">Σελίδα: <a href="' + esc(x.page) + '">' + esc(x.page) + '</a></p>' : '') +
+      '<p class="afb-from"><strong>' + esc(x.name || T('(χωρίς όνομα)', '(no name)')) + '</strong> · ' + mail + '</p>' +
+      (x.page && /^https?:\/\//.test(x.page) ? '<p class="afb-page">' + T('Σελίδα: ', 'Page: ') + '<a href="' + esc(x.page) + '">' + esc(x.page) + '</a></p>' : '') +
       (shots ? '<div class="fb-thumbs" data-shots>' + shots + '</div>' : '') +
       '<p class="fb-text">' + esc(x.message || '') + '</p>' +
-      (closed && x.resolution ? '<div class="fb-answer"><strong>Απάντηση' + (x.resolvedAt ? ' (' + esc(when(x.resolvedAt)) + (x.resolvedBy ? ', ' + esc(x.resolvedBy === 'repo' ? 'από το αποθετήριο' : x.resolvedBy) : '') + ')' : '') + '</strong><p>' + esc(x.resolution) + '</p>' +
+      (closed && x.resolution ? '<div class="fb-answer"><strong>' + T('Απάντηση', 'Answer') + (x.resolvedAt ? ' (' + esc(when(x.resolvedAt)) + (x.resolvedBy ? ', ' + esc(x.resolvedBy === 'repo' ? T('από το αποθετήριο', 'from the repository') : x.resolvedBy) : '') + ')' : '') + '</strong><p>' + esc(x.resolution) + '</p>' +
         (x.resolutionUrl ? '<p><a href="' + esc(x.resolutionUrl) + '">' + esc(x.resolutionUrl) + '</a></p>' : '') + '</div>' : '') +
       (sentBits.length ? '<p class="muted afb-mail">' + sentBits.join(' ') + '</p>' : '') +
       (msgs[t] ? '<p class="form-ok" role="status">' + esc(msgs[t]) + '</p>' : '') +
       form +
       (closing === t ? '' : '<p class="section-foot afb-actions">' +
-        (closed ? '<button type="button" class="btn btn-outline btn-sm" data-act="reopen">Άνοιγμα ξανά</button>'
-          : '<button type="button" class="btn btn-dark btn-sm" data-act="close">Κλείσιμο με απάντηση</button>') +
-        ' <button type="button" class="btn btn-danger btn-sm" data-act="delete">Διαγραφή</button></p>') +
+        (closed ? '<button type="button" class="btn btn-outline btn-sm" data-act="reopen">' + T('Άνοιγμα ξανά', 'Reopen') + '</button>'
+          : '<button type="button" class="btn btn-dark btn-sm" data-act="close">' + T('Κλείσιμο με απάντηση', 'Close with an answer') + '</button>') +
+        ' <button type="button" class="btn btn-danger btn-sm" data-act="delete">' + T('Διαγραφή', 'Delete') + '</button></p>') +
       '</article>';
   }
 
@@ -174,9 +177,10 @@
       var act = function (name, fn) { var b = cardEl.querySelector('[data-act="' + name + '"]'); if (b) b.addEventListener('click', function () { fn(b); }); };
       act('close', function () { closing = t; msgs[t] = ''; render(); var ta = document.getElementById('afb-res-' + t); if (ta) ta.focus(); });
       act('cancel', function () { closing = null; render(); focusAct(t, 'close'); });
-      act('reopen', function (b) { b.disabled = true; update(t, { status: 'open' }, 'Άνοιξε ξανά.', 'close'); });
+      act('reopen', function (b) { b.disabled = true; update(t, { status: 'open' }, T('Άνοιξε ξανά.', 'Reopened.'), 'close'); });
       act('delete', function (b) {
-        if (!window.confirm('Οριστική διαγραφή του μηνύματος ' + t + ' και των εικόνων του;\n\nΔεν αναιρείται. (Αν θέλετε απλώς να το ολοκληρώσετε, πατήστε «Κλείσιμο με απάντηση».)')) return;
+        if (!window.confirm(T('Οριστική διαγραφή του μηνύματος ' + t + ' και των εικόνων του;\n\nΔεν αναιρείται. (Αν θέλετε απλώς να το ολοκληρώσετε, πατήστε «Κλείσιμο με απάντηση».)',
+          'Permanently delete message ' + t + ' and its pictures?\n\nThis cannot be undone. (If you only want to close it, press “Close with an answer”.)'))) return;
         b.disabled = true;
         // the ticket and its screenshots together
         var ref = db.collection('feedback').doc(t), batch = db.batch();
@@ -193,13 +197,13 @@
         form.addEventListener('submit', function (e) {
           e.preventDefault();
           var msg = form.querySelector('[data-close-msg]'), text = ta.value.trim(), link = url.value.trim();
-          if (!text) { msg.textContent = 'Γράψτε τι κάναμε: αυτό θα διαβάσει ο αποστολέας.'; ta.focus(); return; }
-          if (link && !/^https:\/\/[^\s]+$/i.test(link)) { msg.textContent = 'Ο σύνδεσμος πρέπει να ξεκινά με https://'; url.focus(); return; }
+          if (!text) { msg.textContent = T('Γράψτε τι κάναμε: αυτό θα διαβάσει ο αποστολέας.', 'Write what we did: this is what the sender will read.'); ta.focus(); return; }
+          if (link && !/^https:\/\/[^\s]+$/i.test(link)) { msg.textContent = T('Ο σύνδεσμος πρέπει να ξεκινά με https://', 'The link must start with https://'); url.focus(); return; }
           form.querySelector('[data-act="send"]').disabled = true;
           update(t, {
             status: 'closed', resolution: text.slice(0, 5000), resolutionUrl: link.slice(0, 500),
             resolvedAt: firebase.firestore.FieldValue.serverTimestamp(), resolvedBy: String((me && me.email) || '').slice(0, 200)
-          }, 'Ολοκληρώθηκε.', 'reopen', function () { delete drafts[t]; closing = null; });
+          }, T('Ολοκληρώθηκε.', 'Closed.'), 'reopen', function () { delete drafts[t]; closing = null; });
         });
       }
     });

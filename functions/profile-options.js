@@ -22,97 +22,100 @@
 }(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  /* 'na' = "I prefer not to say": a real answer, never counted as one */
+  /* [key, Greek label, English label]: the English copy of the site
+     (en/) shows the third. 'na' = "I prefer not to say": a real answer,
+     never counted as one */
   var GENDERS = [
-    ['female', 'Γυναίκα'],
-    ['male', 'Άνδρας'],
-    ['other', 'Άλλο'],
-    ['na', 'Δεν επιθυμώ να απαντήσω']
+    ['female', 'Γυναίκα', 'Woman'],
+    ['male', 'Άνδρας', 'Man'],
+    ['other', 'Άλλο', 'Other'],
+    ['na', 'Δεν επιθυμώ να απαντήσω', 'I prefer not to say']
   ];
 
   var INDUSTRIES = [
-    ['academia', 'Πανεπιστήμιο & Έρευνα'],
-    ['education', 'Εκπαίδευση'],
-    ['studies', 'Μεταπτυχιακές / διδακτορικές σπουδές'],
-    ['software', 'Πληροφορική & Λογισμικό'],
-    ['data', 'Δεδομένα & Τεχνητή Νοημοσύνη'],
-    ['telecom', 'Τηλεπικοινωνίες'],
-    ['finance', 'Τράπεζες & Χρηματοοικονομικά'],
-    ['insurance', 'Ασφάλειες & Αναλογιστική'],
-    ['consulting', 'Συμβουλευτικές υπηρεσίες'],
-    ['energy', 'Ενέργεια'],
-    ['manufacturing', 'Βιομηχανία & Παραγωγή'],
-    ['engineering', 'Τεχνικά έργα & Κατασκευές'],
-    ['health', 'Υγεία & Ιατρική Φυσική'],
-    ['pharma', 'Φαρμακευτική & Βιοτεχνολογία'],
-    ['defence', 'Άμυνα & Αεροδιαστημική'],
-    ['transport', 'Μεταφορές & Εφοδιαστική'],
-    ['public', 'Δημόσιος τομέας'],
-    ['commerce', 'Εμπόριο & Υπηρεσίες'],
-    ['media', 'Μέσα ενημέρωσης & Επικοινωνία'],
-    ['other', 'Άλλο']
+    ['academia', 'Πανεπιστήμιο & Έρευνα', 'University & research'],
+    ['education', 'Εκπαίδευση', 'Education'],
+    ['studies', 'Μεταπτυχιακές / διδακτορικές σπουδές', 'Postgraduate / doctoral studies'],
+    ['software', 'Πληροφορική & Λογισμικό', 'IT & software'],
+    ['data', 'Δεδομένα & Τεχνητή Νοημοσύνη', 'Data & artificial intelligence'],
+    ['telecom', 'Τηλεπικοινωνίες', 'Telecommunications'],
+    ['finance', 'Τράπεζες & Χρηματοοικονομικά', 'Banking & finance'],
+    ['insurance', 'Ασφάλειες & Αναλογιστική', 'Insurance & actuarial science'],
+    ['consulting', 'Συμβουλευτικές υπηρεσίες', 'Consulting'],
+    ['energy', 'Ενέργεια', 'Energy'],
+    ['manufacturing', 'Βιομηχανία & Παραγωγή', 'Industry & manufacturing'],
+    ['engineering', 'Τεχνικά έργα & Κατασκευές', 'Engineering works & construction'],
+    ['health', 'Υγεία & Ιατρική Φυσική', 'Health & medical physics'],
+    ['pharma', 'Φαρμακευτική & Βιοτεχνολογία', 'Pharmaceuticals & biotechnology'],
+    ['defence', 'Άμυνα & Αεροδιαστημική', 'Defence & aerospace'],
+    ['transport', 'Μεταφορές & Εφοδιαστική', 'Transport & logistics'],
+    ['public', 'Δημόσιος τομέας', 'Public sector'],
+    ['commerce', 'Εμπόριο & Υπηρεσίες', 'Trade & services'],
+    ['media', 'Μέσα ενημέρωσης & Επικοινωνία', 'Media & communication'],
+    ['other', 'Άλλο', 'Other']
   ];
 
-  /* ISO 3166 code, Greek name, and the other ways people write it, as
-     phrases separated by | (folded: lower case, no accents). 'XX' is
+  /* ISO 3166 code, Greek name, the other ways people write it (phrases
+     separated by |, folded: lower case, no accents), English name. 'XX' is
      "another country". Greece first, then the Greek names alphabetically
-     (the form shows them in this order). */
+     (the Greek form shows them in this order; the English one sorts by the
+     English name, see choices()). */
   var COUNTRIES = [
-    ['GR', 'Ελλάδα', 'greece|hellas|ellada|ellas|ελλας|hellenic republic'],
-    ['AL', 'Αλβανία', 'albania'],
-    ['AR', 'Αργεντινή', 'argentina'],
-    ['AU', 'Αυστραλία', 'australia'],
-    ['AT', 'Αυστρία', 'austria|osterreich'],
-    ['BE', 'Βέλγιο', 'belgium|belgique|belgie'],
-    ['MK', 'Βόρεια Μακεδονία', 'north macedonia|fyrom'],
-    ['BG', 'Βουλγαρία', 'bulgaria'],
-    ['BR', 'Βραζιλία', 'brazil|brasil'],
-    ['FR', 'Γαλλία', 'france'],
-    ['DE', 'Γερμανία', 'germany|deutschland'],
-    ['DK', 'Δανία', 'denmark|danmark'],
-    ['EE', 'Εσθονία', 'estonia'],
-    ['CH', 'Ελβετία', 'switzerland|schweiz|suisse|svizzera'],
-    ['AE', 'Ηνωμένα Αραβικά Εμιράτα', 'united arab emirates|uae|dubai|abu dhabi|εμιρατα'],
-    ['GB', 'Ηνωμένο Βασίλειο', 'united kingdom|uk|u k|great britain|britain|england|scotland|wales|αγγλια|βρετανια|μεγαλη βρετανια'],
-    ['US', 'ΗΠΑ', 'united states|usa|u s a|us|u s|america|united states of america|ηνωμενες πολιτειες|αμερικη'],
-    ['JP', 'Ιαπωνία', 'japan'],
-    ['IN', 'Ινδία', 'india'],
-    ['IE', 'Ιρλανδία', 'ireland|eire'],
-    ['IS', 'Ισλανδία', 'iceland'],
-    ['ES', 'Ισπανία', 'spain|espana'],
-    ['IL', 'Ισραήλ', 'israel'],
-    ['IT', 'Ιταλία', 'italy|italia'],
-    ['CA', 'Καναδάς', 'canada'],
-    ['QA', 'Κατάρ', 'qatar'],
-    ['CN', 'Κίνα', 'china'],
-    ['CY', 'Κύπρος', 'cyprus|kypros'],
-    ['HR', 'Κροατία', 'croatia|hrvatska'],
-    ['LV', 'Λετονία', 'latvia'],
-    ['LT', 'Λιθουανία', 'lithuania'],
-    ['LU', 'Λουξεμβούργο', 'luxembourg'],
-    ['MT', 'Μάλτα', 'malta'],
-    ['MX', 'Μεξικό', 'mexico'],
-    ['NO', 'Νορβηγία', 'norway|norge'],
-    ['KR', 'Νότια Κορέα', 'south korea|korea'],
-    ['ZA', 'Νότια Αφρική', 'south africa'],
-    ['NZ', 'Νέα Ζηλανδία', 'new zealand'],
-    ['NL', 'Ολλανδία', 'netherlands|the netherlands|holland|nederland|κατω χωρες'],
-    ['HU', 'Ουγγαρία', 'hungary'],
-    ['PL', 'Πολωνία', 'poland|polska'],
-    ['PT', 'Πορτογαλία', 'portugal'],
-    ['RO', 'Ρουμανία', 'romania'],
-    ['SA', 'Σαουδική Αραβία', 'saudi arabia'],
-    ['RS', 'Σερβία', 'serbia'],
-    ['SG', 'Σιγκαπούρη', 'singapore'],
-    ['SK', 'Σλοβακία', 'slovakia'],
-    ['SI', 'Σλοβενία', 'slovenia'],
-    ['SE', 'Σουηδία', 'sweden|sverige'],
-    ['TR', 'Τουρκία', 'turkey|turkiye'],
-    ['CZ', 'Τσεχία', 'czechia|czech republic'],
-    ['FI', 'Φινλανδία', 'finland|suomi'],
-    ['HK', 'Χονγκ Κονγκ', 'hong kong'],
-    ['CL', 'Χιλή', 'chile'],
-    ['XX', 'Άλλη χώρα', '']
+    ['GR', 'Ελλάδα', 'greece|hellas|ellada|ellas|ελλας|hellenic republic', 'Greece'],
+    ['AL', 'Αλβανία', 'albania', 'Albania'],
+    ['AR', 'Αργεντινή', 'argentina', 'Argentina'],
+    ['AU', 'Αυστραλία', 'australia', 'Australia'],
+    ['AT', 'Αυστρία', 'austria|osterreich', 'Austria'],
+    ['BE', 'Βέλγιο', 'belgium|belgique|belgie', 'Belgium'],
+    ['MK', 'Βόρεια Μακεδονία', 'north macedonia|fyrom', 'North Macedonia'],
+    ['BG', 'Βουλγαρία', 'bulgaria', 'Bulgaria'],
+    ['BR', 'Βραζιλία', 'brazil|brasil', 'Brazil'],
+    ['FR', 'Γαλλία', 'france', 'France'],
+    ['DE', 'Γερμανία', 'germany|deutschland', 'Germany'],
+    ['DK', 'Δανία', 'denmark|danmark', 'Denmark'],
+    ['EE', 'Εσθονία', 'estonia', 'Estonia'],
+    ['CH', 'Ελβετία', 'switzerland|schweiz|suisse|svizzera', 'Switzerland'],
+    ['AE', 'Ηνωμένα Αραβικά Εμιράτα', 'united arab emirates|uae|dubai|abu dhabi|εμιρατα', 'United Arab Emirates'],
+    ['GB', 'Ηνωμένο Βασίλειο', 'united kingdom|uk|u k|great britain|britain|england|scotland|wales|αγγλια|βρετανια|μεγαλη βρετανια', 'United Kingdom'],
+    ['US', 'ΗΠΑ', 'united states|usa|u s a|us|u s|america|united states of america|ηνωμενες πολιτειες|αμερικη', 'United States'],
+    ['JP', 'Ιαπωνία', 'japan', 'Japan'],
+    ['IN', 'Ινδία', 'india', 'India'],
+    ['IE', 'Ιρλανδία', 'ireland|eire', 'Ireland'],
+    ['IS', 'Ισλανδία', 'iceland', 'Iceland'],
+    ['ES', 'Ισπανία', 'spain|espana', 'Spain'],
+    ['IL', 'Ισραήλ', 'israel', 'Israel'],
+    ['IT', 'Ιταλία', 'italy|italia', 'Italy'],
+    ['CA', 'Καναδάς', 'canada', 'Canada'],
+    ['QA', 'Κατάρ', 'qatar', 'Qatar'],
+    ['CN', 'Κίνα', 'china', 'China'],
+    ['CY', 'Κύπρος', 'cyprus|kypros', 'Cyprus'],
+    ['HR', 'Κροατία', 'croatia|hrvatska', 'Croatia'],
+    ['LV', 'Λετονία', 'latvia', 'Latvia'],
+    ['LT', 'Λιθουανία', 'lithuania', 'Lithuania'],
+    ['LU', 'Λουξεμβούργο', 'luxembourg', 'Luxembourg'],
+    ['MT', 'Μάλτα', 'malta', 'Malta'],
+    ['MX', 'Μεξικό', 'mexico', 'Mexico'],
+    ['NO', 'Νορβηγία', 'norway|norge', 'Norway'],
+    ['KR', 'Νότια Κορέα', 'south korea|korea', 'South Korea'],
+    ['ZA', 'Νότια Αφρική', 'south africa', 'South Africa'],
+    ['NZ', 'Νέα Ζηλανδία', 'new zealand', 'New Zealand'],
+    ['NL', 'Ολλανδία', 'netherlands|the netherlands|holland|nederland|κατω χωρες', 'Netherlands'],
+    ['HU', 'Ουγγαρία', 'hungary', 'Hungary'],
+    ['PL', 'Πολωνία', 'poland|polska', 'Poland'],
+    ['PT', 'Πορτογαλία', 'portugal', 'Portugal'],
+    ['RO', 'Ρουμανία', 'romania', 'Romania'],
+    ['SA', 'Σαουδική Αραβία', 'saudi arabia', 'Saudi Arabia'],
+    ['RS', 'Σερβία', 'serbia', 'Serbia'],
+    ['SG', 'Σιγκαπούρη', 'singapore', 'Singapore'],
+    ['SK', 'Σλοβακία', 'slovakia', 'Slovakia'],
+    ['SI', 'Σλοβενία', 'slovenia', 'Slovenia'],
+    ['SE', 'Σουηδία', 'sweden|sverige', 'Sweden'],
+    ['TR', 'Τουρκία', 'turkey|turkiye', 'Turkey'],
+    ['CZ', 'Τσεχία', 'czechia|czech republic', 'Czechia'],
+    ['FI', 'Φινλανδία', 'finland|suomi', 'Finland'],
+    ['HK', 'Χονγκ Κονγκ', 'hong kong', 'Hong Kong'],
+    ['CL', 'Χιλή', 'chile', 'Chile'],
+    ['XX', 'Άλλη χώρα', '', 'Another country']
   ];
 
   /* Cities people are likely to write in more than one way. The key is the
@@ -159,6 +162,18 @@
     'ντουμπαι': 'Ντουμπάι', 'dubai': 'Ντουμπάι'
   };
 
+  /* the English names of the cities above, for the English copy of the site */
+  var CITY_EN = {
+    'Αθήνα': 'Athens', 'Θεσσαλονίκη': 'Thessaloniki', 'Πάτρα': 'Patras', 'Ηράκλειο': 'Heraklion', 'Λάρισα': 'Larissa',
+    'Βόλος': 'Volos', 'Ιωάννινα': 'Ioannina', 'Χανιά': 'Chania', 'Πειραιάς': 'Piraeus', 'Λευκωσία': 'Nicosia',
+    'Λεμεσός': 'Limassol', 'Λονδίνο': 'London', 'Παρίσι': 'Paris', 'Βερολίνο': 'Berlin', 'Μόναχο': 'Munich',
+    'Ζυρίχη': 'Zurich', 'Γενεύη': 'Geneva', 'Βρυξέλλες': 'Brussels', 'Άμστερνταμ': 'Amsterdam', 'Λουξεμβούργο': 'Luxembourg',
+    'Δουβλίνο': 'Dublin', 'Βιέννη': 'Vienna', 'Μαδρίτη': 'Madrid', 'Βαρκελώνη': 'Barcelona', 'Μιλάνο': 'Milan',
+    'Ρώμη': 'Rome', 'Στοκχόλμη': 'Stockholm', 'Κοπεγχάγη': 'Copenhagen', 'Φρανκφούρτη': 'Frankfurt', 'Εδιμβούργο': 'Edinburgh',
+    'Κέιμπριτζ': 'Cambridge', 'Οξφόρδη': 'Oxford', 'Νέα Υόρκη': 'New York', 'Βοστώνη': 'Boston', 'Σαν Φρανσίσκο': 'San Francisco',
+    'Τορόντο': 'Toronto', 'Σιγκαπούρη': 'Singapore', 'Ντουμπάι': 'Dubai'
+  };
+
   /** Lower case, no accents, final sigma folded, punctuation to spaces. */
   function fold(s) {
     return String(s == null ? '' : s)
@@ -169,9 +184,26 @@
       .replace(/^\s+|\s+$/g, '');
   }
 
-  function labelIn(list, key) {
-    for (var i = 0; i < list.length; i++) if (list[i][0] === key) return list[i][1];
+  /* the label in a language: lang 'en' reads the English column (the third
+     of a gender or industry, the fourth of a country), anything else Greek */
+  function enCol(list) { return list === COUNTRIES ? 3 : 2; }
+  function labelIn(list, key, lang) {
+    for (var i = 0; i < list.length; i++) if (list[i][0] === key) return list[i][lang === 'en' ? enCol(list) : 1];
     return '';
+  }
+  /** [[key, label], …] in the order a form lists them: the list's own order,
+      except English countries, which sort by their English name (Greece
+      first and "another country" last, as in Greek). */
+  function choices(kind, lang) {
+    var list = kind === 'gender' ? GENDERS : kind === 'industry' ? INDUSTRIES : kind === 'country' ? COUNTRIES : [];
+    var col = lang === 'en' ? enCol(list) : 1;
+    var out = list.map(function (x) { return [x[0], x[col]]; });
+    if (list === COUNTRIES && lang === 'en') {
+      var first = out.shift(), last = out.pop();
+      out.sort(function (a, b) { return a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0; });
+      out = [first].concat(out, [last]);
+    }
+    return out;
   }
   function keysOf(list) { return list.map(function (x) { return x[0]; }); }
 
@@ -185,6 +217,7 @@
       COUNTRIES.forEach(function (c) {
         if (c[0] === 'XX') return;
         countryIndex[fold(c[1])] = c[0];
+        if (c[3] && !(fold(c[3]) in countryIndex)) countryIndex[fold(c[3])] = c[0];
         countryIndex[c[0].toLowerCase()] = c[0];
         (c[2] ? c[2].split('|') : []).forEach(function (a) {
           var k = fold(a);
@@ -194,7 +227,7 @@
     }
     return Object.prototype.hasOwnProperty.call(countryIndex, f) ? countryIndex[f] : '';
   }
-  function countryName(code) { return labelIn(COUNTRIES, code); }
+  function countryName(code, lang) { return labelIn(COUNTRIES, code, lang); }
 
   /** The first letter of each word in upper case, the rest as typed. */
   function tidy(s) {
@@ -229,11 +262,11 @@
   }
 
   /** How the statistics name a city: the usual spelling for the cities in
-      CITY_ALIASES, otherwise the text tidied. */
-  function cityName(text) {
+      CITY_ALIASES (in English with lang 'en'), otherwise the text tidied. */
+  function cityName(text, lang) {
     var f = fold(text);
     if (!f) return '';
-    if (Object.prototype.hasOwnProperty.call(CITY_ALIASES, f)) return CITY_ALIASES[f];
+    if (Object.prototype.hasOwnProperty.call(CITY_ALIASES, f)) return lang === 'en' && CITY_EN[CITY_ALIASES[f]] ? CITY_EN[CITY_ALIASES[f]] : CITY_ALIASES[f];
     return tidy(text);
   }
 
@@ -257,21 +290,40 @@
 
   /** "City, Country" for the members' directory card, which has one line
       for both: the country is added unless the city text already names it
-      (older profiles typed "London, UK" in one box). */
-  function placeLine(city, code) {
+      (older profiles typed "London, UK" in one box). What is STORED (the
+      directory entry) is written in Greek, lang left out; lang 'en' is for
+      showing it on an English page. */
+  function placeLine(city, code, lang) {
     var c = String(city == null ? '' : city).replace(/\s+/g, ' ').trim();
-    var name = code && code !== 'XX' ? countryName(code) : '';
+    var name = code && code !== 'XX' ? countryName(code, lang) : '';
     if (!name || splitPlace(c).country === code || fold(c) === fold(name)) return c.slice(0, 80);
     return (c ? c + ', ' + name : name).slice(0, 80);
+  }
+
+  /** A place line as STORED (Greek: "Λονδίνο, Ηνωμένο Βασίλειο") read on a page
+      in another language: lang 'en' turns each comma-separated part that is a
+      country, or a city of CITY_ALIASES, into its English name and leaves
+      everything else as typed. Any other lang: the text unchanged. */
+  function placeText(text, lang) {
+    var t = String(text == null ? '' : text);
+    if (lang !== 'en' || !/[\u0370-\u03ff\u1f00-\u1fff]/.test(t)) return t;
+    return t.split(/(\s*,\s*)/).map(function (part, i) {
+      if (i % 2) return part;
+      var c = countryCode(part), f = fold(part);
+      if (c && c !== 'XX') return countryName(c, 'en');
+      if (Object.prototype.hasOwnProperty.call(CITY_ALIASES, f) && CITY_EN[CITY_ALIASES[f]]) return CITY_EN[CITY_ALIASES[f]];
+      return part;
+    }).join('');
   }
 
   return {
     GENDERS: GENDERS, INDUSTRIES: INDUSTRIES, COUNTRIES: COUNTRIES,
     GENDER_KEYS: keysOf(GENDERS), INDUSTRY_KEYS: keysOf(INDUSTRIES), COUNTRY_KEYS: keysOf(COUNTRIES),
-    genderLabel: function (k) { return labelIn(GENDERS, k); },
-    industryLabel: function (k) { return labelIn(INDUSTRIES, k); },
+    genderLabel: function (k, lang) { return labelIn(GENDERS, k, lang); },
+    industryLabel: function (k, lang) { return labelIn(INDUSTRIES, k, lang); },
+    choices: choices,
     countryName: countryName,
     countryCode: countryCode,
-    fold: fold, tidy: tidy, splitPlace: splitPlace, cityName: cityName, orgKey: orgKey, placeLine: placeLine
+    fold: fold, tidy: tidy, splitPlace: splitPlace, cityName: cityName, orgKey: orgKey, placeLine: placeLine, placeText: placeText
   };
 }));

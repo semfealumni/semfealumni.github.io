@@ -20,7 +20,9 @@
    in firestore.rules, and (for posts) the category on the posts.
 
    The keys are stored, never the labels, so a label can be reworded without
-   touching anyone's choice. Written in ES5 for every browser the site supports. */
+   touching anyone's choice. `en` holds the label and hint the English copy of
+   the site (en/) shows; the category stays the Greek one written in the
+   announcements. Written in ES5 for every browser the site supports. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.SEMFE_ALERTS = factory();
@@ -30,13 +32,17 @@
   var TOPICS = [
     { key: 'announcements', source: 'posts', category: 'Ανακοινώσεις',
       label: 'Ανακοινώσεις του Συλλόγου',
-      hint: 'Τα σημαντικά νέα του Συλλόγου: ανακοινώσεις και προσκλήσεις του Διοικητικού Συμβουλίου, γενικές συνελεύσεις, συνδρομές.' },
+      hint: 'Τα σημαντικά νέα του Συλλόγου: ανακοινώσεις και προσκλήσεις του Διοικητικού Συμβουλίου, γενικές συνελεύσεις, συνδρομές.',
+      en: { label: 'Announcements of the Association',
+        hint: 'The important news of the Association: announcements and invitations from the Board of Directors, General Assemblies, membership fees.' } },
     { key: 'events', source: 'posts', category: 'Εκδηλώσεις',
       label: 'Εκδηλώσεις και συναντήσεις',
-      hint: 'Συναντήσεις αποφοίτων, ομιλίες και άλλες εκδηλώσεις.' },
+      hint: 'Συναντήσεις αποφοίτων, ομιλίες και άλλες εκδηλώσεις.',
+      en: { label: 'Events and meetings', hint: 'Graduate meetups, talks and other events.' } },
     { key: 'site', source: 'news',
       label: 'Νέα του ιστότοπου',
-      hint: 'Οι αλλαγές και οι νέες δυνατότητες του ιστότοπου, όπως τις δημοσιεύει το Δ.Σ. στο «Τι νέο».' }
+      hint: 'Οι αλλαγές και οι νέες δυνατότητες του ιστότοπου, όπως τις δημοσιεύει το Δ.Σ. στο «Τι νέο».',
+      en: { label: 'Website news', hint: 'Changes and new features of the website, as the Board publishes them under “What\'s new”.' } }
   ];
   var KEYS = TOPICS.map(function (t) { return t.key; });
 

@@ -14,6 +14,10 @@
        leave out the site's own address (siteUrl in config.js)
      - an inline {{...}} placeholder or <!--if:--> block left unfilled in a built page
      - a list of sign-in methods typed by hand instead of generated
+     - the English copy (en/): a Greek page without one, Greek text left in an
+       English page (outside what is marked lang="el": the announcements),
+       an English page linking to the Greek copy of a page, a page without
+       its two flags
    and REPORTS (without failing) that Firebase is still unconfigured. */
 import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -217,7 +221,7 @@ function jpegSize(b) {
     const html = read(p);
     if (/<meta http-equiv="refresh"/.test(html)) continue;
     const has = /assets\/js\/visit\.js"/.test(html);
-    const quiet = /^(admin|auth)\//.test(p);
+    const quiet = /^(en\/)?(admin|auth)\//.test(p);
     if (quiet && has) fail(`${p}: the admin and sign-in pages must not load visit.js`);
     else if (!quiet && !has) fail(`${p}: visit.js missing (every public page counts its visits)`);
     else if (has) tracked++;
@@ -286,8 +290,9 @@ function jpegSize(b) {
    name a way in the sign-in window does not offer (Facebook was named on four
    pages long after it was left out). Comments are not text a visitor reads. */
 {
-  const HAND_LIST = /(Google|Facebook)(, | ή (με )?)(Facebook|LinkedIn|e-mail)|(Google|Facebook|LinkedIn) ή (με )?(<strong>)?e-mail/;
+  const HAND_LIST = /(Google|Facebook)(, | ή (με )?| or (with )?)(Facebook|LinkedIn|e-mail)|(Google|Facebook|LinkedIn) (ή (με )?|or (with )?)(<strong>)?e-mail/;
   const srcs = readdirSync(path.join(ROOT, '_src/pages')).filter(f => f.endsWith('.md')).map(f => '_src/pages/' + f)
+    .concat(existsSync(path.join(ROOT, '_src/en')) ? readdirSync(path.join(ROOT, '_src/en')).filter(f => f.endsWith('.md')).map(f => '_src/en/' + f) : [])
     .concat(readdirSync(path.join(ROOT, 'assets/js')).filter(f => f.endsWith('.js') && f !== 'config.js').map(f => 'assets/js/' + f));
   let typed = 0;
   for (const f of srcs) {
@@ -296,6 +301,64 @@ function jpegSize(b) {
     if (m) { typed++; fail(`${f}: a list of sign-in methods typed by hand ("${m[0]}"); use {{signin}} / {{signin-social}} in pages, SemfeAuth.methodsText() in scripts`); }
   }
   if (!typed) ok(`sign-in methods named only through the generated list (${srcs.length} files)`);
+}
+
+/* 5b. the English copy (en/). Every Greek page has an English twin in
+   _src/en/ (except GREEK_ONLY in tools/build.mjs); an English page holds no
+   Greek letter in its text or in what is read aloud (alt, title, aria-label,
+   placeholder, the description) outside an element marked lang="el" (the
+   announcements, which stay as written, and the Greek flag); it links to the
+   English pages, never to the Greek copy of a page that has one (the flags
+   aside); and every page carries the two flags. */
+{
+  const GREEK = /[\u0370-\u03ff\u1f00-\u1fff]/;
+  const only = (read('tools/build.mjs').match(/const GREEK_ONLY = \[([^\]]*)\]/) || ['', ''])[1].match(/'[^']+'/g).map(x => x.slice(1, -1));
+  const missing = readdirSync(path.join(ROOT, '_src/pages')).filter(f => f.endsWith('.md') && !only.includes(f) && !existsSync(path.join(ROOT, '_src/en', f)));
+  if (missing.length) fail(`no English copy for ${missing.map(f => '_src/pages/' + f).join(', ')}: write _src/en/<same name> (see _src/README.md)`);
+  const VOID = /^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/i;
+  /* the text and the spoken attributes of a page, without what is marked lang="el" */
+  function englishText(html) {
+    const src = html.replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, '');
+    const out = [];
+    let skip = 0;                       // depth inside a lang="el" element
+    const stack = [];
+    for (const m of src.matchAll(/<\/?([a-zA-Z][\w-]*)\b([^>]*)>|([^<]+)/g)) {
+      if (m[3] !== undefined) { if (!skip) out.push(m[3]); continue; }
+      const tag = m[1].toLowerCase(), attrs = m[2] || '', closing = m[0][1] === '/';
+      if (closing) {
+        while (stack.length) { const t = stack.pop(); if (t.el) skip--; if (t.tag === tag) break; }
+        continue;
+      }
+      const el = /\slang="el"/.test(attrs);
+      if (!skip && !el) for (const a of attrs.matchAll(/\s(alt|title|aria-label|placeholder|content|value)="([^"]*)"/g)) out.push(a[2]);
+      if (VOID.test(tag) || /\/\s*$/.test(attrs)) continue;
+      stack.push({ tag, el });
+      if (el) skip++;
+    }
+    return out.join(' ');
+  }
+  let enPages = 0, enLinks = 0;
+  for (const p of pages) {
+    const html = read(p);
+    if (/<meta http-equiv="refresh"/.test(html)) continue;
+    if (!/<nav class="lang-switch"[\s\S]*?data-lang="el"[\s\S]*?data-lang="en"[\s\S]*?<\/nav>/.test(html)) fail(`${p}: the two flags (the language switch) are missing`);
+    if (!p.startsWith('en/')) continue;
+    enPages++;
+    if (!/<html lang="en">/.test(html)) fail(`${p}: an English page must say <html lang="en">`);
+    // an announcement's page: its title and description in <head> are its author's words too
+    const text = englishText(html.slice(/^en\/blog\/\d{4}\//.test(p) ? html.indexOf('<body') : html.indexOf('<html')));
+    const g = text.match(new RegExp('.{0,30}' + GREEK.source + '.{0,30}'));
+    if (g) fail(`${p}: Greek text in an English page (translate it in _src/en/, or mark an announcement's words lang="el"): "${g[0].trim()}"`);
+    for (const m of html.matchAll(/<a\b[^>]*?\shref="([^"#?]*)[^"]*"[^>]*>/g)) {
+      if (/\sdata-lang=/.test(m[0]) || /^(https?:|mailto:|tel:|\/\/)/.test(m[1]) || !m[1]) continue;
+      const target = path.relative(ROOT, path.join(ROOT, path.dirname(p), m[1]));
+      enLinks++;
+      if (!target.startsWith('en') && !target.startsWith('..') && existsSync(path.join(ROOT, 'en', target, target.endsWith('.html') ? '' : 'index.html')) && !/\.\w+$/.test(target))
+        fail(`${p}: links to the Greek page ${m[1]} although it has an English copy (en/${target}/)`);
+    }
+  }
+  if (!enPages) fail('no English pages were built (en/): run node tools/build.mjs');
+  else ok(`English copy: ${enPages} pages under en/, every Greek page has one${only.length ? ' (except ' + only.join(', ') + ')' : ''}, no Greek text outside the announcements, ${enLinks} links stay in English, the flags on every page`);
 }
 
 /* 6. what is still to do (not failures) */

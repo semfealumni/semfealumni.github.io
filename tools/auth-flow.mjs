@@ -33,6 +33,8 @@
      H. admin page: access, approve, dues, reject, CSV export
      I. LinkedIn through the Cloud Function (mode 'function') and its callback
      J. stored XSS: hostile names on the admin, members and account pages
+     Y. the English copy (en/): every page script in English, links that stay
+        in English, a new user landing on en/account/
 
    Usage: node tools/auth-flow.mjs [--only=A,F] [--headed]
    Needs Playwright (Chromium) and python3. No network: every third-party
@@ -2108,7 +2110,8 @@ await scenario('W3', '«Τι νέο», an admin: publish, reword, remove, restor
   await page.click('#news-app .news-removed > summary');
   await page.click(`#news-app .news-removed [data-act="restore"][data-id="${second}"]`);
   await waitCalls(page, 'fs.batch', 4);
-  t(await page.locator('#news-app .news-removed').count() === 0 && await page.locator('#news-app > .news-list .news-item').count() === 2, '«Επαναφορά» puts it back on the list');
+  // the page redraws once the write has answered: wait for that, not just for the call
+  t(await waitFor(page, () => !document.querySelector('#news-app .news-removed') && document.querySelectorAll('#news-app > .news-list .news-item').length === 2), '«Επαναφορά» puts it back on the list');
   const left = pending - 1;
   await page.click('#news-app [data-act="approve-all"]');
   const b5 = await waitCalls(page, 'fs.batch', 5);
@@ -2934,6 +2937,161 @@ await scenario('P10', 'blog/: on a phone the editor fits the screen', ADMIN_OPTS
   t(m.sw <= m.cw, `no sideways scroll at 360px (${m.sw} vs ${m.cw})`);
   t(m.over === 0, 'nothing sticks out past the right edge');
   t(m.small === 0, 'every button, field and menu is at least 38px tall');
+});
+
+/* ================================================================================== */
+/* Y. The English copy (en/). Every page script speaks English there and links the
+   English pages; nothing Greek is left on screen except what people typed (the
+   seeds below use Latin letters, so any Greek is the site's own) and what is
+   marked lang="el" (the announcements, the Greek flag). */
+const GREEK_RE = /[Ͱ-Ͽἀ-῿]/;
+const greekLeft = (page, sel) => page.evaluate(([sel, src]) => {
+  const G = new RegExp(src), out = [], root = document.querySelector(sel);
+  if (!root) return ['(nothing matches ' + sel + ')'];
+  const skip = el => !el || !!el.closest('[lang="el"], script, style, noscript, template');
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n; (n = w.nextNode());) if (G.test(n.nodeValue) && !skip(n.parentElement)) out.push(n.nodeValue.replace(/\s+/g, ' ').trim().slice(0, 70));
+  for (const el of root.querySelectorAll('[aria-label], [title], [placeholder], [alt], input[type=submit], input[type=button]'))
+    for (const a of ['aria-label', 'title', 'placeholder', 'alt', 'value']) { const v = el.getAttribute(a); if (v && G.test(v) && !skip(el)) out.push('@' + a + ': ' + v.slice(0, 60)); }
+  if (G.test(document.title)) out.push('<title>: ' + document.title);
+  return out;
+}, [sel || 'body', GREEK_RE.source]);
+// links to a page of the site that leave the English copy (the flags, files and the LinkedIn return page aside)
+const greekLinks = page => page.evaluate(() => [...document.querySelectorAll('a[href]')].filter(a => !a.hasAttribute('data-lang') && a.origin === location.origin &&
+  !/\/en\//.test(a.pathname) && !/\.(xml|json|pdf|png|jpe?g|webp|js|css|csv)$/i.test(a.pathname) && !/\/auth\/linkedin\//.test(a.pathname)).map(a => a.getAttribute('href')));
+const EN_ACCT = (o) => acct('u-en', Object.assign({ email: 'maria@example.com', name: 'Maria Papadopoulou', providers: ['google.com'] }, o || {}));
+const enMember = o => member(Object.assign({ firstName: 'Maria', lastName: 'Papadopoulou', email: 'maria@example.com', city: 'London', direction: 'Εφαρμοσμένη Φυσική' }, o));
+
+await scenario('Y1', 'en/: the header, the sign-in dialog and the account menu speak English; a new user lands on en/account/#apply', { cfg: 'oidc' }, async (page, env) => {
+  await page.goto(URL_('en/'));
+  t((await text(page.locator('#acct-slot [data-signin]'))) === 'Sign in', 'the header button says «Sign in»');
+  t(await openDialog(page), 'it opens the sign-in dialog');
+  t((await calls(page, 'auth.languageCode=')).some(c => c.args[0] === 'en'), 'auth.languageCode is en: Firebase\'s own e-mails follow the page');
+  t((await text(page.locator('#auth-title'))) === 'Sign in', 'the dialog title is «Sign in»');
+  let g = await greekLeft(page, '.modal');
+  t(g.length === 0, 'nothing Greek in the dialog' + list(g, 8));
+  await page.click('#tab-register');
+  g = await greekLeft(page, '.modal');
+  t(g.length === 0, '… nor in its «New account» side' + list(g, 8));
+  t(await page.$eval('.modal a[href*="privacy/"]', a => /\/en\/privacy\/$/.test(a.pathname)), 'its privacy link opens the English page');
+  await page.fill('#auth-email', 'nope');
+  await page.click('.modal [data-submit]');
+  await sleep(150);
+  g = await greekLeft(page, '.modal');
+  t(g.length === 0, 'a validation message, in English' + list(g, 4) + list([await status(page) || '']));
+  await page.click('#tab-signin');
+  await queue(page, 'signInWithPopup', { provider: 'google.com', resolve: { uid: 'u-en', email: 'maria@example.com', displayName: 'Maria Papadopoulou', emailVerified: true } });
+  await Promise.all([page.waitForURL(u => u.pathname === SUB + 'en/account/', { timeout: 8000 }).catch(() => {}), page.click('.modal [data-provider="google"]')]);
+  const u = new URL(page.url());
+  t(u.pathname === SUB + 'en/account/' && u.hash === '#apply', 'a new user lands on the ENGLISH account page, #apply' + list([page.url()]));
+  t(await visible(page.locator('#account-app form[data-apply]')), 'the application form is shown');
+  g = await greekLeft(page, '#main');
+  t(g.length === 0, 'nothing Greek on the application form' + list(g, 8));
+  await page.click('#acct-slot .acct-chip');
+  g = await greekLeft(page, '#acct-menu');
+  t(g.length === 0, 'nothing Greek in the account menu' + list(g, 8));
+  const gl = await greekLinks(page);
+  t(gl.length === 0, 'every link on the page stays in English' + list(gl, 8));
+});
+
+await scenario('Y2', 'en/account/: an active member: labels, fee, alerts, sign-in methods, in English; stored values stay as they are', { cfg: 'oidc',
+  seed: signedInSeed(EN_ACCT(), { docs: { 'members/u-en': enMember({ status: 'active', duesYears: [YEAR - 1], gradYear: 2013, employer: 'ACME', position: 'Data Scientist',
+    country: 'GB', industry: 'software', gender: 'female', reviewedBy: ADMIN, reviewedAt: ts(Date.now() - DAY) }) } }) }, async (page) => {
+  await page.goto(URL_('en/account/'));
+  t(await hasText(page.locator('#account-app .profile-head'), 'Active member'), 'the badge says «Active member»');
+  const kv = await text(page.locator('#account-app #apply'));
+  t(/Applied Physics/.test(kv) && /United Kingdom/.test(kv) && /Woman/.test(kv) && /IT & software/.test(kv), 'the answers are shown in English (study track, country, gender, industry)' + list([kv.slice(0, 160)]));
+  t(/€10/.test(kv), 'the fee reads «€10»');
+  t(await visible(page.locator('#account-app [data-alerts], #account-app #alerts').first()) && await hasText(page.locator('#account-app'), 'Announcements of the Association'), 'the e-mail alerts card, its kinds in English');
+  let g = await greekLeft(page, '#main');
+  t(g.length === 0, 'nothing Greek on the page' + list(g, 8));
+  await page.click('#account-app [data-edit]');
+  await sleep(150);
+  g = await greekLeft(page, '#main');
+  t(g.length === 0, '… nor in the edit form' + list(g, 8));
+  const opt = await page.$eval('#f-direction', s => ({ v: s.value, label: s.options[s.selectedIndex].textContent }));
+  t(opt.v === 'Εφαρμοσμένη Φυσική' && opt.label === 'Applied Physics', 'the study track keeps its stored value, shown in English' + list([js(opt)]));
+  const gl = await greekLinks(page);
+  t(gl.length === 0, 'every link stays in English' + list(gl, 8));
+});
+
+await scenario('Y3', 'en/members/: the members\' area and the directory in English', { cfg: 'oidc',
+  seed: signedInSeed(EN_ACCT(), { docs: {
+    'members/u-en': enMember({ status: 'active', duesYears: [YEAR] }),
+    'directory/u-en': dirEntry({ name: 'Maria Papadopoulou', gradYear: 2013, direction: 'Εφαρμοσμένη Φυσική', employer: 'ACME', city: 'London, Ηνωμένο Βασίλειο' }),
+    'directory/x2': dirEntry({ name: 'John Smith', gradYear: 2001, direction: 'Εφαρμοσμένα Μαθηματικά', employer: 'Example Ltd', city: 'Athens' }) } }) }, async (page) => {
+  await page.goto(URL_('en/members/'));
+  t(await waitFor(page, () => document.querySelectorAll('#dir-list .card').length === 2), 'the directory lists the two members');
+  // the place line is STORED in Greek (written by account.js); a reader of the English page reads it in English
+  const g = await greekLeft(page, '#main');
+  t(g.length === 0, 'nothing Greek on the page, the stored study track and country shown in English' + list(g, 8));
+  await page.fill('#dir-q', 'physics');
+  t(await waitFor(page, () => document.querySelectorAll('#dir-list .card').length === 1), 'searching «physics» finds the member whose study track is Applied Physics');
+  const gl = await greekLinks(page);
+  t(gl.length === 0, 'every link stays in English' + list(gl, 8));
+});
+
+const EN_ADMIN_SEED = signedInSeed(acct('u-admin', { email: ADMIN, name: 'Admin' }), { docs: {
+  'members/p1': member({ firstName: 'Nikos', lastName: 'Karalis', email: 'nikos@example.com', city: 'Athens', status: 'pending', createdAt: ts(Date.now() - 2 * DAY), consentNewsletter: true }),
+  'members/a1': member({ firstName: 'Anna', lastName: 'Zafeiriou', email: 'anna@example.com', city: 'Patras', country: 'GR', industry: 'finance', status: 'active', duesYears: [YEAR - 1], createdAt: ts(Date.now() - 30 * DAY) }),
+  'feedback/SEMFE-260930-AB23': { ticket: 'SEMFE-260930-AB23', uid: 'u-x', email: 'x@example.com', name: 'Some One', kind: 'bug', message: 'The page breaks', page: '', status: 'open', createdAt: ts(Date.now() - DAY) }
+} });
+await scenario('Y4', 'en/admin/: the admin page in English', { cfg: 'oidc', seed: EN_ADMIN_SEED }, async (page) => {
+  await page.goto(URL_('en/admin/'));
+  t(await waitFor(page, () => document.querySelectorAll('#admin-app .tile').length >= 4, null, 8000), 'the summary tiles are drawn');
+  await sleep(600);
+  const g = await greekLeft(page, '#main');
+  t(g.length === 0, 'nothing Greek on the admin page' + list(g, 10));
+  const gl = await greekLinks(page);
+  t(gl.length === 0, 'every link stays in English' + list(gl, 8));
+});
+
+await scenario('Y5', 'en/feedback/ and en/whats-new/ in English (a «Τι νέο» entry in its English words)', { cfg: 'oidc', seed: signedInSeed(EN_ACCT(), { docs: { 'members/u-en': enMember({ status: 'active' }) } }) }, async (page, env) => {
+  await page.goto(URL_('en/feedback/'));
+  t(await visible(page.locator('#feedback-app form, #feedback-app textarea').first(), 8000), 'the feedback form is shown');
+  let g = await greekLeft(page, '#main');
+  t(g.length === 0, 'nothing Greek on the feedback page' + list(g, 8));
+  env.onExternal = async (route, url) => {
+    if (!url.startsWith('https://firestore.googleapis.com/')) return false;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(restDocs({ [NEWS_IDS[0]]: { status: 'approved' }, [NEWS_IDS[1]]: { status: 'approved' } })) });
+    return true;
+  };
+  await page.goto(URL_('en/whats-new/'));
+  t(await waitFor(page, () => document.querySelectorAll('#news-app .news-item').length === 2), 'the two approved entries are shown');
+  const titles = await newsTitles(page);
+  t(js(titles) === js([NEWS_LOG[0].en.title, NEWS_LOG[1].en.title]), 'in their English words (changelog.json, en)' + list(titles));
+  g = await greekLeft(page, '#main');
+  t(g.length === 0, 'nothing Greek on the page' + list(g, 8));
+});
+
+await scenario('Y6', 'en/analytics/: the statistics in English, page and place names included', { cfg: 'oidc' }, async (page, env) => {
+  env.onExternal = async (route, url) => {
+    if (!url.startsWith('https://firestore.googleapis.com/v1/projects/')) return false;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ fields: { json: { stringValue: JSON.stringify(AN_MEMBERS) } } }) });
+    return true;
+  };
+  const sp = JSON.parse(read('functions/site-paths.json'));
+  await anRoute(page, buildFile({ site: { docs: anDocs }, titles: sp.titles, titlesEn: sp.titlesEn, today: AN_TODAY, generated: AN_TODAY,
+    ga: { days: {}, windows: { 30: { countries: [{ k: 'GR', n: 40 }, { k: 'CY', n: 3 }], cities: [{ name: 'Athens', k: 'GR', n: 30 }, { name: 'London', k: 'GB', n: 2 }], sources: [{ name: 'google', n: 9 }] } } } }));
+  await page.goto(URL_('en/analytics/'));
+  t(await waitFor(page, () => document.querySelectorAll('#analytics-app .an-kpi').length >= 8), 'the visit figures and the members\' figures are drawn');
+  await sleep(300);
+  const app = page.locator('#analytics-app');
+  t(await hasText(app, 'National Technical University of Athens') && await hasText(app, 'Greece') && await hasText(app, 'Home'), 'a Greek university, the countries and the page names in English');
+  const g = await greekLeft(page, '#main');
+  t(g.length === 0, 'nothing Greek on the page' + list(g, 10));
+});
+
+await scenario('Y7', 'en/blog/: the editor in English for an admin; what is published stays Greek', ADMIN_OPTS(), async (page, env) => {
+  publishServer(env, async b => ({ json: { ok: true, ready: true } }));
+  await page.goto(URL_('en/blog/'));
+  await visible(page.locator('[data-announce-open]'), 8000);
+  await openEditor(page);
+  await page.click('[data-tips]').catch(() => {});
+  const g = await greekLeft(page, '#main');
+  t(g.length === 0, 'nothing Greek in the editor (the announcements listed below are marked lang="el")' + list(g, 10));
+  const cats = await page.$$eval('[data-announce-box] select option, [data-announce-box] input[type=radio]', es => es.map(e => e.value));
+  t(cats.includes('Ανακοινώσεις') && cats.includes('Εκδηλώσεις'), 'the categories keep their stored (Greek) values' + list(cats));
 });
 
 await browser.close();
