@@ -7,3 +7,11 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 functions/node_modules/
+
+# The old MkDocs site (_past-website-versions/mkdocs-material-site) writes its
+# finished pages to public/ when built with "uv run mkdocs build": never commit it.
+_past-website-versions/**/public/
+
+# The Firebase settings answered at the first deploy (functions/.env.<project>):
+# not secret, but they hold personal addresses and live on the deploying computer.
+functions/.env.*

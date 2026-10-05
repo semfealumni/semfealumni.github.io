@@ -36,7 +36,9 @@ closed tab does not lose it.
    (see `_src/README.md`) in **one commit** with its pictures.
 2. The workflow `.github/workflows/publish.yml` builds the pages from it and
    commits them. GitHub Pages publishes. It is on the site **2 to 4 minutes**
-   after the button; the editor says so and shows a link when the page exists.
+   after the button (once the site is served from the organisation's
+   repository: see "Order: after the switch to the organisation, not before"
+   below); the editor says so and shows a link when the page exists.
 3. The e-mail alerts pick it up from `feed.json` within two hours like any
    other announcement.
 
@@ -51,6 +53,21 @@ the built site) the workflow **takes the announcement back**: a second commit
 `Revert "Announcement: …"` removes it, so that one bad announcement can never hold
 back the next ones. Nobody is e-mailed about it. The editor then shows
 «Δεν εμφανίστηκε ακόμα»; look at **Actions > publish** to see why.
+
+## Order: after the switch to the organisation, not before
+
+The editor commits into the repository named by `PUBLISH_REPO`, which is
+`semfealumni/semfealumni.github.io`. Until MOVE-TO-ORG.md, Part C, is finished,
+https://semfealumni.gr/ is still served from the old repository
+(`konstantinosStouras/semfealumni`). So an announcement sent before then is
+built in the new repository and does **not** appear on the site (the editor ends
+with «Δεν εμφανίστηκε ακόμα» after about 8 minutes). It would appear, and be
+e-mailed to the members who chose that kind, the moment the switch is done.
+
+So do step 4 (Try it) only after the switch. If a test announcement was made
+before it, **delete it before the switch**: its `.md` file in `_src/posts/` and
+its pictures in `assets/img/posts/` (how: the paragraph "It is an ordinary file
+in the repository" above).
 
 ## Switching it on (15 minutes, once)
 
@@ -69,9 +86,13 @@ The function needs a key to commit on the association's behalf. It should be a
 2. **Token name**: `SEMFE announcements`.
 3. **Resource owner**: the **semfealumni** organisation (the site's repository
    belongs to it).
-4. **Expiration**: the longest it allows (one year). Put the date in your
-   calendar: after it, publishing stops with the message «Το κλειδί του GitHub
-   έχει λήξει» and you repeat this step.
+4. **Expiration**: the longest it allows (one year). An organisation may limit
+   how long a token may live: a limit of 366 days has been met here. An owner of
+   the organisation can change it under the organisation's **Settings** >
+   **Personal access tokens** > **Settings**. If it cannot be lifted, keep the
+   366 days. Either way put the date in your calendar: after it, publishing
+   stops with the message «Το κλειδί του GitHub έχει λήξει» and you repeat this
+   step.
 5. **Repository access**: **Only select repositories**, and choose the site's
    repository, `semfealumni.github.io`.
 6. **Permissions** > **Repository permissions** > **Contents**: **Read and write**.
@@ -87,7 +108,34 @@ lose write access, publishing stops until someone else makes a new one.
 
 ### 2. Give the function the token, and say which repository
 
-On your computer, in the repository folder:
+On your computer, in the repository folder. Check two things first.
+
+**Where the folder pulls from.** `git remote -v` must show
+`https://github.com/semfealumni/semfealumni.github.io` for `origin`. If it shows
+the old repository (`konstantinosStouras/semfealumni`), point it at the
+organisation:
+
+    git remote set-url origin https://github.com/semfealumni/semfealumni.github.io
+
+A folder that still pulls from the old repository brings the old code, whose
+default for `PUBLISH_REPO` is the old repository: announcements would be
+committed there and never reach the site.
+
+**The settings file.** `functions/.env.semfe-alumni` holds the answers the deploy
+asks for. It is **not in git**, so `git pull` neither brings nor replaces it:
+keep the one already on the computer you deploy from. Without it the deploy asks
+every setting again, and then:
+
+* `ALLOWED_ORIGINS` (the same setting as for the sign-in functions,
+  FIREBASE-SETUP.md / MIGRATION.md) must contain
+  `https://semfealumni.gr,https://www.semfealumni.gr`: otherwise the browser
+  refuses the answer and the editor says the service «δεν απαντά» although it is
+  running;
+* `LINKEDIN_REDIRECT_URIS` must contain `https://semfealumni.gr/auth/linkedin/`
+  (the address registered at LinkedIn, FIREBASE-SETUP.md, Part D);
+* `FEEDBACK_TO` may hold several addresses, separated by commas.
+
+Then:
 
     git pull
     cd functions
@@ -95,19 +143,19 @@ On your computer, in the repository folder:
     cd ..
     firebase deploy --only functions --project semfe-alumni
 
-The deploy asks for **`GITHUB_PUBLISH_TOKEN`**: paste the token. (Or earlier, on
-its own: `firebase functions:secrets:set GITHUB_PUBLISH_TOKEN --project semfe-alumni`.
-Answer `none` to leave publishing off.) It is kept in Google Secret Manager and
-never appears on the site or in the repository.
+The deploy asks for **`GITHUB_PUBLISH_TOKEN`** only when that secret does not
+exist yet: then paste the token (answer `none` to leave publishing off). To set
+or replace it at any time, run
 
-`ALLOWED_ORIGINS` (the same setting as for the sign-in functions,
-FIREBASE-SETUP.md / MIGRATION.md) must list `https://semfealumni.gr` and
-`https://www.semfealumni.gr`: otherwise the browser refuses the answer and the
-editor says the service «δεν απαντά» although it is running.
+    firebase functions:secrets:set GITHUB_PUBLISH_TOKEN --project semfe-alumni
+
+and then deploy again, so that the function picks up the new value. It is kept in
+Google Secret Manager and never appears on the site or in the repository.
 
 The repository and branch have defaults in `functions/index.js`
 (`PUBLISH_REPO` = `semfealumni/semfealumni.github.io`, `PUBLISH_BRANCH` = `main`).
-**If the site's repository is ever another one**, put it in
+A deploy without the settings file asks for them too: press Enter to keep the
+defaults. **If the site's repository is ever another one**, put it in
 `functions/.env.semfe-alumni` before deploying:
 
     PUBLISH_REPO=owner/name
@@ -120,10 +168,17 @@ functions in all).
 
 The `publish` workflow commits the built pages with GitHub's own token. In the
 repository: **Settings** > **Actions** > **General** > **Workflow permissions** >
-**Read and write permissions** > **Save**. (The `analytics` workflow already
-needs the same.) Nothing else is needed: there is no secret for it.
+**Read and write permissions** > **Save**. (The `analytics` workflow needs the
+same.) The two workflows `publish.yml` and `analytics.yml` ask for the write
+permission themselves (`permissions: contents: write` at the top of each), so
+this setting is a safety net: if an organisation policy keeps it read-only,
+publishing still works. Nothing else is needed: there is no secret for it.
 
 ### 4. Try it
+
+Do this only **after** the switch to the organisation is finished
+(MOVE-TO-ORG.md, Part C; see "Order" above): before it, the commit appears in
+the new repository but not on the site.
 
 Open https://semfealumni.gr/blog/ signed in as an admin, press **«Νέα
 ανακοίνωση»**. With no notice about the setup you are ready: write a title and a
@@ -140,11 +195,12 @@ The editor says in Greek what failed; the codes behind the messages:
 |---|---|---|
 | «Η δημοσίευση … δεν έχει ρυθμιστεί ακόμα» | the secret is `none` or empty | step 2 |
 | «Η υπηρεσία δημοσίευσης δεν απαντά» | `publishAnnouncement` is not deployed, or no network | step 2; the function's logs in the Firebase console |
-| «Το κλειδί του GitHub έχει λήξει ή δεν έχει δικαίωμα εγγραφής» | the token expired, was revoked, or is not for this repository or lacks **Contents: Read and write** | step 1 again, then `firebase functions:secrets:set GITHUB_PUBLISH_TOKEN` and deploy |
+| «Το κλειδί του GitHub έχει λήξει ή δεν έχει δικαίωμα εγγραφής» | the token expired, was revoked, or is not for this repository or lacks **Contents: Read and write** | step 1 again, then `firebase functions:secrets:set GITHUB_PUBLISH_TOKEN --project semfe-alumni` and deploy |
 | «Το αποθετήριο ή ο κλάδος … δεν βρέθηκε» | `PUBLISH_REPO` / `PUBLISH_BRANCH` is wrong, or the token does not reach that repository | step 2 |
 | «Το GitHub είναι απασχολημένο» | someone pushed at the same moment four times in a row, or GitHub's rate limit | wait a minute and press again |
 | «Οι σύνδεσμοι πρέπει να ξεκινούν με https://» | a link such as `[text](support/)`: a relative address would be wrong at the announcement's depth | write the whole address |
 | «Μόνο οι διαχειριστές …» | the signed-in address is not a verified admin | sign in with an address of `ADMIN_EMAILS` |
+| it was sent, but never appears, and the **publish** run in **Actions** is green | the site is not yet served from this repository: the switch is not finished | MOVE-TO-ORG.md, Part C ("Order" above) |
 | it was sent, but never appears | the build failed: open **Actions** > **publish** in the repository and read the red step | fix the file in `_src/posts/`, the workflow rebuilds |
 
 An announcement that was sent is a commit titled `Announcement: <slug>` on `main`.

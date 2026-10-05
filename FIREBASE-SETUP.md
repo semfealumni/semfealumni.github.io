@@ -1,7 +1,7 @@
 # Sign-in with Google, LinkedIn and e-mail: setup guide
 
 This guide switches on member accounts for the SEMFE Alumni site
-(https://www.stouras.com/semfealumni/). The code is already in place; what is
+(https://semfealumni.gr/). The code is already in place; what is
 left happens in three web consoles (Firebase, Google, LinkedIn) and in two
 small edits to `assets/js/config.js`.
 
@@ -91,8 +91,8 @@ yours if it is different.
 
 Still in Security > Authentication, tab **Settings**:
 
-1. **Authorized domains** > **Add domain**: add `stouras.com`, then add
-   `www.stouras.com`. Only the host names matter (not `/semfealumni/`). Sign-in
+1. **Authorized domains** > **Add domain**: add `semfealumni.gr`, then add
+   `www.semfealumni.gr`. Only the host names matter, not paths. Sign-in
    is refused on any site not in this list. (Projects made after April 2025 do
    not include `localhost`; add it only if you want to test on your own computer.)
 2. **User account linking**: keep **"Link accounts that use the same email"**.
@@ -170,7 +170,7 @@ but claiming the addresses first closes the door completely.
 
 1. Run `node tools/check.mjs`, commit, and push. GitHub Pages republishes in
    about a minute.
-2. Open https://www.stouras.com/semfealumni/account/, click **Εγγραφή**, and
+2. Open https://semfealumni.gr/account/, click **Εγγραφή**, and
    create an account with an admin e-mail (see A7: claim these first). You should receive a Greek e-mail with a
    confirmation link. Click it, go back, press **"Το επιβεβαίωσα"**, and fill in
    the membership application.
@@ -195,17 +195,16 @@ That is all. Test: sign out, click **Σύνδεση > Συνέχεια με Goog
 
 The Google window says "to continue to semfe-alumni.firebaseapp.com". Hiding
 that needs a custom sign-in domain on Firebase Hosting (for example
-`auth.stouras.com`); it is optional, adds DNS work, and every provider's
+`auth.semfealumni.gr`); it is optional, adds DNS work, and every provider's
 redirect address would change with it, so leave it for later.
 
 Optional polish: the Google window shows the name and logo from Google Cloud
 console > **Google Auth Platform > Branding** for this project. There you can
 set the app name `SEMFE Alumni`, upload `assets/img/logos/app-icon-1024.png`,
-add the authorized domain `stouras.com`, and set the home page
-`https://www.stouras.com/semfealumni/`, privacy policy
-`https://www.stouras.com/semfealumni/privacy/` and terms
-`https://www.stouras.com/semfealumni/terms/`. (Uploading a logo can trigger a
-short Google verification.)
+add the authorized domain `semfealumni.gr`, and set the home page
+`https://semfealumni.gr/`, privacy policy `https://semfealumni.gr/privacy/` and
+terms `https://semfealumni.gr/terms/`. (Uploading a logo can trigger a short
+Google verification.)
 
 ---
 
@@ -239,7 +238,7 @@ before anything costs money.
      `https://www.linkedin.com/company/semfealumni/`. **The app is bound to
      this page for ever** (it cannot be moved to another page later), so pick
      the association's page, not a personal or test one.
-   * **Privacy policy URL**: `https://www.stouras.com/semfealumni/privacy/`
+   * **Privacy policy URL**: `https://semfealumni.gr/privacy/`
    * **App logo**: `assets/img/logos/app-icon-1024.png`
    * Tick the legal agreement and click **Create app**.
 3. **Settings** tab > **Verify** > **Generate URL** > copy it and send it to a
@@ -265,7 +264,7 @@ before anything costs money.
    URLs for your app" > pencil > **Add redirect URL**:
 
    ```
-   https://www.stouras.com/semfealumni/auth/linkedin/
+   https://semfealumni.gr/auth/linkedin/
    ```
 
    Exactly this, with the final slash. **Update**.
@@ -296,16 +295,21 @@ before anything costs money.
 
    The first time, the CLI asks for:
    * `LINKEDIN_CLIENT_ID`: paste the LinkedIn **Client ID**.
-   * `ALLOWED_ORIGINS`: press Enter to keep `https://www.stouras.com,https://stouras.com`.
-   * `LINKEDIN_REDIRECT_URIS`: press Enter to keep
-     `https://www.stouras.com/semfealumni/auth/linkedin/`.
+   * `ALLOWED_ORIGINS`: press Enter to keep the default. It begins with
+     `https://semfealumni.gr,https://www.semfealumni.gr`; the two `stouras.com`
+     origins of the earlier preview still follow, until a later clean-up.
+   * `LINKEDIN_REDIRECT_URIS`: press Enter to keep the default. It begins with
+     `https://semfealumni.gr/auth/linkedin/`; the earlier preview's page
+     (`https://www.stouras.com/semfealumni/auth/linkedin/`) still follows.
    * "How many days do you want to keep container images before they're
      deleted?": press Enter to keep **1**. Each deploy stores a copy of the
      function's build; the running function never needs the old ones, and
      keeping them only adds a small storage charge.
 
-   It saves your answers in `functions/.env.semfe-alumni` (safe to commit: none
-   of them is secret). At the end it prints a **Function URL** such as
+   It saves your answers in `functions/.env.semfe-alumni`. None of them is
+   secret, but the file is **not committed**: git does not track it, and it
+   stays on the computer you deploy from. Keep it there: a deploy from another
+   computer asks every setting again. At the end it prints a **Function URL** such as
    `https://linkedinsignin-abc123-ew.a.run.app`. Copy it.
 
    (On a Windows machine that has `FIREBASE_FUNCTIONS_DISCOVERY_OUTPUT_PATH`
@@ -401,7 +405,8 @@ function). To switch it on, run once from the repository folder:
     cd ..
     firebase deploy --only functions --project semfe-alumni
 
-The CLI keeps your earlier answers (`functions/.env.semfe-alumni`). The same
+The CLI keeps your earlier answers (`functions/.env.semfe-alumni`, on the
+computer you deploy from; it is not in git). The same
 deploy also brings the feedback e-mail functions, so it asks for their four
 settings (press Enter for each default) and needs their two secrets,
 `SMTP_USER` and `SMTP_PASS`, to exist first: FEEDBACK-SETUP.md step 2 (or set
@@ -554,16 +559,16 @@ Facebook: **App settings > Basic**:
 | Field | Value |
 |---|---|
 | Display name | `SEMFE Alumni` |
-| App domains | `stouras.com` |
+| App domains | `semfealumni.gr` |
 | Contact email | the association's address |
-| Privacy Policy URL | `https://www.stouras.com/semfealumni/privacy/` |
-| Terms of Service URL | `https://www.stouras.com/semfealumni/terms/` |
-| User data deletion | choose **"Data deletion instructions URL"**: `https://www.stouras.com/semfealumni/data-deletion/` |
+| Privacy Policy URL | `https://semfealumni.gr/privacy/` |
+| Terms of Service URL | `https://semfealumni.gr/terms/` |
+| User data deletion | choose **"Data deletion instructions URL"**: `https://semfealumni.gr/data-deletion/` |
 | App icon | upload `assets/img/logos/app-icon-1024.png` from the repository |
 | Category | Education (or Business and pages) |
 
 At the bottom click **+ Add platform > Website**, Site URL
-`https://www.stouras.com/semfealumni/`. **Save changes**.
+`https://semfealumni.gr/`. **Save changes**.
 
 (The site has no "data deletion callback": that needs a server. The
 instructions page is the option Meta offers for sites like this one, and

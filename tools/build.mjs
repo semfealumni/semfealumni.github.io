@@ -28,8 +28,9 @@
  *                   the sign-in methods the site offers (see below); these
  *                   work in the front matter too
  *
- * Every link the site writes is RELATIVE, so the same files work at
- * stouras.com/semfealumni/ today and at the root of semfealumni.gr later.
+ * Every link the site writes is RELATIVE, so the same files work at the root of
+ * semfealumni.gr, where the site is served, and under a sub-path of another host
+ * (the earlier preview was www.stouras.com/semfealumni/).
  * Only the canonical / og:url tags use SITE_URL. */
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, unlinkSync, rmdirSync } from 'node:fs';
 import path from 'node:path';
@@ -44,9 +45,10 @@ const CHECK = process.argv.includes('--check');
 const cfgSrc = readFileSync(path.join(ROOT, 'assets/js/config.js'), 'utf8');
 const C = new Function('window', cfgSrc + '; return window.SEMFE;')({});
 const SITE_URL = C.siteUrl.replace(/\/?$/, '/');
-/* While this copy is a preview beside the association's own semfealumni.gr,
-   search engines are asked not to index it (two copies of one site compete
-   in search results). Set to true when this becomes the official site. */
+/* This is the official site (semfealumni.gr), so search engines may index it.
+   A preview beside another copy of the site must be false (two copies of one
+   site compete in search results). tools/migrate.mjs --apply writes this line:
+   true at the root of a domain, false under a sub-path or with --keep-noindex. */
 const INDEXABLE = true;
 const YEAR_NOW = 2026;       // the footer's copyright range ends here in the built page; site.js moves it on to the current year
 const OG_W = 1200, OG_H = 630;
@@ -395,7 +397,8 @@ function render(page) {
 }
 function renderRaw(page) {
   /* 404.html is served for a missing address at ANY depth, so its links
-     cannot be relative; they use the site's own path (/semfealumni/). */
+     cannot be relative; they use the site's own path (the path of siteUrl:
+     "/" at the root of semfealumni.gr). */
   const root = page.meta.absRoot ? new URL(SITE_URL).pathname : rootFor(page.path);
   let main;
   if (page.isPost) {
@@ -443,11 +446,11 @@ for (const page of all) {
 }
 
 /* The association's earlier site (MkDocs, at semfealumni.gr until this one
-   replaces it) had a few addresses this one does not: a page per year of
-   announcements and one per category. Each gets a small page that forwards to
-   the announcements (on the category's filter), so links and bookmarks keep
-   working after the move. Files that moved (the PDFs, the logo, the photos)
-   are forwarded by the script in _src/pages/404.md. */
+   replaced it on 1 October 2026) had a few addresses this one does not: a page
+   per year of announcements and one per category. Each gets a small page that
+   forwards to the announcements (on the category's filter), so links and
+   bookmarks keep working after the move. Files that moved (the PDFs, the logo,
+   the photos) are forwarded by the script in _src/pages/404.md. */
 const LEGACY = [];
 for (const y of [...new Set(posts.map(p => String(p.meta.date).slice(0, 4)))].sort()) LEGACY.push(['blog/archive/' + y + '/', 'blog/']);
 for (const c of [...new Set(posts.map(p => p.meta.category).filter(Boolean))].sort()) LEGACY.push(['blog/category/' + c.toLowerCase() + '/', 'blog/?cat=' + encodeURIComponent(c)]);
@@ -475,7 +478,8 @@ for (const [from, to] of LEGACY) {
 
 /* At the root of its own domain (semfealumni.gr) GitHub Pages needs a CNAME
    file naming it, and robots.txt is read from there. Under a sub-path
-   (stouras.com/semfealumni/) neither may exist: a CNAME would move the site. */
+   (the earlier preview, www.stouras.com/semfealumni/) neither may exist: a CNAME
+   would move the site. */
 const ROOTED = new URL(SITE_URL).pathname === '/';
 const HOST = new URL(SITE_URL).hostname;
 const DROP = [];

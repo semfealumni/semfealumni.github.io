@@ -37,7 +37,12 @@
  *   LINKEDIN_CLIENT_SECRET  the LinkedIn app's Primary Client Secret (SECRET):
  *                           firebase functions:secrets:set LINKEDIN_CLIENT_SECRET
  *   ALLOWED_ORIGINS         comma-separated site origins allowed to call it
- *   LINKEDIN_REDIRECT_URIS  comma-separated callback pages registered at LinkedIn
+ *                           (default: semfealumni.gr and www.semfealumni.gr, plus,
+ *                           for now, the two stouras.com origins of the earlier preview)
+ *   LINKEDIN_REDIRECT_URIS  comma-separated callback pages registered at LinkedIn, each
+ *                           EXACTLY as the LinkedIn app's Auth tab lists it (default:
+ *                           https://semfealumni.gr/auth/linkedin/ and, for now, the
+ *                           earlier preview's page)
  *   SITE_URL                the site's address, for the links in e-mails
  *   FEEDBACK_TO             comma-separated addresses that receive new feedback
  *   SMTP_HOST, SMTP_PORT    the mail server (default: Gmail, smtp.gmail.com:465)
@@ -73,12 +78,16 @@ initializeApp();
 
 const LINKEDIN_CLIENT_ID = defineString('LINKEDIN_CLIENT_ID', { description: 'LinkedIn app Client ID (Auth tab)' });
 const LINKEDIN_CLIENT_SECRET = defineSecret('LINKEDIN_CLIENT_SECRET');
+/* The defaults name the site's own address first (siteUrl in assets/js/config.js:
+   tools/check.mjs fails when they stop doing so). The two stouras.com entries,
+   and the www.stouras.com callback page, are the earlier preview's: they stay
+   while the deployed functions accept them and go in a later clean-up. */
 const ALLOWED_ORIGINS = defineString('ALLOWED_ORIGINS', {
-  default: 'https://www.stouras.com,https://stouras.com',
+  default: 'https://semfealumni.gr,https://www.semfealumni.gr,https://stouras.com,https://www.stouras.com',
   description: 'Comma-separated origins of the site that may call this function'
 });
 const LINKEDIN_REDIRECT_URIS = defineString('LINKEDIN_REDIRECT_URIS', {
-  default: 'https://www.stouras.com/semfealumni/auth/linkedin/',
+  default: 'https://semfealumni.gr/auth/linkedin/,https://www.stouras.com/semfealumni/auth/linkedin/',
   description: 'Comma-separated LinkedIn callback pages (must match the LinkedIn app Auth tab exactly)'
 });
 

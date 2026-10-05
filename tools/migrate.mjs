@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /* SEMFE Alumni: moving the site to its own address (semfealumni.gr).
  *
- * Today the site is a preview at https://www.stouras.com/semfealumni/, beside
- * the association's current semfealumni.gr (another GitHub Pages site). Every
+ * Built for the first move, from the preview at https://www.stouras.com/semfealumni/
+ * to semfealumni.gr (done on 1 October 2026; MIGRATION.md is the record). Every
  * page link is relative and every tool reads the address from ONE setting,
- * `siteUrl` in assets/js/config.js, so the move is: prepare the outside
- * services ahead of time, then switch that one setting and point the domain.
- * MIGRATION.md is the checklist; this tool does the repository's part and
- * checks the rest.
+ * `siteUrl` in assets/js/config.js, so a move is: prepare the outside services
+ * ahead of time, then switch that one setting and point the domain. This tool
+ * does the repository's part and checks the rest. Moving the repository into
+ * the GitHub organisation, and the domain with it, is a different job:
+ * MOVE-TO-ORG.md (its Part C is the order of the GitHub and DNS steps).
  *
  *   node tools/migrate.mjs --plan      [url]   what would change, and every outside step (writes nothing)
  *   node tools/migrate.mjs --rehearse  [url]   a copy of the site switched to the new address, built,
@@ -74,27 +75,30 @@ function steps() {
   const origins = [...new Set([...oldOrigins, ...newOrigins])].join(',');
   const redirects = [...new Set([current + 'auth/linkedin/', target + 'auth/linkedin/'])].join(',');
   const apex = T.hostname.replace(/^www\./, '');
+  // "keep the old one" only makes sense while the address changes: when the
+  // site already uses the target there is no old address to keep
+  const moving = current !== target;
+  const oldHosts = hostsOf(current).filter(h => !hostsOf(target).includes(h));
   return {
     before: [
-      'Firebase console > Authentication > Settings > Authorized domains: add ' + hostsOf(target).join(' and ') + ' (keep ' + hostsOf(current).join(', ') + ' until the move is done).',
-      'LinkedIn developer app > Auth > Authorized redirect URLs: ADD ' + target + 'auth/linkedin/ (keep the old one for now).',
-      'functions/.env.' + PROJECT + ' on the computer that deploys: set these two lines (both addresses, so sign-in works on each during the move), then `firebase deploy --only functions --project ' + PROJECT + '`:\n' +
+      'Firebase console > Authentication > Settings > Authorized domains: add ' + hostsOf(target).join(' and ') + (oldHosts.length ? ' (keep ' + oldHosts.join(', ') + ' until the move is done).' : '.'),
+      'LinkedIn developer app > Auth > Authorized redirect URLs: ADD ' + target + 'auth/linkedin/' + (moving ? ' (keep the old one for now).' : '.'),
+      'functions/.env.' + PROJECT + ' on the computer that deploys: set these two lines' + (moving ? ' (both addresses, so sign-in works on each during the move)' : '') + ', then `firebase deploy --only functions --project ' + PROJECT + '`:\n' +
         '        ALLOWED_ORIGINS=' + origins + '\n' +
         '        LINKEDIN_REDIRECT_URIS=' + redirects,
       'Check: `node tools/migrate.mjs --prep-check ' + target + '` answers "accepted" for both functions.',
       'Rehearse: `node tools/migrate.mjs --rehearse ' + target + '` passes.',
-      'Decide who holds the domain on GitHub: ' + apex + ' is now served by the association\'s own repository (semfealumni/semfealumni.github.io). ' +
-        'GitHub lets one repository use a domain at a time, so on the day, that repository\'s Settings > Pages > Custom domain is cleared (Remove) first. ' +
-        'If the semfealumni organisation has VERIFIED the domain (Organisation settings > Pages), only its repositories may use it: then transfer this repository to the organisation first (Settings > Danger zone > Transfer).'
+      'The domain on GitHub: the code lives in the organisation semfealumni (semfealumni/semfealumni.github.io), so the domain is verified in that organisation and used by that repository. ' +
+        'GitHub lets one repository use a domain at a time, so the order of the GitHub and DNS steps matters: MOVE-TO-ORG.md, Part C.'
     ],
     day: [
       '`node tools/migrate.mjs --apply ' + target + '`, look at the share pictures, commit and push (the build writes CNAME = ' + T.hostname + ').',
-      'The old repository: Settings > Pages > Custom domain: Remove.',
+      'The old repository: Settings > Pages > Custom domain: Remove. (When the domain moves into the organisation, this step and the next have their own order: MOVE-TO-ORG.md, Part C, On the day. Follow that.)',
       'This repository: Settings > Pages > Custom domain: ' + T.hostname + ' > Save (GitHub finds the CNAME file too).',
       'DNS at the .gr registrar (only if the domain does not already point at GitHub Pages; semfealumni.gr already does, so usually nothing changes):\n' +
         '        ' + apex + '  A     185.199.108.153, 185.199.109.153, 185.199.110.153, 185.199.111.153\n' +
         '        ' + apex + '  AAAA  2606:50c0:8000::153, 2606:50c0:8001::153, 2606:50c0:8002::153, 2606:50c0:8003::153\n' +
-        '        www.' + apex + '  CNAME  konstantinosstouras.github.io.   (the owner of THIS repository; the organisation\'s <org>.github.io. after a transfer)',
+        '        www.' + apex + '  CNAME  semfealumni.github.io.   (the GitHub organisation that owns this repository: MOVE-TO-ORG.md, Part C)',
       'When GitHub shows the certificate is ready (minutes to an hour): tick Enforce HTTPS.',
       'functions/.env.' + PROJECT + ': SITE_URL=' + target + ' (the links in the feedback e-mails), then `firebase deploy --only functions --project ' + PROJECT + '`.',
       '`node tools/migrate.mjs --verify ' + target + '`.'

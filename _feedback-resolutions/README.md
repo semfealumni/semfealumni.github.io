@@ -10,14 +10,14 @@ with this content:
 
     ---
     ticket: SEMFE-260930-AB23
-    url: https://www.stouras.com/semfealumni/account/
+    url: https://semfealumni.gr/account/
     ---
     Διορθώσαμε το κουμπί «Αποστολή» στο κινητό. Δοκιμάστε ξανά και πείτε μας
     αν δουλεύει.
 
 * `ticket:` must match the file name.
-* `url:` is optional: a page where the sender can see the fix (https, on this
-  site only).
+* `url:` is optional: a page where the sender can see the fix (an https address
+  on this site, `semfealumni.gr`; `node tools/feedback-sync.mjs --scan` checks it).
 * The text below the `---` is e-mailed to the sender **as written**, in Greek,
   plain text. Keep it short and friendly: what was wrong, what changed.
 

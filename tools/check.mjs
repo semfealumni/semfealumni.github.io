@@ -10,6 +10,8 @@
      - the viewport tag blocks zoom
      - an <img> without alt
      - ADMIN_EMAILS in config.js differs from isAdmin() in firestore.rules
+     - the default ALLOWED_ORIGINS / LINKEDIN_REDIRECT_URIS in functions/index.js
+       leave out the site's own address (siteUrl in config.js)
      - an inline {{...}} placeholder or <!--if:--> block left unfilled in a built page
      - a list of sign-in methods typed by hand instead of generated
    and REPORTS (without failing) that Firebase is still unconfigured. */
@@ -65,7 +67,7 @@ const pages = [];
 ok(`${pages.length} served pages`);
 
 /* 2. every relative link and asset exists */
-const SITE_PATH = new URL(C.siteUrl).pathname;            // "/semfealumni/"
+const SITE_PATH = new URL(C.siteUrl).pathname;            // "/" at the root of semfealumni.gr
 let links = 0, forwards = 0;
 for (const p of pages) {
   const html = read(p);
@@ -251,6 +253,25 @@ function jpegSize(b) {
     if (fj.functions.runtime && fj.functions.runtime !== 'nodejs' + eng) fail(`firebase.json runtime ${fj.functions.runtime} differs from functions/package.json engines.node ${eng}`);
   }
   ok('firebase.json: guard on every section, runtime matches engines');
+}
+
+/* 4b. a Cloud Function deployed without a functions/.env.<project> file (a new
+   folder, a new maintainer) takes the defaults written in functions/index.js.
+   They must name the site's own address, or sign-in, the admin page and the
+   editor refuse the site's origin and LinkedIn sends the member to a dead page. */
+{
+  const src = read('functions/index.js');
+  const dflt = name => { const m = src.match(new RegExp("defineString\\('" + name + "',\\s*\\{\\s*default:\\s*'([^']*)'")); return m ? m[1].split(',').map(x => x.trim()).filter(Boolean) : null; };
+  const site = new URL(C.siteUrl), siteBase = C.siteUrl.replace(/\/?$/, '/');
+  const wantOrigins = [...new Set([site.origin, 'https://www.' + site.hostname.replace(/^www\./, '')])];
+  const wantRedirect = siteBase + 'auth/linkedin/';
+  const origins = dflt('ALLOWED_ORIGINS'), redirects = dflt('LINKEDIN_REDIRECT_URIS');
+  let wrong = 0;
+  if (!origins) { wrong++; fail('functions/index.js: no default found for ALLOWED_ORIGINS'); }
+  else for (const o of wantOrigins) if (!origins.includes(o)) { wrong++; fail(`the default ALLOWED_ORIGINS in functions/index.js (${origins.join(',')}) must include ${o} (siteUrl in config.js and its www form)`); }
+  if (!redirects) { wrong++; fail('functions/index.js: no default found for LINKEDIN_REDIRECT_URIS'); }
+  else if (!redirects.includes(wantRedirect)) { wrong++; fail(`the default LINKEDIN_REDIRECT_URIS in functions/index.js (${redirects.join(',')}) must include ${wantRedirect} (siteUrl in config.js + auth/linkedin/)`); }
+  if (!wrong) ok(`Cloud Function defaults name the site: ${wantOrigins.join(' and ')}, callback ${wantRedirect}`);
 }
 
 /* 5. no page or script types the list of sign-in methods by hand. The pages

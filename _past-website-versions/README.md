@@ -7,11 +7,24 @@ in here is on the web, and nothing in here runs.
 
 | Folder | What it is | Live from | Until |
 |---|---|---|---|
-| `mkdocs-material-site/` | the association's first website, written in Markdown with MkDocs Material (`docs/`, `mkdocs.yml`), exactly as this repository held it before the new site arrived | 2023 | 1 October 2026 |
+| `mkdocs-material-site/` | the association's website written in Markdown with MkDocs Material (`docs/`, `mkdocs.yml`), exactly as this repository held it before the new site arrived | February 2024 (first commit 3 February 2024) | 1 October 2026 |
 
 The history of these files is also in this repository's git log (the commits
-before the new site was merged in), and the finished pages of that site are on
-the branch `gh-pages`, as the old workflow last built them.
+before the new site was merged in). The finished pages of that site, as the old
+workflow last built them, are in the branch `gh-pages` of this repository. It is
+one commit and is **not** part of `main`'s history, so it is kept (see
+`MOVE-TO-ORG.md`, Part C, A week later). The pages can also be rebuilt from these
+files:
+
+    cd _past-website-versions/mkdocs-material-site
+    uv run mkdocs build            # writes the finished pages to public/ in that folder
+
+Do not commit `public/` (the repository's `.gitignore` leaves it out).
+
+The **original photos** (`mkdocs-material-site/docs/assets/pictures/`) exist only
+here and in git history: the new site publishes re-encoded copies of them (in
+`assets/img/`). So do not slim or delete the `docs/assets/` folder here without
+checking.
 
 ## Looking at the old site again
 

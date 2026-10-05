@@ -37,7 +37,9 @@ chart. Each step switches on one more part.
 This switches on **the site's own counter** (universities, companies, pages,
 hours) and **the members' statistics**.
 
-From the repository folder, on your computer:
+From the repository folder, on your computer (the folder must pull from the
+organisation: `git remote -v` shows `semfealumni/semfealumni.github.io` for
+`origin`, ANNOUNCE-SETUP.md, step 2):
 
     git pull
     cd functions
@@ -46,11 +48,15 @@ From the repository folder, on your computer:
     firebase deploy --only firestore:rules --project semfe-alumni
     firebase deploy --only functions --project semfe-alumni
 
-**Count the functions in the output: there should be seven.**
+**Count the functions in the output: there should be ten.**
 
     linkedinSignIn, accounts, cleanupDeletedUser,
     feedbackCreated, feedbackUpdated,
-    recordVisit, memberStats        <- the two new ones
+    recordVisit, memberStats,       <- the two new ones
+    alertsMailer, alertsUnsubscribe, publishAnnouncement
+
+(The last three belong to ALERTS-SETUP.md and ANNOUNCE-SETUP.md; the same deploy
+brings all ten.)
 
 * If the first deploy of `memberStats` fails with an **Eventarc** or
   **permission** message, wait 5 minutes and run the same functions deploy
@@ -80,11 +86,12 @@ and only when the network belongs to one.
 The `memberStats` function recounts at the next registration or profile
 change. To fill the page now, run the daily workflow once by hand:
 
-* GitHub > the `semfealumni` repository > **Actions** > **analytics** >
-  **Run workflow** > **Run workflow**.
+* GitHub > the `semfealumni/semfealumni.github.io` repository > **Actions** >
+  **analytics** > **Run workflow** > **Run workflow**.
 
-It uses the `FIREBASE_SERVICE_ACCOUNT` secret you already added for the
-feedback (FEEDBACK-SETUP.md, step 3). In the run's log, the line
+It uses the `FIREBASE_SERVICE_ACCOUNT` secret of this repository, the one the
+feedback needs too (FEEDBACK-SETUP.md, step 3; MOVE-TO-ORG.md, Part B puts it in
+the repository). In the run's log, the line
 `members: N registered, M active -> publicStats/members` says it worked.
 Refresh https://semfealumni.gr/analytics/#meli.
 
@@ -159,8 +166,9 @@ update instead, so a bad day never blanks the countries on the page.
 Firebase key read Analytics: Google Cloud > **IAM & Admin** > **Service
 accounts** > **Create service account** (`ga4-reader`, no role) > **Keys** >
 **Add key** > **JSON**; give its e-mail **Viewer** as in step 2; and add the
-whole `.json` file as the GitHub secret `GA4_SERVICE_ACCOUNT` (Settings >
-Secrets and variables > Actions). When that secret exists it is used instead.
+whole `.json` file as the GitHub secret `GA4_SERVICE_ACCOUNT` of the
+`semfealumni/semfealumni.github.io` repository (Settings > Secrets and
+variables > Actions). When that secret exists it is used instead.
 Never send the file to anyone. A different property would go in the GitHub
 variable `GA4_PROPERTY_ID` (digits only).
 

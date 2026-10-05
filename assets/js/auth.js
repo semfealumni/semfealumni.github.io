@@ -7,7 +7,7 @@
  * "Σύνδεση" button opens the same dialog with the buttons switched off and a
  * note that registration opens soon, so the page never breaks.
  *
- * Why popups, not redirects: the site (stouras.com) and Firebase's auth
+ * Why popups, not redirects: the site (semfealumni.gr) and Firebase's auth
  * handler (<project>.firebaseapp.com) are different domains, and Safari,
  * Firefox and Chrome now partition third-party storage, which breaks
  * signInWithRedirect for exactly this setup. signInWithPopup works in all of

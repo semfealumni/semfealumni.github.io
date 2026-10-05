@@ -1,13 +1,16 @@
 #!/usr/bin/env node
-/* SEMFE Alumni smoke test: opens the site in Chromium, served under the
-   /semfealumni/ sub-path exactly as GitHub Pages serves it, with sign-in NOT
-   configured (config.js still holds PASTE_ placeholders; if it ever holds a
-   real config, this test rewrites the copy it serves back to placeholders, so
-   it always covers the "registration opens soon" mode).
+/* SEMFE Alumni smoke test: opens the site in Chromium, served at the path of
+   siteUrl in assets/js/config.js (the root, "/", of semfealumni.gr) exactly as
+   GitHub Pages serves it, with sign-in NOT configured (config.js still holds
+   PASTE_ placeholders; if it ever holds a real config, this test rewrites the
+   copy it serves back to placeholders, so it always covers the "registration
+   opens soon" mode).
 
    The server is Python's http.server with a small handler that behaves like
-   GitHub Pages: the site lives only under /semfealumni/ (a temp folder holds a
-   `semfealumni` symlink to this repo), a missing path gets the site's own
+   GitHub Pages: the site lives only under that path (at the root the repository
+   is served directly; under a sub-path, like the earlier preview's
+   /semfealumni/, a temp folder holds a symlink of that name to this repo), a
+   missing path gets the site's own
    404.html with status 404, a folder without index.html is a 404 (Pages never
    lists folders), and whatever Jekyll would not publish (names starting with
    `_` or `.`, the `exclude:` list in _config.yml) is a 404 too. Third-party
@@ -52,8 +55,9 @@ const read = f => readFileSync(path.join(ROOT, f), 'utf8');
 /* ---- the site's own settings --------------------------------------------- */
 const CONFIG_SRC = read('assets/js/config.js');
 const C = new Function('window', CONFIG_SRC + '; return window.SEMFE;')({});
-// the site's own path, from siteUrl: '/semfealumni/' today, '/' at the root of
-// a domain (tools/migrate.mjs --rehearse runs this whole suite that way)
+// the site's own path, from siteUrl: '/' at the root of a domain, as on
+// semfealumni.gr (a sub-path such as the earlier preview's '/semfealumni/' works
+// too; tools/migrate.mjs --rehearse runs this whole suite for a new address)
 const SUB = new URL(C.siteUrl).pathname.replace(/\/?$/, '/');
 const isPaste = v => String(v || '').indexOf('PASTE_') !== -1;
 const CONFIGURED = !isPaste(C.FIREBASE.apiKey) && !isPaste(C.FIREBASE.projectId);

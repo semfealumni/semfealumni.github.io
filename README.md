@@ -160,14 +160,16 @@ This is the official site, so search engines are allowed (`INDEXABLE = true`
 in `tools/build.mjs`; the build writes `robots.txt` and the sitemap). Set it
 back to `false` and build to hide every page again.
 
-## Moving to semfealumni.gr
+## History of the address
 
-Everything is ready for a one-session move: see **`MIGRATION.md`**. In short,
-the address lives in one setting (`siteUrl` in `assets/js/config.js`), and
-`node tools/migrate.mjs` plans the move (`--plan`), rehearses it on a copy
-(`--rehearse`), checks the outside services (`--prep-check`), does it
-(`--apply`) and verifies the live result (`--verify`). The old site's
-addresses keep working through small forwarding pages.
+The site moved from the preview at https://www.stouras.com/semfealumni/ to
+https://semfealumni.gr/ on 1 October 2026: **`MIGRATION.md`** is the record of
+that move. Its code moved into the GitHub organisation SEMFE Alumni on
+5 October 2026: **`MOVE-TO-ORG.md`**. The address lives in one setting,
+`siteUrl` in `assets/js/config.js`, and `node tools/migrate.mjs --verify` checks
+the live result. The addresses of the association's earlier MkDocs site (the
+blog's year and category pages, its PDFs, logos and pictures) keep working
+through small forwarding pages.
 
 ## Tests
 
@@ -192,6 +194,12 @@ must stay), so no other account can claim it. DNS at papaki: four A and four
 AAAA records to GitHub Pages, `www` a CNAME to `semfealumni.github.io`.
 A missing address shows this site's own `404.html`. Every DNS record, the
 verification code and what to do if one goes missing: **`DOMAIN.md`**.
+
+> **State (5 October 2026):** the code is in this repository, but
+> **https://semfealumni.gr/ is still served by `konstantinosStouras/semfealumni`**
+> until `MOVE-TO-ORG.md`, Part C is finished. The paragraph above describes the
+> state after that switch. Delete this note, and the same note in `DOMAIN.md` and
+> `CLAUDE.md`, in `MOVE-TO-ORG.md`, Part C, On the day, step 8.
 
 Do **not** add a `.nojekyll` file: Jekyll is what keeps `_src/` off the web,
 and `_config.yml` keeps `tools/`, `functions/` and the Firebase files off it too.

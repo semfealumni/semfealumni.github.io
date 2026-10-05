@@ -56,7 +56,7 @@ is never used or stored).
        firebase deploy --only functions --project semfe-alumni
 
    It asks for four new settings; press Enter to keep each default:
-   * `SITE_URL`: `https://www.stouras.com/semfealumni/` (the links in e-mails)
+   * `SITE_URL`: `https://semfealumni.gr/` (the links in e-mails)
    * `FEEDBACK_TO`: `kstouras@gmail.com` (who gets each new message; several
      addresses separated by commas are fine)
    * `SMTP_HOST`: `smtp.gmail.com`, `SMTP_PORT`: `465`
@@ -90,24 +90,37 @@ This copies every ticket (text, sender, screenshots, answer) into a private
 GitHub repository, so they can be read, and acted on, from GitHub, including
 by Claude.
 
-1. **Create the repository**: https://github.com/new, owner
-   `konstantinosStouras`, name `semfealumni-feedback-log`, **Private**, tick
-   "Add a README file", **Create repository**.
+1. **The repository** is `semfealumni/semfealumni-feedback-log`, in the
+   organisation SEMFE Alumni, and it must be **Private**. To create it afresh:
+   https://github.com/new, owner `semfealumni`, name
+   `semfealumni-feedback-log`, **Private**, tick "Add a README file",
+   **Create repository**.
+
+   *Note: the existing one was created as a **fork** of the old personal copy
+   `konstantinosStouras/semfealumni-feedback-log`. If its page still says "forked
+   from" under the name, detach it first (Settings > General > Danger Zone >
+   **Leave fork network**), because deleting a private repository also deletes
+   its private forks: MOVE-TO-ORG.md, Part D, "The private feedback log".*
 2. **A token that may write to it**: https://github.com/settings/personal-access-tokens/new
-   * Token name: `semfealumni feedback log`; Expiration: 1 year (put a reminder
-     in your calendar to renew it).
-   * Repository access: **Only select repositories** > `semfealumni-feedback-log`.
+   * Token name: `SEMFE feedback log`; Expiration: 1 year, or the longest the
+     organisation allows (put a reminder in your calendar to renew it; see
+     ANNOUNCE-SETUP.md, step 1).
+   * **Resource owner**: **semfealumni** (the organisation, not your own
+     account). An owner of the organisation may have to approve the token, as
+     in ANNOUNCE-SETUP.md, step 1.
+   * Repository access: **Only select repositories** > `semfealumni-feedback-log`
+     and nothing else.
    * Permissions > Repository permissions > **Contents: Read and write**.
    * **Generate token**, copy it.
 3. **A key that may read Firestore**: Firebase console > ⚙ Project settings >
    **Service accounts** > **Generate new private key** > Generate key. A JSON
    file downloads. Open it in a text editor and copy all of it.
-4. In the `semfealumni` repository on GitHub: **Settings > Secrets and
-   variables > Actions**:
+4. In the `semfealumni/semfealumni.github.io` repository on GitHub: **Settings >
+   Secrets and variables > Actions** (MOVE-TO-ORG.md, Part B, lists all of them):
    * **New repository secret** `FIREBASE_SERVICE_ACCOUNT`: paste the whole JSON.
    * **New repository secret** `FEEDBACK_LOG_TOKEN`: paste the token.
    * Tab **Variables** > **New repository variable** `FEEDBACK_LOG_REPO`:
-     `konstantinosStouras/semfealumni-feedback-log`.
+     `semfealumni/semfealumni-feedback-log`.
    Then delete the downloaded JSON file from your computer.
 5. **Actions** tab > **feedback** > **Run workflow**. After a minute the log
    repository has `feedback/INDEX.md` and one folder per ticket.
@@ -125,9 +138,10 @@ folder: the repository is public.
 
 **The usual way to act on feedback with Claude:** "look at feedback
 SEMFE-260930-AB23". Claude reads it in the log repository (add it to the
-session with `add repo konstantinosStouras/semfealumni-feedback-log`), fixes
-the site, and adds the resolution file in the same change; the sender's e-mail
-goes out when it is merged.
+session with `add repo semfealumni/semfealumni-feedback-log`; if that is refused,
+check that the Claude GitHub App on the organisation can see this repository:
+MOVE-TO-ORG.md, Part D), fixes the site, and adds the resolution file in the
+same change; the sender's e-mail goes out when it is merged.
 
 ## What is stored
 

@@ -1,5 +1,11 @@
 # SEMFE Alumni website: repository conventions
 
+> **State (5 October 2026):** the code is in this repository, but
+> **https://semfealumni.gr/ is still served by `konstantinosStouras/semfealumni`**
+> until `MOVE-TO-ORG.md`, Part C is finished. The text below describes the state
+> after that switch. Delete this note, and the same note in `DOMAIN.md` and
+> `README.md`, in `MOVE-TO-ORG.md`, Part C, On the day, step 8.
+
 The website of the Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ, served by GitHub Pages
 from `main` at **https://semfealumni.gr/** (custom domain, verified in the GitHub
 organisation `semfealumni`; the repository is `semfealumni/semfealumni.github.io`,
@@ -9,6 +15,49 @@ earlier MkDocs site is kept in `_past-website-versions/` (underscore: never
 published, and its workflow stays switched off; do not move anything out of there
 into `.github/workflows/`). Greek-language, plain HTML/CSS/JS, no framework.
 Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
+
+## Where the code lives and how a change goes live
+
+* The code is in **`semfealumni/semfealumni.github.io`**, in the GitHub
+  organisation SEMFE Alumni, branch `main`. **Pushing to `main` IS the
+  publishing step**: once `MOVE-TO-ORG.md`, Part C is done, GitHub Pages serves
+  `main`, root folder, and a push is live a minute or two later. Nothing else
+  publishes the site.
+* **Bots push to `main` too, so always `git pull --rebase` before you push**
+  (and again when a push is rejected). The workflow `publish` commits
+  `Build the pages from _src/`; the Cloud Function `publishAnnouncement` commits
+  the announcements sent from the website editor, called `Announcement: <slug>`,
+  which `publish` then builds (or takes back with a revert commit when one does
+  not build); the workflow `analytics` commits `data/analytics.json`
+  (`data: refresh the Στατιστικά figures`).
+* **Firebase is never deployed by CI** (`checks.yml` only reads). Functions and
+  rules go out by hand from a clone, with the project named:
+  `firebase deploy --only functions,firestore:rules --project semfe-alumni`
+  (run `npm install` in `functions/` first; see "Deploying Firebase" below).
+* **A Claude Code session can push here only when the Claude GitHub App is
+  installed on the organisation and given this repository:**
+  https://github.com/apps/claude/installations/select_target
+  (`MOVE-TO-ORG.md`, Part D). If a push is refused, check that first.
+* **The `_src` Markdown dialect in five lines** (the whole format is in
+  `_src/README.md`, the reader is `tools/markdown.mjs`):
+  1. Raw HTML is allowed (a designed page is HTML around Markdown; a blank line
+     after a tag makes the text Markdown again).
+  2. Plain CommonMark: tables and `~~strikethrough~~` are switched OFF (`a | b`
+     stays plain text), there is no auto-linking and no typographic quotes, and
+     a line that starts `2025. ` is a numbered list, so write `2025\. `.
+  3. Attribute lists go right after a link, image, paragraph, heading, list or
+     quote: `{ .btn newtab }`, `{ width=300 }`; event handlers (`on…`) and
+     `srcdoc` are refused.
+  4. `{{placeholders}}` pass through untouched, so `[text]({{root}}contact/)`
+     works wherever the site is hosted.
+  5. A number in the YAML (front matter and the component blocks) must be quoted
+     (`slug: "2026"`, `value: "3.000"`), or YAML reads it as a number and the
+     build refuses it.
+
+  Text written in the website editor is made HTML-free by
+  `assets/js/announce-text.js` (`<`, `&`, `{`, `}` become plain characters), so
+  an announcement written there cannot carry HTML, attributes or placeholders.
+  A file written by hand in `_src/` may carry HTML.
 
 ## Pages are generated
 
@@ -68,14 +117,18 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   `_github-pages-challenge-semfealumni` TXT record at papaki: either
   one takes the site off its address. Every DNS record is listed in
   `DOMAIN.md`; keep it in step with papaki.
-* **The move to semfealumni.gr** is prepared: `MIGRATION.md` and
-  `tools/migrate.mjs` (`--plan`, `--rehearse`, `--prep-check`, `--apply`,
-  `--verify`). Never hard-code the address: everything reads `siteUrl`, and
-  the test suites serve the site at its path (`/semfealumni/` now, `/` after
-  the move). The build writes `CNAME` and `robots.txt` ONLY when `siteUrl` is
-  the root of a domain; a `CNAME` here while the site is a preview would move
-  it. Old addresses of the association's earlier site are kept alive by
-  `LEGACY` in `tools/build.mjs` and the script in `_src/pages/404.md`.
+* **The address.** Never hard-code it: everything reads `siteUrl` in
+  `assets/js/config.js` (`https://semfealumni.gr/`), and the test suites serve
+  the site at the path that setting names. The build writes `CNAME` and
+  `robots.txt` because `siteUrl` is the root of a domain (under a sub-path it
+  would remove them: a `CNAME` there would move the site). `MIGRATION.md` is the
+  record of the first move (from www.stouras.com/semfealumni/, 1 October 2026)
+  and `MOVE-TO-ORG.md` of the move into the organisation;
+  `node tools/migrate.mjs --verify` still checks the live address (that the site
+  works, not which repository serves it). Old addresses of the association's
+  earlier MkDocs site are kept alive by `LEGACY` in `tools/build.mjs` (the
+  blog's year and category pages) and the script in `_src/pages/404.md` (its
+  PDFs, logos and pictures).
 * Do **not** add a `.nojekyll` file: Jekyll keeps `_src/` off the web and
   `_config.yml` excludes the maintenance files.
 
@@ -102,9 +155,10 @@ Members send messages from `/feedback/`; each gets a ticket number
 the whole flow: `FEEDBACK-SETUP.md`.
 
 **Acting on a ticket** ("look at feedback SEMFE-260930-AB23"):
-1. Read it in the PRIVATE log repository `konstantinosStouras/semfealumni-feedback-log`
+1. Read it in the PRIVATE log repository `semfealumni/semfealumni-feedback-log`
    (`feedback/INDEX.md`, then `feedback/<TICKET>/feedback.md` and its
-   screenshots). If it is not in the session, ask to add it.
+   screenshots; how it became independent of the old account:
+   `MOVE-TO-ORG.md`, Part D). If it is not in the session, ask to add it.
 2. Fix the site as usual (source, build, tests).
 3. In the SAME change, add `_feedback-resolutions/<TICKET>.md` (format in the
    README there): a short, friendly Greek answer saying what was done, plus an
