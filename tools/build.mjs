@@ -75,8 +75,22 @@ const LI = C.LINKEDIN || {};
 const LI_READY = LI.mode === 'oidc' || !!(LI.clientId && LI.functionUrl && !String(LI.clientId + LI.functionUrl).includes('PASTE_'));
 const OFFERED = (C.AUTH_PROVIDERS || []).filter(k => PROVIDER_NAMES[k] && (k !== 'linkedin' || LI_READY || !FB_CONFIGURED));
 const orList = (names, lang) => names.length < 2 ? (names[0] || '') : `${names.slice(0, -1).join(', ')} ${lang === 'en' ? 'or' : 'ή'} ${names[names.length - 1]}`;
+/* ---- parts of the site that leave it on a set day ------------------------- */
+/* <!--if:KEY-->…<!--/if:KEY--> with a KEY of UNTIL is on the site until that day
+   starts in Greece, and left out of every page built from then on. The publish
+   workflow also runs every night just after midnight Greek time (its schedule:),
+   so the part goes the night its day starts, with no one doing anything.
+   SEMFE_TODAY=YYYY-MM-DD builds as if it were that day (to try one out). */
+const UNTIL = {
+  anniversary: '2027-10-19'   // NTUA's 190 years: the badge, the home page's #emp190 and the footer (owner, 2026-10-19)
+};
+const TODAY = process.env.SEMFE_TODAY || new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Athens' }).format(new Date());
+if (!/^\d{4}-\d{2}-\d{2}$/.test(TODAY)) throw new Error(`SEMFE_TODAY must be YYYY-MM-DD, not ${TODAY}`);
+const stillOn = k => TODAY < UNTIL[k];
+
 function signinText(s, file, lang) {
   return applyConditions(s, file, k => {
+    if (UNTIL[k]) return stillOn(k);
     if (k !== 'social' && !PROVIDER_NAMES[k]) throw new Error(`${file}: unknown condition <!--if:${k}-->`);
     return k === 'social' ? OFFERED.length > 0 : OFFERED.includes(k);
   })
@@ -162,7 +176,8 @@ const SOCIAL = [
 ];
 // NTUA's 190 years (1837-2027): the Rector's message presenting the anniversary
 // logo, which invites the NTUA community to use it on websites. Greek only.
-// The footer of every page links it under the social icons (owner, 2026-10-19).
+// The footer of every page links it under the social icons (owner, 2026-10-19),
+// until UNTIL.anniversary.
 const NTUA_190 = 'https://www.ntua.gr/el/news/item/5650-190-xronia-ethniko-metsovio-polytexneio-mia-istoria-pou-mas-enonei-ena-mellon-pou-mas-empneei';
 
 /* ---- the site's own words, in both languages --------------------------------
@@ -452,8 +467,7 @@ function footer(root, lang) {
           <p><strong style="color:#fff">${S.footerName}</strong><br>${S.footerAbout}</p>
         </div>
         <div class="footer-social">${social}</div>
-        <a class="footer-190" href="${NTUA_190}"${lang === 'en' ? ' hreflang="el"' : ''} target="_blank" rel="noopener"><img src="${root}assets/img/logos/ntua-190.png" alt="" width="720" height="691" loading="lazy"><span>${S.ntua190}</span></a>
-      </div>
+${stillOn('anniversary') ? `        <a class="footer-190" href="${NTUA_190}"${lang === 'en' ? ' hreflang="el"' : ''} target="_blank" rel="noopener"><img src="${root}assets/img/logos/ntua-190.png" alt="" width="720" height="691" loading="lazy"><span>${S.ntua190}</span></a>\n` : ''}      </div>
       <div>
         <h2>${S.fClub}</h2>
         <ul>

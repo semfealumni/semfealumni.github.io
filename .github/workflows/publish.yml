@@ -29,11 +29,17 @@
 # nothing is published from such a run, so the site never shows it.
 # checks.yml skips such a commit, because its pages do not exist yet and a push
 # made with GITHUB_TOKEN starts no other workflow: the checks run here.
+#
+# It also runs every night, so a part of the site that ends on a set day
+# (UNTIL in tools/build.mjs, e.g. NTUA's 190 years until 2027-10-19) leaves it
+# the night that day starts in Greece, without anyone pushing anything.
 name: publish
 on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: '1 22 * * *'       # 01:01 in Greece in summer, 00:01 in winter
 permissions:
   contents: write
   pages: write          # publish the site (actions/deploy-pages)
