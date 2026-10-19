@@ -441,6 +441,27 @@ html.hdr-measure .site-header, html.hdr-measure .site-header * { transition: non
   background: rgba(255,255,255,.96); padding: 18px; box-shadow: 0 30px 70px rgba(0,0,0,.35), 0 0 0 10px rgba(255,255,255,.07), 0 0 0 22px rgba(227,169,56,.10);
 }
 .hero-logo img { width: 100%; height: 100%; object-fit: contain; }
+/* NTUA's 190-years badge on the association's logo, 75% of its size (owner,
+   2026-10-19): overlapping it from the lower right on a wide screen, beside it
+   on a narrow one, where the logo is small. The badge's picture has a
+   see-through background, so its square never shows over the round frame. */
+.hero-pair { position: relative; width: 100%; max-width: 450px; aspect-ratio: 1 / .96; }
+.hero-pair .hero-logo { position: absolute; left: 0; top: 0; width: 72%; max-width: none; }
+.hero-190 {
+  position: absolute; right: 0; bottom: 0; width: 54%; aspect-ratio: 1 / 1; border-radius: 50%;
+  background: #fff; padding: 6.5%; display: grid; place-items: center;
+  box-shadow: 0 24px 60px rgba(0,0,0,.35), 0 0 0 8px rgba(168,138,85,.45), 0 0 0 18px rgba(168,138,85,.12);
+}
+.hero-190 img { width: 100%; height: 100%; object-fit: contain; }
+@media (max-width: 860px) {
+  .hero-pair { display: flex; align-items: flex-end; aspect-ratio: auto; max-width: none; }
+  .hero-pair .hero-logo { position: static; width: 150px; }
+  .hero-190 { position: static; flex: none; width: 112px; margin-left: -14px; padding: 13px; box-shadow: 0 12px 30px rgba(0,0,0,.35), 0 0 0 5px rgba(168,138,85,.45); }
+}
+@media (max-width: 560px) {
+  .hero-pair .hero-logo { width: 96px; }
+  .hero-190 { width: 72px; margin-left: -10px; padding: 8px; }
+}
 .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
 .chip {
   display: inline-flex; align-items: center; gap: 8px;
@@ -961,6 +982,15 @@ table.data .acts-in .btn { flex: 1 1 auto; justify-content: center; }
 .footer-social a { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.08); }
 .footer-social svg { width: 20px; height: 20px; color: #fff; }
 @media (hover: hover) { .footer-social a:hover { background: rgba(255,255,255,.18); } }
+/* NTUA's 190 years, under the social icons on every page (owner, 2026-10-19) */
+.footer-190 { display: flex; align-items: center; gap: 14px; margin-top: 18px; text-decoration: none; }
+.footer-190 img { width: 86px; height: auto; flex: none; background: #fff; border-radius: 12px; padding: 6px; }
+.footer-190 span { font-size: .86rem; line-height: 1.4; color: rgba(255,255,255,.86); }
+@media (hover: hover) { .footer-190:hover span { color: #fff; text-decoration: underline; } }
+/* the same logo as a card in its section on the home page (#emp190) */
+.ntua190-card { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 26px; max-width: 360px; width: 100%; justify-self: center; }
+.ntua190-card p { margin: 0; }
+.ntua190-card img { width: 100%; height: auto; display: block; }
 .footer-bottom a { display: inline-block; padding: 10px 0; }
 .footer-bottom .legal { display: flex; flex-wrap: wrap; column-gap: 18px; }     /* no separator left dangling when the row wraps */
 .footer-bottom { border-top: 1px solid rgba(255,255,255,.1); margin-top: 30px; padding-top: 18px; display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between; align-items: center; }

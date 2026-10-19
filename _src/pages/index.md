@@ -25,10 +25,16 @@ description: >-
 </div>
 </div>
 <div class="hero-art">
+<!-- The NTUA 190-years badge sits on the association's logo, at 75% of its size
+     (owner, 2026-10-19). NTUA invites its community to use the anniversary logo
+     on websites (the Rector's message that the badge links to). -->
+<div class="hero-pair">
 <div class="hero-logo">
 
 ![Το λογότυπο του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ]({{root}}assets/img/logos/logo.png){ width=640 height=640 }
 
+</div>
+<a class="hero-190" href="https://www.ntua.gr/el/news/item/5650-190-xronia-ethniko-metsovio-polytexneio-mia-istoria-pou-mas-enonei-ena-mellon-pou-mas-empneei" target="_blank" rel="noopener"><img src="{{root}}assets/img/logos/ntua-190.png" alt="190 χρόνια Εθνικό Μετσόβιο Πολυτεχνείο, 1837-2027" width="720" height="691"></a>
 </div>
 </div>
 <!-- The association in four numbers, as on operationsacademia.org. Only the
@@ -50,6 +56,28 @@ description: >-
   label: Ετήσια συνδρομή μέλους
 ```
 
+</div>
+</section>
+<!-- ============================ 190 ΧΡΟΝΙΑ ΕΜΠ ============================ -->
+<section id="emp190" class="alt">
+<div class="wrap">
+<div class="two-col middle">
+<div class="ntua190-card">
+
+![190 χρόνια Εθνικό Μετσόβιο Πολυτεχνείο, 1837-2027]({{root}}assets/img/logos/ntua-190.png){ width=720 height=691 loading=lazy }
+
+</div>
+<div>
+<span class="eyebrow">190 χρόνια ΕΜΠ</span>
+
+## Μέρος μιας ιστορίας 190 χρόνων
+
+Το Εθνικό Μετσόβιο Πολυτεχνείο ιδρύθηκε το 1837 και το 2027 κλείνει 190 χρόνια. Η ΣΕΜΦΕ και οι απόφοιτοί της είναι κομμάτι αυτής της διαδρομής, και γιορτάζουμε μαζί με όλη την κοινότητα του Πολυτεχνείου.
+
+[Τα 190 χρόνια του ΕΜΠ {{icon:arrow}}](https://www.ntua.gr/el/news/item/5650-190-xronia-ethniko-metsovio-polytexneio-mia-istoria-pou-mas-enonei-ena-mellon-pou-mas-empneei){ .btn .btn-outline newtab }
+
+</div>
+</div>
 </div>
 </section>
 <!-- ============================ ΟΡΑΜΑ ============================ -->

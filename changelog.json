@@ -2,6 +2,17 @@
   "about": "The «Τι νέο» list (whats-new/). Newest first. Each entry is a SUGGESTION: it is shown publicly only after an admin approves it on the page. Fields: id (lowercase letters, digits, dashes; never reuse one), date (YYYY-MM-DD), title, summary, url (optional: a page of the site, or https://). Optional: en = { title, summary }, the entry in English for the English copy of the page (en/whats-new/); without it the English page shows the Greek.",
   "updates": [
     {
+      "id": "2026-10-19-190-chronia-emp",
+      "date": "2026-10-19",
+      "title": "Τα 190 χρόνια του ΕΜΠ στον ιστότοπο",
+      "summary": "Το Εθνικό Μετσόβιο Πολυτεχνείο κλείνει 190 χρόνια το 2027 (1837-2027). Το επετειακό του λογότυπο μπήκε δίπλα στο λογότυπο του Συλλόγου στην αρχική σελίδα, σε μια νέα ενότητα κάτω από τους αριθμούς, και στο κάτω μέρος κάθε σελίδας. Οδηγεί στο μήνυμα του Πρύτανη για την επέτειο.",
+      "url": "#emp190",
+      "en": {
+        "title": "NTUA's 190 years on the website",
+        "summary": "The National Technical University of Athens turns 190 in 2027 (1837-2027). Its anniversary logo now stands beside the Association's logo on the home page, in a new section below the figures, and at the bottom of every page. It leads to the Rector's message about the anniversary (in Greek)."
+      }
+    },
+    {
       "id": "2026-10-05-nomika-keimena",
       "date": "2026-10-05",
       "title": "Νέα πολιτική απορρήτου, όροι χρήσης και οδηγίες διαγραφής",
