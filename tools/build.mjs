@@ -160,6 +160,10 @@ const SOCIAL = [
   ['youtube', 'YouTube', 'https://www.youtube.com/@semfealumni'],
   ['instagram', 'Instagram', 'https://www.instagram.com/semfe_alumni_ntua']
 ];
+// NTUA's 190 years (1837-2027): the Rector's message presenting the anniversary
+// logo, which invites the NTUA community to use it on websites. Greek only.
+// The footer of every page links it under the social icons (owner, 2026-10-19).
+const NTUA_190 = 'https://www.ntua.gr/el/news/item/5650-190-xronia-ethniko-metsovio-polytexneio-mia-istoria-pou-mas-enonei-ena-mellon-pou-mas-empneei';
 
 /* ---- the site's own words, in both languages --------------------------------
    Everything the layout writes around a page's text. The English site name is
@@ -177,6 +181,7 @@ const STR = {
     fClub: 'Ο Σύλλογος', fHistory: 'Ιστορία', fMembers: 'Μέλη', statute: 'Καταστατικό (PDF)',
     myAccount: 'Ο λογαριασμός μου', membersArea: 'Περιοχή μελών', feedback: 'Σχόλια και προβλήματα', whatsNew: 'Τι νέο στον ιστότοπο',
     copyright: 'Σύλλογος Διπλωματούχων ΣΕΜΦΕ ΕΜΠ', privacy: 'Πολιτική απορρήτου', terms: 'Όροι χρήσης', dataDeletion: 'Διαγραφή δεδομένων',
+    ntua190: 'Γιορτάζουμε τα 190 χρόνια<br>του Εθνικού Μετσόβιου Πολυτεχνείου',
     langs: 'Γλώσσα', postLang: ''
   },
   en: {
@@ -190,6 +195,7 @@ const STR = {
     fClub: 'The Association', fHistory: 'History', fMembers: 'Members', statute: 'Statute (PDF, in Greek)',
     myAccount: 'My account', membersArea: 'Members\' area', feedback: 'Feedback and problems', whatsNew: 'What\'s new on the website',
     copyright: 'SEMFE Alumni Association', privacy: 'Privacy policy', terms: 'Terms of use', dataDeletion: 'Data deletion',
+    ntua190: 'Celebrating 190 years of the<br>National Technical University of Athens',
     langs: 'Language', postLang: 'Announcements are shown as the Association published them, in Greek.'
   }
 };
@@ -446,6 +452,7 @@ function footer(root, lang) {
           <p><strong style="color:#fff">${S.footerName}</strong><br>${S.footerAbout}</p>
         </div>
         <div class="footer-social">${social}</div>
+        <a class="footer-190" href="${NTUA_190}"${lang === 'en' ? ' hreflang="el"' : ''} target="_blank" rel="noopener"><img src="${root}assets/img/logos/ntua-190.png" alt="" width="720" height="691" loading="lazy"><span>${S.ntua190}</span></a>
       </div>
       <div>
         <h2>${S.fClub}</h2>
