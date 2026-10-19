@@ -114,6 +114,12 @@ Text for a sign-in method that may not be offered goes between
 `social` for "any of them"). With the two markers each on a line of their own,
 a switched-off block takes its lines with it, so a list stays a tidy list.
 
+A part that should leave the site on a set day uses the same markers with a
+key of `UNTIL` in `tools/build.mjs` (today `anniversary`, NTUA's 190 years,
+until 2027-10-19): it is built into the pages until that day starts in Greece,
+and left out from then on. The publish workflow runs every night, so nobody has to do anything on the
+day. `SEMFE_TODAY=2027-10-19 node tools/build.mjs` shows the site as it will be.
+
 ### Layout: HTML around Markdown
 
 A designed page (sections, columns, cards) keeps its HTML skeleton, and the

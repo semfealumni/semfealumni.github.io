@@ -30,7 +30,15 @@ Member sign-in uses Firebase; see `README.md` and `FIREBASE-SETUP.md`.
   then run `gh workflow run publish.yml` (analytics.yml does; check.mjs pins it),
   or its change is not published. Do not add a `paths:` filter to publish.yml's
   push trigger (check.mjs refuses it): with the source on "GitHub Actions"
-  nothing else publishes.
+  nothing else publishes. It also runs every night (`schedule:`, just after
+  midnight Greek time) for the parts that leave on a set day, below.
+* **Parts with an end date** (owner, 2026-10-19): `<!--if:KEY-->…<!--/if:KEY-->`
+  with a KEY of `UNTIL` in `tools/build.mjs` is built into the pages until that
+  day starts in Greece and left out from then on; the nightly publish removes it
+  with nobody doing anything. Today: `anniversary`, NTUA's 190 years (the badge
+  on the home page's logo, the section `#emp190`, the footer link), until
+  **2027-10-19**; the pages are then byte for byte what they were before it.
+  `SEMFE_TODAY=YYYY-MM-DD node tools/build.mjs` builds as if it were that day.
 * **Bots push to `main` too, so always `git pull --rebase` before you push**
   (and again when a push is rejected). The workflow `publish` commits
   `Build the pages from _src/`; the Cloud Function `publishAnnouncement` commits

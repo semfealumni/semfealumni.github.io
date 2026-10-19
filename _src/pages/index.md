@@ -25,17 +25,23 @@ description: >-
 </div>
 </div>
 <div class="hero-art">
+<!--if:anniversary-->
 <!-- The NTUA 190-years badge sits on the association's logo, at 75% of its size
      (owner, 2026-10-19). NTUA invites its community to use the anniversary logo
-     on websites (the Rector's message that the badge links to). -->
+     on websites (the Rector's message that the badge links to). The anniversary
+     blocks leave the site on 19 October 2027 (UNTIL in tools/build.mjs), and
+     the logo is then as it was before. -->
 <div class="hero-pair">
+<!--/if:anniversary-->
 <div class="hero-logo">
 
 ![Το λογότυπο του Συλλόγου Διπλωματούχων ΣΕΜΦΕ ΕΜΠ]({{root}}assets/img/logos/logo.png){ width=640 height=640 }
 
 </div>
+<!--if:anniversary-->
 <a class="hero-190" href="https://www.ntua.gr/el/news/item/5650-190-xronia-ethniko-metsovio-polytexneio-mia-istoria-pou-mas-enonei-ena-mellon-pou-mas-empneei" target="_blank" rel="noopener"><img src="{{root}}assets/img/logos/ntua-190.png" alt="190 χρόνια Εθνικό Μετσόβιο Πολυτεχνείο, 1837-2027" width="720" height="691"></a>
 </div>
+<!--/if:anniversary-->
 </div>
 <!-- The association in four numbers, as on operationsacademia.org. Only the
      count of graduates runs up from zero when it comes into view (site.js,
@@ -58,6 +64,7 @@ description: >-
 
 </div>
 </section>
+<!--if:anniversary-->
 <!-- ============================ 190 ΧΡΟΝΙΑ ΕΜΠ ============================ -->
 <section id="emp190" class="alt">
 <div class="wrap">
@@ -80,6 +87,7 @@ description: >-
 </div>
 </div>
 </section>
+<!--/if:anniversary-->
 <!-- ============================ ΟΡΑΜΑ ============================ -->
 <section id="orama">
 <div class="wrap">
